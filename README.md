@@ -1,161 +1,212 @@
-# Project Management
+# Project Management System
 
 <p align="center">
     <a href="https://laravel.com"><img alt="Laravel v9.x" src="https://img.shields.io/badge/Laravel-v9.x-FF2D20?style=for-the-badge&logo=laravel"></a>
     <a href="https://laravel-livewire.com"><img alt="Livewire v2.x" src="https://img.shields.io/badge/Livewire-v2.x-FB70A9?style=for-the-badge"></a>
     <a href="https://filamentphp.com/"><img alt="Filament v2.x" src="https://img.shields.io/badge/Filament-v2.x-e9b228?style=for-the-badge"></a>
     <a href="https://php.net"><img alt="PHP 8.0" src="https://img.shields.io/badge/PHP-8.0-777BB4?style=for-the-badge&logo=php"></a>
-    <br/>
-    <a href="https://github.com/devaslanphp/project-management/releases/">
-        <img src="https://img.shields.io/github/tag/devaslanphp/project-management?include_prereleases=&sort=semver&color=blue&style=for-the-badge" alt="GitHub tag">
-    </a>
-    <a href="#license">
-        <img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License">
-    </a>
-    <a href="https://github.com/devaslanphp/project-management/issues">
-        <img src="https://img.shields.io/github/issues/devaslanphp/project-management?style=for-the-badge" alt="issues - project-management">
-    </a>
-    <br/>
-    <a href="https://devaslanphp.github.io/project-management" title="Go to project documentation">
-        <img src="https://img.shields.io/badge/view-Documentation-blue?style=for-the-badge" alt="view - Documentation">
-    </a>
-    <br/>
-    <a href="https://hub.docker.com/r/eloufirhatim/helper/tags" title="Docker image">
-        <img src="https://img.shields.io/docker/v/eloufirhatim/helper?label=Docker&logo=docker&style=for-the-badge" alt="Docker image">
-    </a>
 </p>
 
 # Introduction
 
-![logo](readme-logo.png)
+A comprehensive project management system built for teams who need powerful tools in a compact, efficient interface. Manage projects, tickets, sprints, backlogs, and collaborate with your team - all in one tightly-integrated platform.
 
-Helper, is a great tool if you want to manage your projects, tickets and be here for your clients
+**Core Features:**
+- Azure DevOps-style backlog management with hierarchical work items
+- Kanban board with drag-and-drop
+- Wiki with client collaboration and sign-offs
+- Sprint planning and tracking
+- Time tracking and reporting
+- HR module with attendance and leave management
+- Multi-language support (60+ languages)
+- Compact, purpose-oriented UI design
 
-It comes also with more than 60 languages ready to use.
+## Requirements
 
-All this made with the best technologies.
+- PHP 8.0 or higher
+- MySQL 8.0 or higher
+- Composer
+- Node.js & NPM
+- Optional: Pusher account for real-time features
 
-## Prerequisites
+## Installation
 
-- PHP 8+
-- MySQL 8+
-- [Pusher](https://pusher.com/) account
+```bash
+# Clone the repository
+git clone <your-repository-url>
+cd project-management
 
-## Screenshots
+# Install dependencies
+composer install
+npm install
 
-<div>
-    <img src="github-contents/1.png" width="20%"></img> 
-    <img src="github-contents/2.png" width="20%"></img> 
-    <img src="github-contents/3.png" width="20%"></img> 
-    <img src="github-contents/4.png" width="20%"></img> 
-    <img src="github-contents/5.png" width="20%"></img> 
-    <img src="github-contents/6.png" width="20%"></img> 
-    <img src="github-contents/7.png" width="20%"></img> 
-    <img src="github-contents/8.png" width="20%"></img> 
-    <img src="github-contents/9.png" width="20%"></img> 
-    <img src="github-contents/10.png" width="20%"></img> 
-    <img src="github-contents/11.png" width="20%"></img> 
-    <img src="github-contents/12.png" width="20%"></img> 
-    <img src="github-contents/13.png" width="20%"></img> 
-    <img src="github-contents/14.png" width="20%"></img> 
-    <img src="github-contents/15.png" width="20%"></img> 
-    <img src="github-contents/16.png" width="20%"></img> 
-    <img src="github-contents/17.png" width="20%"></img> 
-    <img src="github-contents/18.png" width="20%"></img> 
-    <img src="github-contents/19.png" width="20%"></img> 
-    <img src="github-contents/20.png" width="20%"></img> 
-    <img src="github-contents/21.png" width="20%"></img> 
-    <img src="github-contents/22.png" width="20%"></img> 
-    <img src="github-contents/23.png" width="20%"></img> 
-    <img src="github-contents/24.png" width="20%"></img> 
-    <img src="github-contents/25.png" width="20%"></img> 
-    <img src="github-contents/26.png" width="20%"></img> 
-</div>
+# Setup environment
+cp .env.example .env
+php artisan key:generate
 
-## Documentation
+# Configure database in .env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=your_database
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
 
-Full documentation can be viewed online: [Docs](https://devaslanphp.github.io/project-management)
+# Run migrations and seed
+php artisan migrate --seed
 
-## Work in progress
+# Build assets
+npm run build
 
-We are always working to make Project Management a better application, all contributions are welcome.
+# Start the server
+php artisan serve
+```
 
-## Translations
+## Default Credentials
 
-**Important:** translations are automatically generated by Google Translate (using a custom command), so if you find any errors please make sure you create a ticket or add your translations as a contribution to this repository.
+After seeding, you can login with:
+- **Email:** admin@example.com
+- **Password:** password
 
-## Credits
+## Key Features
 
-- [All Contributors](https://github.com/devaslanphp/project-management/graphs/contributors)
+### Project Management
+- Multi-project workspace
+- Role-based access control
+- Team member assignment
+- Project templates
+
+### Backlog & Sprint Management
+- Hierarchical work items (Epic → Feature → User Story → Task → Subtask)
+- Drag-and-drop reordering
+- Sprint planning and velocity tracking
+- Bulk operations
+- Export to CSV/JSON
+
+### Kanban Board
+- Customizable columns
+- Drag-and-drop ticket management
+- Swimlanes by assignee or priority
+- Quick filters
+
+### Wiki & Documentation
+- Hierarchical page structure
+- Markdown editor with live preview
+- Client collaboration with comments
+- Document sign-off workflow
+- Version tracking
+- File attachments
+
+### Time Tracking
+- Log hours per ticket
+- Activity-based tracking
+- Export timesheets
+- Reporting dashboard
+
+### HR Module
+- Employee profiles
+- Attendance tracking (check-in/out)
+- Leave management
+- Performance reviews
+- Payroll tracking
+- Document management
+
+## UI Design Philosophy
+
+This application features a **compact, purpose-oriented UI** designed to:
+- Maximize content visibility with minimal spacing
+- Reduce font sizes for information density
+- Remove unnecessary page headings and whitespace
+- Maintain full responsive support
+- Preserve dark/light mode functionality
+
+## Configuration
+
+### Compact UI
+The application uses custom compact CSS located at `resources/css/compact-ui.css` with minimal spacing and optimized font sizes.
+
+### Localization
+Supports 60+ languages. Change locale in Settings or via `.env`:
+```
+APP_LOCALE=en
+```
 
 ## License
 
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
+MIT License. See [LICENSE.md](LICENSE.md) for details.
 
-## Releases
+## Support
 
-- **Release 1.0.0**
-  - First Release
-- **Release 1.1.0**
-  - Add _Road Map_ feature
-  - Manage _Epics_ by projects
-- **Release 1.1.1**
-  - Add issue creation (dialog) into kanban view
-- **Release 1.1.2**
-  - Add Epic parent link (dependencies)
-- **Release 1.1.3**
-  - Translate missing langs
-- **Release 1.1.4**
-  - Bug-fix: Ticket content field (required)
-- **Release 1.1.5**
-  - Add comment field to ticket hours logging
-- **Release 1.1.6**
-    - Edit ticket epic details
-    - PR #13 made by @mihaisolomon
-- **Release 1.1.7**
-    - Ticket attachments
-- **Release 1.1.8**
-    - Time logged activities #25 PR integration
-    - #19 by @mihaisolomon : 
-      - Add new resource `Activity` to referential
-      - Add `Activity` to ticket time logging
-      - Add `Activity` column to Excel exportation
-- **Release 1.1.9**
-    - #32 Default user seeder enhancement
-    - #31 Issue resolved
-- **Release 1.2.0**
-    - Scrum module #28
-    - Design enhancement (Kanban / Scrum boards)
-    - Referential updates
-- **Release 1.2.1**
-    - Add jira integration #36
-    - New feature: Import jira projects / tickets
-- **Release 1.2.2**
-    - Dockerize application #23 
-    - PR #45 
-- **Release 1.2.3**
-    - Update german language #52
-    - SSO with OpenID (OIDC) #48
+For issues, feature requests, or questions, please open an issue in the repository.
 
-### Thanks to anyone who helps make this project better :heart:
 
-## Sponsors
+## AI Features (Optional)
 
-<div>
-    <a href="https://github.com/moustou1993"><img src="https://avatars.githubusercontent.com/u/48994051?v=4" width="40" /></a>
-    <a href="https://github.com/matbgn"><img src="https://avatars.githubusercontent.com/u/13169819?v=4" width="40" /></a>
-</div>
+### Task Generation
+- Automatic project task breakdown
+- AI-powered ticket sub-task generation
+- Context-aware suggestions
+- Duplicate detection
 
-## Contributors
+### Configuration
+Configure AI provider in `.env`:
+```env
+AI_PROVIDER=local  # or huggingface, openai, etc.
+```
 
-<div>
-    <a href="https://github.com/heloufir"><img src="https://avatars.githubusercontent.com/u/6197875?v=4" width="40" /></a>
-    <a href="https://github.com/mihaisolomon"><img src="https://avatars.githubusercontent.com/u/17908506?v=4" width="40" /></a>
-    <a href="https://github.com/TheZoker"><img src="https://avatars.githubusercontent.com/u/1368405?v=4" width="40" /></a>
-    <a href="https://github.com/JaccoVE"><img src="https://avatars.githubusercontent.com/u/34547046?v=4" width="40" /></a>
-    <a href="https://github.com/leozfr"><img src="https://avatars.githubusercontent.com/u/57966806?v=4" width="40" /></a>
-</div>
+For detailed AI setup, see `LOCAL_AI_SETUP_GUIDE.md`
 
-## Support us
+## Development
 
-<a href="https://www.buymeacoffee.com/heloufir" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
+```bash
+# Install dependencies
+composer install
+npm install
+
+# Setup environment
+cp .env.example .env
+php artisan key:generate
+
+# Run migrations
+php artisan migrate --seed
+
+# Build assets
+npm run build
+
+# Start development server
+php artisan serve
+
+# Watch for changes (in separate terminal)
+npm run dev
+```
+
+## Testing
+
+```bash
+php artisan test
+```
+
+## Deployment
+
+### Production Build
+```bash
+npm run build
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+### Queue Worker
+For background jobs:
+```bash
+php artisan queue:work
+```
+
+## Tech Stack
+
+- **Backend:** Laravel 9, Livewire 2
+- **Frontend:** Alpine.js, Tailwind CSS
+- **Admin Panel:** Filament v2
+- **Database:** MySQL 8
+- **Real-time:** Pusher (optional)
+- **Permissions:** Spatie Laravel Permission

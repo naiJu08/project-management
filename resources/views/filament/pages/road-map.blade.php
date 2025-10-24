@@ -1,6 +1,6 @@
 <x-filament::page>
 
-    <x-filament::card>
+    <x-filament::card class="ai-card">
 
         <div class="w-full lg:flex md:hidden sm:hidden hidden flex-col gap-5">
             <div class="w-full flex justify-between items-center">

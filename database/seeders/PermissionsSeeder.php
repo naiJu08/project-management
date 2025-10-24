@@ -15,7 +15,7 @@ class PermissionsSeeder extends Seeder
     private array $modules = [
         'permission', 'project', 'project status', 'role', 'ticket',
         'ticket priority', 'ticket status', 'ticket type', 'user',
-        'activity', 'sprint'
+        'activity', 'sprint', 'wiki page', 'backlog item'
     ];
 
     private array $pluralActions = [
@@ -28,7 +28,8 @@ class PermissionsSeeder extends Seeder
 
     private array $extraPermissions = [
         'Manage general settings', 'Import from Jira',
-        'List timesheet data', 'View timesheet dashboard'
+        'List timesheet data', 'View timesheet dashboard',
+        'View client wiki', 'Comment on wiki', 'Sign off wiki'
     ];
 
     private string $defaultRole = 'Default role';

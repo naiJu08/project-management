@@ -1,12 +1,13 @@
 {
-    "name": "laravel/laravel",
+    "name": "yourcompany/project-management",
     "type": "project",
-    "description": "The Laravel Framework.",
-    "keywords": ["framework", "laravel"],
+    "description": "Comprehensive project management system with backlog, wiki, HR module, and compact UI.",
+    "keywords": ["project-management", "laravel", "filament", "backlog", "wiki", "hr", "kanban"],
     "license": "MIT",
     "require": {
         "php": "^8.0.2",
         "ext-iconv": "*",
+        "barryvdh/laravel-dompdf": "^2.2",
         "devaslanphp/filament-avatar": "^1.0",
         "doctrine/dbal": "^3.5",
         "dutchcodingcompany/filament-socialite": "^0.2.2",

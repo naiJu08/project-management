@@ -210,6 +210,9 @@ return [
          */
         Spatie\Permission\PermissionServiceProvider::class,
 
+        // Custom: Inject AI Assistant panel into Filament pages
+        App\Providers\FilamentAiPanelServiceProvider::class,
+
     ],
 
     /*

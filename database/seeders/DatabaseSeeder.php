@@ -19,5 +19,8 @@ class DatabaseSeeder extends Seeder
         $this->call(TicketPrioritySeeder::class);
         $this->call(TicketStatusSeeder::class);
         $this->call(ActivitySeeder::class);
+        $this->call(HRSeeder::class);
+        $this->call(LeaveManagementSeeder::class);
+        $this->call(TemplateSeeder::class);
     }
 }

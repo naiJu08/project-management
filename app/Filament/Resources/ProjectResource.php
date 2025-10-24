@@ -103,6 +103,21 @@ class ProjectResource extends Resource
                                     ->label(__('Project description'))
                                     ->columnSpan(3),
 
+                                // AI: Non-persistent controls (handled in CreateProject page)
+                                Forms\Components\Toggle::make('ai_autogenerate')
+                                    ->label(__('Auto-generate tasks with AI'))
+                                    ->helperText(__('When enabled, tasks and subtasks will be generated from the project description after creation.'))
+                                    ->default(false)
+                                    ->dehydrated(false)
+                                    ->columnSpan(1),
+
+                                Forms\Components\Textarea::make('ai_context')
+                                    ->label(__('Additional AI context (optional)'))
+                                    ->helperText(__('Provide extra details or goals to guide AI task generation. Not stored in the project.'))
+                                    ->rows(3)
+                                    ->dehydrated(false)
+                                    ->columnSpan(2),
+
                                 Forms\Components\Select::make('type')
                                     ->label(__('Project type'))
                                     ->searchable()
@@ -186,6 +201,26 @@ class ProjectResource extends Resource
                         'secondary' => 'kanban',
                         'warning' => 'scrum',
                     ]),
+
+                Tables\Columns\TextColumn::make('ai_generation_status')
+                    ->label(__('AI status'))
+                    ->formatStateUsing(function ($record) {
+                        $status = $record->ai_generation_status;
+                        if (!$status) return new HtmlString('<span class="text-gray-400">—</span>');
+                        $color = [
+                            'running' => 'text-primary-600',
+                            'success' => 'text-success-600',
+                            'failed'  => 'text-danger-600',
+                        ][$status] ?? 'text-gray-600';
+                        $pulse = $status === 'running' ? ' animate-pulse' : '';
+                        $label = ucfirst($status);
+                        $title = $record->ai_last_run_at ? $record->ai_last_run_at->toDateTimeString() : '';
+                        $msg = $record->ai_last_message ? e($record->ai_last_message) : '';
+                        $tooltip = trim($title . ($msg ? ("\n" . $msg) : ''));
+                        return new HtmlString("<span title='" . e($tooltip) . "' class='font-medium $color$pulse'>AI: $label</span>");
+                    })
+                    ->toggleable()
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('Created at'))

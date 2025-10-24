@@ -1,5 +1,8 @@
 @import '../../vendor/filament/filament/resources/css/app.css';
 
+/* Import compact UI theme */
+@import './compact-ui.css';
+
 @import './kanban';
 @import './dialogs';
 @import './loading.io';
@@ -50,4 +53,135 @@
 
 label:has(.sprint-checkboxes) > span {
     width: 100%;
+}
+
+/* --- AI-inspired global theme additions --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+html, body {
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+/* Light mode: keep background clean and white */
+body { background-color: #ffffff; }
+
+/* Dark mode background gradient */
+.dark body {
+    background-color: #0b1020; /* deep space tone */
+    background-image:
+        radial-gradient(1200px circle at 20% 10%, rgba(59,130,246,0.15), transparent 40%),
+        radial-gradient(800px circle at 80% 20%, rgba(34,211,238,0.12), transparent 35%),
+        radial-gradient(1000px circle at 50% 90%, rgba(168,85,247,0.10), transparent 45%);
+}
+
+/* Glass surface helpers for panels/cards without changing HTML structure */
+.ai-surface {
+    /* Light mode: minimal to keep AWS-like clean white */
+    @apply rounded-xl shadow-sm;
+}
+
+.ai-card {
+    /* Light mode: minimal card chrome only */
+    @apply rounded-xl shadow-sm;
+}
+
+.ai-chip {
+    background: linear-gradient(90deg, rgba(59,130,246,0.18), rgba(34,211,238,0.18));
+    border: 1px solid rgba(59,130,246,0.35);
+    @apply text-white/90 px-2 py-0.5 rounded-md text-xs;
+}
+
+.ai-btn-primary {
+    background: linear-gradient(90deg, #3b82f6 0%, #22d3ee 100%);
+    @apply text-white shadow-neon hover:brightness-110 active:brightness-95 transition;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(34, 211, 238, 0.0); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2.5s ease-in-out infinite;
+}
+
+/* Dark mode refinements (Tailwind uses .dark on html) */
+.dark .ai-surface {
+    backdrop-filter: saturate(140%) blur(6px);
+    -webkit-backdrop-filter: saturate(140%) blur(6px);
+    background: linear-gradient(to bottom right, rgba(2,6,23,0.55), rgba(2,6,23,0.35));
+    border-color: rgba(148,163,184,0.22);
+}
+
+.dark .ai-card {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    background: linear-gradient(180deg, rgba(2,6,23,0.85), rgba(2,6,23,0.7));
+    border: 1px solid rgba(148,163,184,0.18);
+}
+
+/* Dark mode base typography for better contrast */
+.dark body, .dark .filament-body, .dark .filament-main {
+    color: rgba(255,255,255,0.92);
+}
+
+.dark .text-gray-700 { color: rgba(255,255,255,0.92) !important; }
+.dark .text-gray-600 { color: rgba(255,255,255,0.75) !important; }
+.dark .text-gray-500 { color: rgba(255,255,255,0.65) !important; }
+.dark .text-gray-400 { color: rgba(255,255,255,0.55) !important; }
+
+/* Links and inputs in dark mode */
+.dark a { color: #93c5fd; }
+.dark a:hover { color: #bfdbfe; }
+.dark input, .dark textarea, .dark select {
+    background-color: rgba(15, 23, 42, 0.6);
+    color: rgba(255,255,255,0.92);
+    border-color: rgba(148,163,184,0.3);
+}
+
+/* --- Filament dark mode component theming (scoped) --- */
+/* Keep overrides scoped to Filament containers to avoid affecting other pages */
+.dark .filament-body .bg-white,
+.dark .filament-main .bg-white,
+.dark .filament-body .card,
+.dark .filament-main .card {
+    background-color: #0f172a !important; /* slate-900/800 */
+    color: rgba(255,255,255,0.92);
+}
+
+.dark .filament-body .border,
+.dark .filament-main .border,
+.dark .filament-body .divide-y > :not([hidden]) ~ :not([hidden]),
+.dark .filament-main .divide-y > :not([hidden]) ~ :not([hidden]) {
+    border-color: rgba(148,163,184,0.22) !important; /* slate-400/opacity */
+}
+
+/* Header and sidebar (generic structural elements) */
+.dark header {
+    background-color: #0b1220 !important;
+    border-bottom-color: rgba(148,163,184,0.22) !important;
+}
+.dark aside {
+    background-color: #0b1220 !important;
+    border-right-color: rgba(148,163,184,0.22) !important;
+}
+
+/* Tables inside Filament pages */
+.dark .filament-body table,
+.dark .filament-main table {
+    background-color: #0f172a !important;
+    color: rgba(255,255,255,0.92);
+}
+.dark .filament-body thead th,
+.dark .filament-main thead th {
+    background-color: #0b1220 !important;
+    color: rgba(255,255,255,0.8);
+}
+.dark .filament-body tbody td,
+.dark .filament-main tbody td {
+    border-color: rgba(148,163,184,0.18) !important;
+}
+.dark .filament-body tr:hover td,
+.dark .filament-main tr:hover td {
+    background-color: rgba(30,41,59,0.6) !important; /* slate-800 */
 }

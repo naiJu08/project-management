@@ -121,6 +121,41 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         );
     }
 
+    public function employeeProfile()
+    {
+        return $this->hasOne(EmployeeProfile::class, 'user_id', 'id');
+    }
+
+    public function managedDepartments(): HasMany
+    {
+        return $this->hasMany(Department::class, 'manager_id', 'id');
+    }
+
+    public function directReports(): HasMany
+    {
+        return $this->hasMany(EmployeeProfile::class, 'manager_id', 'id');
+    }
+
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class);
+    }
+
+    public function leaveBalances(): HasMany
+    {
+        return $this->hasMany(LeaveBalance::class);
+    }
+
+    public function attendanceRecords(): HasMany
+    {
+        return $this->hasMany(AttendanceRecord::class);
+    }
+
+    public function approvedLeaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class, 'approved_by');
+    }
+
     public function canAccessFilament(): bool
     {
         return true;

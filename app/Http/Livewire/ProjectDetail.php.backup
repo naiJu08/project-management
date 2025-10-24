@@ -1,0 +1,101 @@
+<?php
+
+namespace App\Http\Livewire;
+
+use App\Models\Project;
+use App\Models\Sprint;
+use App\Models\BacklogItem;
+use App\Models\BacklogItemComment;
+use App\Models\User;
+use Livewire\Component;
+use Illuminate\Support\Facades\Auth;
+
+class ProjectDetail extends Component
+{
+    public $projectId;
+    public $activeTab = 'board';
+    
+    // Backlog properties
+    public $selectedItemId;
+    public $expandedItems = [];
+    public $filterType = 'all';
+    public $filterStatus = 'all';
+    public $filterAssignee = 'all';
+    public $filterSprint = 'all';
+    public $searchTerm = '';
+    
+    // Quick add properties
+    public $showQuickAdd = false;
+    public $quickAddType = 'Epic';
+    public $quickAddTitle = '';
+    public $quickAddParentId = null;
+    
+    // Inline creation properties
+    public $inlineCreateParentId = null;
+    public $inlineCreateType = '';
+    public $inlineCreateTitle = '';
+    
+    // Edit properties
+    public $editingItemId = null;
+    public $editTitle = '';
+    public $editDescription = '';
+    public $editStatus = '';
+    public $editPriority = '';
+    public $editAssigneeId = null;
+    public $editSprintId = null;
+    public $editEstimatedHours = null;
+    public $editStartDate = null;
+    public $editDueDate = null;
+    
+    // Comment properties
+    public $newComment = '';
+    public $replyToCommentId = null;
+    
+    // View mode
+    public $viewMode = 'tree'; // tree or flat
+    
+    // Bulk operations
+    public $selectedItems = [];
+    public $bulkAction = '';
+    public $bulkStatus = '';
+    public $bulkPriority = '';
+    public $bulkSprintId = null;
+    public $showBulkPanel = false;
+
+    protected $queryString = ['activeTab' => ['except' => 'board']];
+
+    public function mount($projectId)
+    {
+        $this->projectId = $projectId;
+        
+        // Verify project exists and user has access
+        $project = Project::findOrFail($projectId);
+        
+        // Check if user is owner or member of the project
+        if ($project->owner_id != auth()->id() && !$project->users->contains(auth()->id())) {
+            abort(403, 'You do not have access to this project.');
+        }
+        
+        // Expand all epics by default for backlog
+        $this->expandedItems = $project->backlogItems()
+            ->where('type', BacklogItem::TYPE_EPIC)
+            ->pluck('id')
+            ->toArray();
+    }
+
+    public function getProjectProperty()
+    {
+        return Project::with(['owner', 'status', 'users'])
+            ->findOrFail($this->projectId);
+    }
+
+    public function switchTab($tab)
+    {
+        $this->activeTab = $tab;
+    }
+
+    public function render()
+    {
+        return view('livewire.project-detail');
+    }
+}

@@ -12,6 +12,7 @@ use App\Models\TicketRelation;
 use App\Models\TicketStatus;
 use App\Models\TicketType;
 use App\Models\User;
+use App\Models\BacklogItem;
 use Filament\Forms;
 use Filament\Resources\Form;
 use Filament\Resources\Pages\CreateRecord;
@@ -90,6 +91,110 @@ class TicketResource extends Resource
                                     ->options(function ($get, $set) {
                                         return Epic::where('project_id', $get('project_id'))->pluck('name', 'id')->toArray();
                                     }),
+                            ]),
+                            
+                        // Backlog Integration Section
+                        Forms\Components\Section::make('Backlog Integration')
+                            ->description(__('Link this ticket to a specific backlog hierarchy'))
+                            ->collapsible()
+                            ->collapsed(fn() => !request()->has('backlog_parent'))
+                            ->visible(fn($livewire) => $livewire instanceof CreateRecord)
+                            ->schema([
+                                Forms\Components\Grid::make()
+                                    ->columns(3)
+                                    ->schema([
+                                        Forms\Components\Select::make('backlog_epic_id')
+                                            ->label(__('Backlog Epic'))
+                                            ->searchable()
+                                            ->reactive()
+                                            ->afterStateUpdated(function ($set) {
+                                                $set('backlog_feature_id', null);
+                                                $set('backlog_user_story_id', null);
+                                            })
+                                            ->options(function ($get) {
+                                                $projectId = $get('project_id');
+                                                if (!$projectId) return [];
+                                                return BacklogItem::where('project_id', $projectId)
+                                                    ->where('type', BacklogItem::TYPE_EPIC)
+                                                    ->pluck('title', 'id')
+                                                    ->toArray();
+                                            })
+                                            ->helperText(__('Select the Epic this task belongs to')),
+                                        
+                                        Forms\Components\Select::make('backlog_feature_id')
+                                            ->label(__('Backlog Feature'))
+                                            ->searchable()
+                                            ->reactive()
+                                            ->afterStateUpdated(function ($set) {
+                                                $set('backlog_user_story_id', null);
+                                            })
+                                            ->options(function ($get) {
+                                                $epicId = $get('backlog_epic_id');
+                                                if (!$epicId) {
+                                                    return ['_placeholder' => 'Please select an Epic first'];
+                                                }
+                                                $features = BacklogItem::where('parent_id', $epicId)
+                                                    ->where('type', BacklogItem::TYPE_FEATURE)
+                                                    ->pluck('title', 'id')
+                                                    ->toArray();
+                                                
+                                                if (empty($features)) {
+                                                    return ['_placeholder' => 'No Features found under this Epic'];
+                                                }
+                                                return $features;
+                                            })
+                                            ->helperText(function ($get) {
+                                                $epicId = $get('backlog_epic_id');
+                                                if (!$epicId) {
+                                                    return '⚠️ Select an Epic first';
+                                                }
+                                                return 'Select the Feature under the Epic';
+                                            })
+                                            ->placeholder('Select a Feature'),
+                                        
+                                        Forms\Components\Select::make('backlog_user_story_id')
+                                            ->label(__('Backlog User Story'))
+                                            ->searchable()
+                                            ->reactive()
+                                            ->options(function ($get) {
+                                                $featureId = $get('backlog_feature_id');
+                                                if (!$featureId) {
+                                                    return ['_placeholder' => 'Please select a Feature first'];
+                                                }
+                                                $stories = BacklogItem::where('parent_id', $featureId)
+                                                    ->where('type', BacklogItem::TYPE_USER_STORY)
+                                                    ->pluck('title', 'id')
+                                                    ->toArray();
+                                                
+                                                if (empty($stories)) {
+                                                    return ['_placeholder' => 'No User Stories found under this Feature'];
+                                                }
+                                                return $stories;
+                                            })
+                                            ->helperText(function ($get) {
+                                                $featureId = $get('backlog_feature_id');
+                                                if (!$featureId) {
+                                                    return '⚠️ Select a Feature first';
+                                                }
+                                                return 'Select the User Story under the Feature';
+                                            })
+                                            ->placeholder('Select a User Story'),
+                                    ]),
+                                    
+                                Forms\Components\Placeholder::make('backlog_info')
+                                    ->label('')
+                                    ->content(new HtmlString('
+                                        <div class="text-sm text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                                            <strong>How it works:</strong><br>
+                                            1. Select Epic → Feature → User Story hierarchy<br>
+                                            2. A backlog Task item will be created automatically<br>
+                                            3. It will be linked to this ticket and appear in the backlog tree
+                                        </div>
+                                    ')),
+                            ]),
+                            
+                        Forms\Components\Card::make()
+                            ->schema([
                                 Forms\Components\Grid::make()
                                     ->columns(12)
                                     ->columnSpan(2)
@@ -177,6 +282,43 @@ class TicketResource extends Resource
                         Forms\Components\RichEditor::make('content')
                             ->label(__('Ticket content'))
                             ->required()
+                            ->columnSpan(2),
+
+                        // AI Generation Section (Create only)
+                        Forms\Components\Section::make('AI Task Generation')
+                            ->description(__('Generate detailed tasks automatically using AI based on your prompt'))
+                            ->visible(fn($livewire) => $livewire instanceof CreateRecord)
+                            ->collapsible()
+                            ->collapsed()
+                            ->schema([
+                                Forms\Components\Toggle::make('ai_generate')
+                                    ->label(__('Generate sub-tasks with AI'))
+                                    ->helperText(__('When enabled, AI will analyze your prompt and generate detailed sub-tasks'))
+                                    ->default(false)
+                                    ->reactive()
+                                    ->dehydrated(false),
+
+                                Forms\Components\Textarea::make('ai_prompt')
+                                    ->label(__('AI Prompt'))
+                                    ->helperText(__('Describe what you want to accomplish. AI will analyze existing tickets to avoid duplicates.'))
+                                    ->placeholder(__('Example: Implement user authentication with email verification, password reset, and 2FA support'))
+                                    ->rows(4)
+                                    ->visible(fn($get) => $get('ai_generate'))
+                                    ->dehydrated(false),
+
+                                Forms\Components\Select::make('ai_responsible_id')
+                                    ->label(__('Assign AI-generated tasks to'))
+                                    ->helperText(__('All AI-generated sub-tasks will be assigned to this user'))
+                                    ->searchable()
+                                    ->options(fn() => User::all()->pluck('name', 'id')->toArray())
+                                    ->visible(fn($get) => $get('ai_generate'))
+                                    ->dehydrated(false),
+
+                                Forms\Components\Placeholder::make('ai_info')
+                                    ->label('')
+                                    ->content(new HtmlString('<div class="text-sm text-gray-600"><strong>How it works:</strong><ul class="list-disc ml-4 mt-2"><li>AI analyzes your prompt and existing project tickets</li><li>Generates hierarchical tasks with priorities and estimates</li><li>Automatically detects and skips duplicate tasks</li><li>Creates sub-tasks linked to this parent ticket</li></ul></div>'))
+                                    ->visible(fn($get) => $get('ai_generate')),
+                            ])
                             ->columnSpan(2),
 
                         Forms\Components\Grid::make()

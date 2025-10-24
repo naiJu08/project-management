@@ -67,4 +67,24 @@ return [
         'scope' => explode(",", env('OIDC_SCOPE')),
     ],
 
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'api_url' => env('OPENAI_API_URL', 'https://api.openai.com/v1/chat/completions'),
+        'model' => env('OPENAI_MODEL', 'gpt-4'),
+    ],
+
+    'ollama' => [
+        'base_url' => env('OLLAMA_BASE_URL', 'http://localhost:11434'),
+        'model' => env('OLLAMA_MODEL', 'llama2'),
+        'timeout' => env('OLLAMA_TIMEOUT', 120),
+    ],
+
+    'cloud_ai' => [
+        'enabled' => env('CLOUD_AI_ENABLED', false),
+        'provider' => env('CLOUD_AI_PROVIDER', 'cohere'), // deepseek, groq, openai, cohere
+        'api_key' => env('CLOUD_AI_API_KEY'),
+        'model' => env('CLOUD_AI_MODEL', 'command-a-03-2025'),
+        'base_url' => env('CLOUD_AI_BASE_URL'), // Optional: for custom endpoints
+    ],
+
 ];

@@ -1,0 +1,171 @@
+<?php
+
+namespace App\Services\AI;
+
+use App\Models\Project;
+use App\Models\Ticket;
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+
+class ManagementActionHandler
+{
+    /**
+     * Create a new project
+     */
+    public function createProject(array $parameters): array
+    {
+        $required = ['name'];
+        if (!$this->validateParameters($parameters, $required)) {
+            return $this->missingParametersResponse($required);
+        }
+
+        $project = Project::create([
+            'name' => $parameters['name'],
+            'description' => $parameters['description'] ?? null,
+            'owner_id' => Auth::id(),
+            'status' => $parameters['status'] ?? 'active',
+        ]);
+
+        return [
+            'success' => true,
+            'message' => "Project '{$project->name}' has been created successfully!",
+            'data' => $project,
+            'redirect' => route('filament.resources.projects.view', $project),
+        ];
+    }
+
+    /**
+     * Create a new ticket
+     */
+    public function createTicket(array $parameters): array
+    {
+        $required = ['title', 'project_id'];
+        if (!$this->validateParameters($parameters, $required)) {
+            return $this->missingParametersResponse($required);
+        }
+
+        $ticket = Ticket::create([
+            'title' => $parameters['title'],
+            'description' => $parameters['description'] ?? null,
+            'project_id' => $parameters['project_id'],
+            'owner_id' => Auth::id(),
+            'responsible_id' => $parameters['assigned_to'] ?? null,
+            'type_id' => $parameters['type_id'] ?? null,
+            'priority_id' => $parameters['priority_id'] ?? null,
+            'status_id' => $parameters['status_id'] ?? null,
+        ]);
+
+        return [
+            'success' => true,
+            'message' => "Ticket '{$ticket->title}' has been created successfully!",
+            'data' => $ticket,
+            'redirect' => route('filament.resources.tickets.view', $ticket),
+        ];
+    }
+
+    /**
+     * List projects
+     */
+    public function listProjects(array $parameters): array
+    {
+        $query = Project::query();
+
+        if (isset($parameters['status'])) {
+            $query->where('status', $parameters['status']);
+        }
+
+        $projects = $query->limit($parameters['limit'] ?? 10)->get();
+
+        return [
+            'success' => true,
+            'message' => "Found {$projects->count()} projects.",
+            'data' => $projects,
+        ];
+    }
+
+    /**
+     * Assign user to project
+     */
+    public function assignUserToProject(array $parameters): array
+    {
+        $required = ['project_id', 'user_id'];
+        if (!$this->validateParameters($parameters, $required)) {
+            return $this->missingParametersResponse($required);
+        }
+
+        $project = Project::find($parameters['project_id']);
+        $user = User::find($parameters['user_id']);
+
+        if (!$project || !$user) {
+            return [
+                'success' => false,
+                'message' => 'Project or user not found.',
+            ];
+        }
+
+        $project->users()->syncWithoutDetaching([$user->id]);
+
+        return [
+            'success' => true,
+            'message' => "User '{$user->name}' has been assigned to project '{$project->name}'.",
+            'data' => ['project' => $project, 'user' => $user],
+        ];
+    }
+
+    /**
+     * Get project status
+     */
+    public function getProjectStatus(array $parameters): array
+    {
+        $required = ['project_id'];
+        if (!$this->validateParameters($parameters, $required)) {
+            return $this->missingParametersResponse($required);
+        }
+
+        $project = Project::with(['tickets', 'users'])->find($parameters['project_id']);
+
+        if (!$project) {
+            return [
+                'success' => false,
+                'message' => 'Project not found.',
+            ];
+        }
+
+        $stats = [
+            'total_tickets' => $project->tickets->count(),
+            'open_tickets' => $project->tickets->where('status.is_default', true)->count(),
+            'team_members' => $project->users->count(),
+        ];
+
+        return [
+            'success' => true,
+            'message' => "Project '{$project->name}' status retrieved.",
+            'data' => ['project' => $project, 'stats' => $stats],
+        ];
+    }
+
+    /**
+     * Validate required parameters
+     */
+    protected function validateParameters(array $parameters, array $required): bool
+    {
+        foreach ($required as $param) {
+            if (!isset($parameters[$param]) || empty($parameters[$param])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Missing parameters response
+     */
+    protected function missingParametersResponse(array $required): array
+    {
+        return [
+            'success' => false,
+            'message' => 'Missing required parameters: ' . implode(', ', $required),
+            'requires_input' => true,
+        ];
+    }
+}

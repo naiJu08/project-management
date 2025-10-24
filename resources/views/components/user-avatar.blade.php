@@ -4,16 +4,16 @@
         <img src="{{ $user->avatar_url }}"
              alt="{{ $user->name }}"
              data-popover-target="popover-user-{{ $user->id }}-{{ $uniqid }}"
-             class="w-6 h-6 rounded-full bg-gray-200 bg-cover bg-center"/>
+             class="w-6 h-6 rounded-full bg-gray-200 bg-cover bg-center ring-1 ring-white/10 shadow-neon"/>
 
         <div data-popover id="popover-user-{{ $user->id }}-{{ $uniqid }}" role="tooltip"
              class="inline-block absolute invisible z-10 w-64 text-sm font-light text-gray-500
-                                        bg-white rounded-lg border border-gray-200 shadow-sm opacity-0
+                                        bg-white rounded-lg border border-gray-200 shadow-sm opacity-0 ai-surface
                                         transition-opacity duration-300 dark:text-gray-400 dark:bg-gray-800
                                         dark:border-gray-600">
             <div class="p-3">
                 <div class="flex justify-between items-center mb-2">
-                    <img class="w-10 h-10 rounded-full"
+                    <img class="w-10 h-10 rounded-full ring-1 ring-white/10"
                          src="{{ $user->avatar_url }}" alt="{{ $user->name }}">
                 </div>
                 <p class="text-base font-semibold leading-none text-gray-900 dark:text-white">

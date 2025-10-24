@@ -9,6 +9,7 @@ use Filament\Resources\Pages\ViewRecord;
 class ViewProject extends ViewRecord
 {
     protected static string $resource = ProjectResource::class;
+    protected static string $view = 'filament.resources.projects.pages.view-project';
 
     protected function getActions(): array
     {
@@ -30,5 +31,10 @@ class ViewProject extends ViewRecord
 
             Actions\EditAction::make(),
         ];
+    }
+
+    protected function getRelationManagers(): array
+    {
+        return [];
     }
 }

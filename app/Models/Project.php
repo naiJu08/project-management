@@ -18,11 +18,17 @@ class Project extends Model implements HasMedia
 
     protected $fillable = [
         'name', 'description', 'status_id', 'owner_id', 'ticket_prefix',
-        'status_type', 'type'
+        'status_type', 'type',
+        // AI status fields
+        'ai_generation_status', 'ai_last_run_at', 'ai_last_message'
     ];
 
     protected $appends = [
         'cover'
+    ];
+
+    protected $casts = [
+        'ai_last_run_at' => 'datetime',
     ];
 
     public function owner(): BelongsTo
@@ -58,6 +64,64 @@ class Project extends Model implements HasMedia
     public function sprints(): HasMany
     {
         return $this->hasMany(Sprint::class, 'project_id', 'id');
+    }
+
+    public function chats(): HasMany
+    {
+        return $this->hasMany(ProjectChat::class, 'project_id', 'id');
+    }
+
+    public function wikiPages(): HasMany
+    {
+        return $this->hasMany(WikiPage::class, 'project_id', 'id')->whereNull('parent_id')->orderBy('order');
+    }
+
+    public function backlogItems(): HasMany
+    {
+        return $this->hasMany(BacklogItem::class, 'project_id', 'id');
+    }
+
+    /**
+     * Boot method to handle cascading deletes
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::deleting(function ($project) {
+            // Delete all related tickets (this will cascade to ticket relations, comments, etc.)
+            $project->tickets()->each(function ($ticket) {
+                $ticket->delete();
+            });
+
+            // Delete project chats
+            $project->chats()->delete();
+
+            // Delete project sprints
+            $project->sprints()->delete();
+
+            // Delete project epics
+            $project->epics()->delete();
+
+            // Delete custom project statuses
+            $project->statuses()->delete();
+
+            // Delete project-user relationships
+            $project->users()->detach();
+
+            // Delete project favorites
+            \App\Models\ProjectFavorite::where('project_id', $project->id)->delete();
+
+            // Delete wiki pages
+            $project->wikiPages()->each(function ($wikiPage) {
+                $wikiPage->delete();
+            });
+
+            // Delete backlog items
+            $project->backlogItems()->each(function ($item) {
+                $item->delete();
+            });
+        });
     }
 
     public function epicsFirstDate(): Attribute

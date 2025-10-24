@@ -1,12 +1,12 @@
 <x-filament::page>
 
     <div class="mx-auto w-full" wire:ignore>
-        <details class="w-full bg-white open:bg-gray-200 duration-300">
+        <details class="w-full bg-white open:bg-gray-200 duration-300 ai-card">
             <summary
                 class="relative w-full bg-inherit px-5 py-3 text-base cursor-pointer text-gray-500">
                 {{ __('Filters') }}
             </summary>
-            <div class="bg-white px-5 py-3">
+            <div class="bg-white px-5 py-3 ai-surface rounded-xl">
                 <form>
                     {{ $this->form }}
                 </form>

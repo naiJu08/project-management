@@ -22,7 +22,7 @@ class Ticket extends Model implements HasMedia
     protected $fillable = [
         'name', 'content', 'owner_id', 'responsible_id',
         'status_id', 'project_id', 'code', 'order', 'type_id',
-        'priority_id', 'estimation', 'epic_id', 'sprint_id'
+        'priority_id', 'estimation', 'epic_id', 'sprint_id', 'backlog_item_id'
     ];
 
     public static function boot()
@@ -70,6 +70,18 @@ class Ticket extends Model implements HasMedia
             } elseif ($item->sprint_id && $item->sprint->epic_id) {
                 Ticket::where('id', $item->id)->update(['epic_id' => $item->sprint->epic_id]);
             }
+        });
+
+        static::deleting(function (Ticket $item) {
+            // Delete all related data when ticket is deleted
+            $item->activities()->delete();
+            $item->comments()->delete();
+            $item->relations()->delete();
+            $item->hours()->delete();
+            $item->subscribers()->detach();
+            
+            // Delete ticket relations where this ticket is the relation
+            TicketRelation::where('relation_id', $item->id)->delete();
         });
     }
 
@@ -216,6 +228,18 @@ class Ticket extends Model implements HasMedia
     }
 
     public function completudePercentage(): Attribute
+    {
+        return new Attribute(
+            get: fn() => $this->estimationProgress
+        );
+    }
+
+    public function backlogItem(): BelongsTo
+    {
+        return $this->belongsTo(BacklogItem::class, 'backlog_item_id', 'id');
+    }
+
+    public function getActivitylogOptions(): LogOptionsAttribute
     {
         return new Attribute(
             get: fn() => $this->estimationProgress

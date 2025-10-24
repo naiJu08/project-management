@@ -14,6 +14,13 @@ class AuthServiceProvider extends ServiceProvider
      */
     protected $policies = [
         // 'App\Models\Model' => 'App\Policies\ModelPolicy',
+        \App\Models\Department::class => \App\Policies\DepartmentPolicy::class,
+        \App\Models\Position::class => \App\Policies\PositionPolicy::class,
+        \App\Models\EmployeeProfile::class => \App\Policies\EmployeeProfilePolicy::class,
+        \App\Models\LeaveType::class => \App\Policies\LeaveTypePolicy::class,
+        \App\Models\LeaveRequest::class => \App\Policies\LeaveRequestPolicy::class,
+        \App\Models\AttendanceRecord::class => \App\Policies\AttendanceRecordPolicy::class,
+        \App\Models\WikiPage::class => \App\Policies\WikiPagePolicy::class,
     ];
 
     /**

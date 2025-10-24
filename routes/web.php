@@ -7,6 +7,11 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use App\Http\Controllers\RoadMap\DataController;
 use App\Http\Controllers\Auth\OidcAuthController;
 
+// Test AI Assistant
+Route::get('/test-ai', function () {
+    return view('test-ai');
+})->name('test-ai');
+
 // Share ticket
 Route::get('/tickets/share/{ticket:code}', function (Ticket $ticket) {
     return redirect()->to(route('filament.resources.tickets.view', $ticket));
