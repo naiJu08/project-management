@@ -6,6 +6,10 @@ class AddSiteLanguageToGeneralSettings extends SettingsMigration
 {
     public function up(): void
     {
-        $this->migrator->add('general.site_language', config('app.fallback_locale'));
+        try {
+            $this->migrator->add('general.site_language', config('app.fallback_locale'));
+        } catch (\Exception $e) {
+            // Setting already exists, skip
+        }
     }
 }

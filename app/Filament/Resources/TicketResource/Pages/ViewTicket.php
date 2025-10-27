@@ -28,7 +28,7 @@ class ViewTicket extends ViewRecord implements HasForms
 
     protected static string $resource = TicketResource::class;
 
-    protected static string $view = 'filament.resources.tickets.view';
+    protected static string $view = 'filament.resources.tickets.enhanced-view';
 
     public string $tab = 'comments';
 

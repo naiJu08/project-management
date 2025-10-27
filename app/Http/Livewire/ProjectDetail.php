@@ -16,6 +16,8 @@ class ProjectDetail extends Component
 {
     public $projectId;
     public $activeTab = 'board';
+    public $enabledTabs = [];
+    public $tabOrder = [];
     
     // Backlog properties
     public $selectedItemId;
@@ -56,6 +58,9 @@ class ProjectDetail extends Component
     // View mode
     public $viewMode = 'tree'; // tree or flat
     
+    // Selection mode
+    public $selectionMode = false;
+    
     // Bulk operations
     public $selectedItems = [];
     public $bulkAction = '';
@@ -63,8 +68,11 @@ class ProjectDetail extends Component
     public $bulkPriority = '';
     public $bulkSprintId = null;
     public $showBulkPanel = false;
+    public $bulkRemoveSprint = false;
 
     protected $queryString = ['activeTab' => ['except' => 'board']];
+    
+    protected $listeners = ['tabPreferencesUpdated' => 'reloadTabPreferences'];
 
     public function mount($projectId)
     {
@@ -77,6 +85,9 @@ class ProjectDetail extends Component
         if ($project->owner_id != auth()->id() && !$project->users->contains(auth()->id())) {
             abort(403, 'You do not have access to this project.');
         }
+        
+        // Load tab preferences
+        $this->loadTabPreferences();
         
         // Expand all epics by default for backlog
         $this->expandedItems = $project->backlogItems()
@@ -582,8 +593,18 @@ class ProjectDetail extends Component
         $this->showBulkPanel = count($this->selectedItems) > 0;
     }
     
+    public function toggleSelectionMode()
+    {
+        $this->selectionMode = !$this->selectionMode;
+        if (!$this->selectionMode) {
+            $this->selectedItems = [];
+            $this->showBulkPanel = false;
+        }
+    }
+    
     public function selectAll()
     {
+        $this->selectionMode = true;
         $this->selectedItems = $this->backlogItems->pluck('id')->toArray();
         $this->showBulkPanel = true;
     }
@@ -799,6 +820,30 @@ class ProjectDetail extends Component
         ];
         
         return response()->json($items, 200, $headers);
+    }
+
+    public function loadTabPreferences()
+    {
+        $userId = Auth::id();
+        $cacheKey = "project_tabs_{$this->projectId}_user_{$userId}";
+        
+        $preferences = cache($cacheKey, [
+            'enabled' => ['board', 'overview', 'list', 'backlog', 'sprint', 'dashboard', 'calendar', 'wiki', 'gantt', 'chat', 'time-tracking', 'reports', 'milestones', 'budget'],
+            'order' => ['board', 'overview', 'list', 'backlog', 'sprint', 'dashboard', 'calendar', 'wiki', 'gantt', 'chat', 'time-tracking', 'reports', 'milestones', 'budget'],
+        ]);
+
+        $this->enabledTabs = $preferences['enabled'];
+        $this->tabOrder = $preferences['order'];
+        
+        // Set active tab to first enabled tab if current tab is not enabled
+        if (!in_array($this->activeTab, $this->enabledTabs) && !empty($this->enabledTabs)) {
+            $this->activeTab = $this->enabledTabs[0];
+        }
+    }
+
+    public function reloadTabPreferences()
+    {
+        $this->loadTabPreferences();
     }
 
     public function render()

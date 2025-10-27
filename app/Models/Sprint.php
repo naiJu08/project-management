@@ -16,7 +16,7 @@ class Sprint extends Model
 
     protected $fillable = [
         'name', 'starts_at', 'ends_at', 'description',
-        'project_id', 'started_at', 'ended_at'
+        'project_id', 'started_at', 'ended_at', 'goal', 'status'
     ];
 
     protected $casts = [
@@ -50,6 +50,11 @@ class Sprint extends Model
     public function tickets(): HasMany
     {
         return $this->hasMany(Ticket::class, 'sprint_id', 'id');
+    }
+
+    public function backlogItems(): HasMany
+    {
+        return $this->hasMany(BacklogItem::class, 'sprint_id', 'id');
     }
 
     public function epic(): BelongsTo

@@ -52,6 +52,36 @@
                 --sidebar-width: {{ config('filament.layout.sidebar.width') ?? '20rem' }};
                 --collapsed-sidebar-width: {{ config('filament.layout.sidebar.collapsed_width') ?? '5.4rem' }};
             }
+
+            /* Global breadcrumb enhancements and header adjustments */
+            /* Hide Filament page headings to rely on breadcrumbs */
+            .filament-header-heading { display: none !important; }
+            .filament-header-subheading { display: none !important; }
+
+            /* Reduce top/bottom padding for Filament header; tighten content top spacing */
+            .filament-header { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+            .filament-main-content { padding-top: 0.5rem !important; }
+
+            /* Filament breadcrumbs styling (topbar) */
+            .filament-breadcrumbs ul { gap: 0.375rem !important; padding: 0.25rem 0 !important; }
+            .filament-breadcrumbs a, .filament-breadcrumbs span {
+                display: inline-flex !important; align-items: center !important; gap: 0.25rem !important;
+                padding: 0.25rem 0.5rem !important; border-radius: 0.375rem !important;
+                color: rgb(75 85 99) !important;
+            }
+            .dark .filament-breadcrumbs a, .dark .filament-breadcrumbs span { color: rgb(209 213 219) !important; }
+            .filament-breadcrumbs a:hover { background-color: rgb(243 244 246) !important; }
+            .dark .filament-breadcrumbs a:hover { background-color: rgb(31 41 55) !important; }
+            .filament-breadcrumbs svg { width: 1rem !important; height: 1rem !important; }
+
+            /* Generic breadcrumb class support for non-Filament pages */
+            .breadcrumb { display: flex; flex-wrap: wrap; gap: 0.375rem; padding: 0.25rem 0; }
+            .breadcrumb a, .breadcrumb span { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; border-radius: 0.375rem; }
+            .breadcrumb a { color: rgb(59 130 246); }
+            .breadcrumb a:hover { background-color: rgb(243 244 246); }
+            .dark .breadcrumb a:hover { background-color: rgb(31 41 55); }
+            /* Hide page h1s that immediately follow a breadcrumb on non-Filament pages */
+            .breadcrumb + h1, .breadcrumb ~ h1 { display: none !important; }
         </style>
 
         @livewireStyles

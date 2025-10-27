@@ -1,14 +1,49 @@
-<div class="space-y-4">
+<div class="space-y-3 sm:space-y-4">
+    {{-- Header with Help Sidebar --}}
+    <div class="px-3 sm:px-4 md:px-6 mb-3 sm:mb-4">
+        <h2 class="text-base sm:text-lg md:text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+            List
+            <x-help-sidebar 
+                title="Task List View"
+                description="View and manage all project tasks in a detailed table format"
+                :features="[
+                    'View all tasks in table format',
+                    'Search and filter tasks',
+                    'Sort by status, priority, assignee',
+                    'Bulk select and edit tasks',
+                    'Quick task creation',
+                    'View task details',
+                    'Edit task information',
+                    'Export task list'
+                ]"
+                :benefits="[
+                    'See complete task inventory',
+                    'Find tasks quickly',
+                    'Organize work efficiently',
+                    'Bulk update multiple tasks',
+                    'Better task visibility',
+                    'Improved planning'
+                ]"
+                implementation="<p>1. Use search bar to find tasks</p><p>2. Click column headers to sort</p><p>3. Use filters for specific views</p><p>4. Click task row to view details</p><p>5. Select multiple tasks for bulk actions</p><p>6. Click 'New Task' to create</p>"
+                :examples="[
+                    ['title' => 'Find Overdue', 'description' => 'Filter by status to see overdue tasks'],
+                    ['title' => 'Team Tasks', 'description' => 'Filter by assignee to see team member work'],
+                    ['title' => 'Priority View', 'description' => 'Sort by priority to focus on critical work']
+                ]"
+            />
+        </h2>
+    </div>
+
     {{-- Filters --}}
-    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-        <div class="flex items-center space-x-4">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-700">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
             <div class="flex-1">
                 <input type="text" 
                        wire:model.debounce.300ms="search" 
                        placeholder="Search tasks..."
-                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                       class="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400">
             </div>
-            <button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center">
+            <button class="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center sm:justify-start text-sm sm:text-base font-medium">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                 </svg>

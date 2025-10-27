@@ -1,4 +1,39 @@
 <div>
+    {{-- Header with Help Sidebar --}}
+    <div class="flex items-center justify-between mb-4 px-4 sm:px-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+            Board
+            <x-help-sidebar 
+                title="Kanban Board"
+                description="Visualize and manage tasks using a Kanban board with drag-and-drop functionality"
+                :features="[
+                    'Drag and drop tasks between columns',
+                    'View tasks by status (To Do, In Progress, Done)',
+                    'Filter by assignee, priority, and type',
+                    'Quick task creation in any column',
+                    'Task details and editing',
+                    'Real-time updates',
+                    'Customizable columns',
+                    'Search and filter options'
+                ]"
+                :benefits="[
+                    'Visualize workflow at a glance',
+                    'Improve team productivity',
+                    'Identify bottlenecks quickly',
+                    'Reduce context switching',
+                    'Better task prioritization',
+                    'Enhance collaboration'
+                ]"
+                implementation="<p>1. View tasks organized by status columns</p><p>2. Click and drag tasks to move between columns</p><p>3. Use filters to focus on specific work</p><p>4. Click '+' to add new tasks</p><p>5. Click task card to view details</p><p>6. Update task status by dragging</p>"
+                :examples="[
+                    ['title' => 'Sprint Planning', 'description' => 'Organize sprint tasks from backlog to in-progress'],
+                    ['title' => 'Daily Standup', 'description' => 'Review board status and identify blockers'],
+                    ['title' => 'Release Management', 'description' => 'Track features through development to release']
+                ]"
+            />
+        </h2>
+    </div>
+
     <div class="mx-auto w-full" wire:ignore>
         <details class="w-full bg-white dark:bg-gray-800 open:bg-gray-200 dark:open:bg-gray-700 duration-300 ai-card">
             <summary

@@ -13,9 +13,13 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::table('projects', function (Blueprint $table) {
-            $table->string('ticket_prefix')->unique()->change();
-        });
+        try {
+            Schema::table('projects', function (Blueprint $table) {
+                $table->string('ticket_prefix')->unique()->change();
+            });
+        } catch (\Exception $e) {
+            // Constraint already exists, skip
+        }
     }
 
     /**

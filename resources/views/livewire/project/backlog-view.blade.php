@@ -17,18 +17,48 @@
 
 <div class="h-full flex flex-col bg-gray-50 dark:bg-gray-900" x-data="backlogDragDrop()">
     
-    <!-- {{-- Debug: Confirm BacklogView component is loaded --}}
+    {{-- Debug: Confirm BacklogView component is loaded --}}
     @if(config('app.debug'))
         <div class="bg-green-100 dark:bg-green-900 p-2 text-xs mb-2">
-            ✅ BacklogView Component Loaded (ID: {{ $this->id }})
+            BacklogView Component Loaded (ID: {{ $this->id }})
         </div>
-    @endif -->
+    @endif
     
     {{-- Header with Actions --}}
-    <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-4">
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Backlog</h1>
+    <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div class="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                <h1 class="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                    Backlog
+                    <x-help-sidebar 
+                        title="Product Backlog"
+                        description="Manage hierarchical backlog with epics, features, stories, tasks, and subtasks"
+                        :features="[
+                            'Hierarchical item structure (Epic → Feature → Story → Task)',
+                            'Drag and drop to reorder items',
+                            'Expand/collapse item hierarchies',
+                            'Inline editing of item details',
+                            'Bulk operations on multiple items',
+                            'Sprint assignment and management',
+                            'Comments and history tracking',
+                            'Export backlog to CSV/JSON'
+                        ]"
+                        :benefits="[
+                            'Organize work by hierarchy',
+                            'Prioritize effectively',
+                            'Plan sprints efficiently',
+                            'Track work progress',
+                            'Improve team alignment',
+                            'Better project visibility'
+                        ]"
+                        implementation="<p>1. View backlog items in hierarchical tree</p><p>2. Click '+' to add new items</p><p>3. Drag items to reorder priority</p><p>4. Click expand arrow to see child items</p><p>5. Click item to edit details</p><p>6. Assign items to sprints</p>"
+                        :examples="[
+                            ['title' => 'Epic Planning', 'description' => 'Create epic with features and stories'],
+                            ['title' => 'Sprint Planning', 'description' => 'Move items from backlog to sprint'],
+                            ['title' => 'Prioritization', 'description' => 'Drag items to reorder by priority']
+                        ]"
+                    />
+                </h1>
                 <span class="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm font-medium rounded-full">
                     {{ $this->backlogItems->count() }} items
                 </span>
@@ -47,16 +77,27 @@
                     </button>
                 </div>
                 
-                {{-- Bulk Selection --}}
-                @if(count($selectedItems) > 0)
-                    <button wire:click="deselectAll()" class="px-3 py-2 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 text-sm font-medium">
-                        {{ count($selectedItems) }} selected
-                    </button>
-                @else
-                    <button wire:click="selectAll()" class="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg" title="Select All">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {{-- Selection Mode Toggle --}}
+                <button wire:click="toggleSelectionMode()" 
+                        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {{ $selectionMode ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' }}"
+                        title="Toggle selection mode">
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
                         </svg>
+                        <span>{{ $selectionMode ? 'Done' : 'Select' }}</span>
+                        @if(count($this->selectedItems) > 0)
+                            <span class="px-1.5 py-0.5 bg-blue-600 text-white text-xs rounded-full">
+                                {{ count($this->selectedItems) }}
+                            </span>
+                        @endif
+                    </div>
+                </button>
+                
+                {{-- Select All (only visible in selection mode) --}}
+                @if($selectionMode && count($this->selectedItems) === 0)
+                    <button wire:click="selectAll()" class="px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                        Select All
                     </button>
                 @endif
                 
@@ -216,7 +257,7 @@
             @if($showBulkPanel)
                 <div class="sticky top-0 z-10 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 p-4">
                     <div class="flex items-center justify-between mb-3">
-                        <h3 class="font-semibold text-gray-900 dark:text-white">Bulk Actions ({{ count($selectedItems) }} items)</h3>
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Bulk Actions ({{ count($this->selectedItems) }} items)</h3>
                         <button wire:click="deselectAll()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -322,26 +363,112 @@
                     </div>
                 @endif
 
-                {{-- Hierarchical Tree --}}
-                @forelse($this->backlogItems->where('parent_id', null) as $item)
-                    @include('livewire.project.partials.backlog-item-row', ['item' => $item, 'level' => 0])
-                @empty
-                    <div class="text-center py-12">
-                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                        </svg>
-                        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No backlog items</h3>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new Epic.</p>
-                        <div class="mt-6">
-                            <button wire:click="showInlineCreate(null, 'Epic')" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600 transition-colors">
-                                <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                                </svg>
-                                New Epic
-                            </button>
+                {{-- Hierarchical Tree or Flat List --}}
+                @if($viewMode === 'tree')
+                    {{-- Tree View: Show only root items, children render recursively --}}
+                    @forelse($this->backlogItems->where('parent_id', null) as $item)
+                        @include('livewire.project.partials.backlog-item-row', [
+                            'item' => $item, 
+                            'level' => 0, 
+                            'selectionMode' => $selectionMode, 
+                            'selectedItems' => $this->selectedItems, 
+                            'selectedItemId' => $this->selectedItemId, 
+                            'expandedItems' => $expandedItems, 
+                            'inlineCreateParentId' => $inlineCreateParentId, 
+                            'inlineCreateType' => $inlineCreateType, 
+                            'inlineCreateTitle' => $inlineCreateTitle
+                        ])
+                    @empty
+                        <div class="text-center py-12">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                            <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No backlog items</h3>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new Epic.</p>
+                            <div class="mt-6">
+                                <button wire:click="showInlineCreate(null, 'Epic')" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600 transition-colors">
+                                    <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                    </svg>
+                                    New Epic
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                @endforelse
+                    @endforelse
+                @else
+                    {{-- Flat View: Show all items without hierarchy --}}
+                    @forelse($this->backlogItems as $item)
+                        <div class="backlog-item-row" data-item-id="{{ $item->id }}" data-type="{{ $item->type }}">
+                            <div class="flex items-center hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg group {{ $this->selectedItemId === $item->id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : '' }} py-2 px-3">
+                                {{-- Type Label --}}
+                                <div class="pr-3 flex-shrink-0">
+                                    <span class="text-xs font-medium px-2 py-0.5 rounded" 
+                                          style="background-color: {{ $item->getTypeColor() }}15; color: {{ $item->getTypeColor() }}; border: 1px solid {{ $item->getTypeColor() }}30;">
+                                        {{ $item->type }}
+                                    </span>
+                                </div>
+                                
+                                {{-- Item Content --}}
+                                <div wire:click="selectItem({{ $item->id }})" class="flex-1 flex items-center cursor-pointer min-w-0">
+                                    <span class="text-lg mr-2 flex-shrink-0">{!! $item->getTypeIcon() !!}</span>
+                                    <span class="px-2 py-0.5 text-xs font-mono rounded mr-2 flex-shrink-0" 
+                                          style="background-color: {{ $item->getTypeColor() }}20; color: {{ $item->getTypeColor() }}">
+                                        {{ $item->code }}
+                                    </span>
+                                    <span class="text-sm text-gray-900 dark:text-white truncate flex-1">
+                                        {{ $item->title }}
+                                    </span>
+                                    <span class="px-2 py-0.5 text-xs rounded ml-2 flex-shrink-0" 
+                                          style="background-color: {{ $item->getStatusColor() }}20; color: {{ $item->getStatusColor() }}">
+                                        {{ $item->status }}
+                                    </span>
+                                    <span class="px-2 py-0.5 text-xs rounded ml-2 flex-shrink-0" 
+                                          style="background-color: {{ $item->getPriorityColor() }}20; color: {{ $item->getPriorityColor() }}">
+                                        {{ $item->priority }}
+                                    </span>
+                                    @if($item->assignee)
+                                        <div class="ml-2 flex-shrink-0" title="{{ $item->assignee->name }}">
+                                            <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium">
+                                                {{ substr($item->assignee->name, 0, 1) }}
+                                            </div>
+                                        </div>
+                                    @endif
+                                    @if($item->sprint)
+                                        <span class="ml-2 px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded flex-shrink-0">
+                                            {{ $item->sprint->name }}
+                                        </span>
+                                    @endif
+                                </div>
+                                
+                                {{-- Selection Checkbox (Rightmost, only in selection mode) --}}
+                                @if($selectionMode)
+                                    <div class="pr-3 flex-shrink-0">
+                                        <input type="checkbox" 
+                                               wire:click="toggleItemSelection({{ $item->id }})"
+                                               @if(in_array($item->id, $this->selectedItems)) checked @endif
+                                               class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <div class="text-center py-12">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                            <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No backlog items</h3>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new Epic.</p>
+                            <div class="mt-6">
+                                <button wire:click="showInlineCreate(null, 'Epic')" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600 transition-colors">
+                                    <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                    </svg>
+                                    New Epic
+                                </button>
+                            </div>
+                        </div>
+                    @endforelse
+                @endif
                 
                 <!-- {{-- Debug Info (Remove after testing) --}}
                 @if(config('app.debug'))

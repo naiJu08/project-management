@@ -1,4 +1,39 @@
 <div>
+    {{-- Header with Help Sidebar --}}
+    <div class="px-3 sm:px-4 md:px-6 mb-3 sm:mb-4">
+        <h2 class="text-base sm:text-lg md:text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+            Wiki
+            <x-help-sidebar 
+                title="Project Wiki"
+                description="Create and manage project documentation with hierarchical pages"
+                :features="[
+                    'Hierarchical page structure (parent-child)',
+                    'Markdown and HTML editing',
+                    'Version tracking',
+                    'Search functionality',
+                    'File attachments',
+                    'Client visibility toggle',
+                    'Comments and discussions',
+                    'Full CRUD operations'
+                ]"
+                :benefits="[
+                    'Centralize project documentation',
+                    'Improve knowledge sharing',
+                    'Track documentation changes',
+                    'Share with clients',
+                    'Better team onboarding',
+                    'Reduce email clutter'
+                ]"
+                implementation="<p>1. Click 'New Page' to create</p><p>2. Enter title and content</p><p>3. Set parent page if needed</p><p>4. Toggle client visibility</p><p>5. Add attachments</p><p>6. Publish page</p>"
+                :examples="[
+                    ['title' => 'API Documentation', 'description' => 'Create API docs with code examples'],
+                    ['title' => 'User Guide', 'description' => 'Write user guides for features'],
+                    ['title' => 'Architecture', 'description' => 'Document system architecture']
+                ]"
+            />
+        </h2>
+    </div>
+
     {{-- Flash Messages --}}
     @if (session()->has('success'))
         <div class="mb-4 p-4 bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-300 rounded-lg flex items-center">
@@ -32,7 +67,7 @@
             <button 
                 wire:click="editPage()" 
                 type="button"
-                class="w-full mb-4 px-4 py-2 bg-blue hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-semibold rounded-md shadow-sm flex items-center justify-center transition-colors border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800">
+                class="w-full mb-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-semibold rounded-md shadow-sm flex items-center justify-center transition-colors border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800">
                 <svg 
                     class="w-4 h-4 mr-2 flex-shrink-0 text-white" 
                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -128,9 +163,12 @@
                 </div>
 
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Content (HTML Editor)</label>
-                    <div wire:ignore>
-                        <textarea id="wiki-editor" wire:model.defer="content"></textarea>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Content</label>
+                    <div class="bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+                        <div wire:ignore class="trix-wrapper">
+                            <trix-editor input="wiki-content" class="trix-content"></trix-editor>
+                            <input id="wiki-content" type="hidden" wire:model.defer="content">
+                        </div>
                     </div>
                     @error('content') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
                 </div>
@@ -666,53 +704,32 @@
     }
 
     document.addEventListener('livewire:load', function () {
-        let editor = null;
-        
-        function initEditor() {
-            if (editor) {
-                tinymce.remove('#wiki-editor');
-                editor = null;
-            }
+        function initTrixEditor() {
+            const trixEditor = document.querySelector('trix-editor');
+            const hiddenInput = document.getElementById('wiki-content');
             
-            if (document.getElementById('wiki-editor')) {
-                tinymce.init({
-                    selector: '#wiki-editor',
-                    height: 500,
-                    menubar: false,
-                    plugins: [
-                        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-                        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-                        'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
-                    ],
-                    toolbar: 'undo redo | formatselect | bold italic backcolor | ' +
-                             'alignleft aligncenter alignright alignjustify | ' +
-                             'bullist numlist outdent indent | link image | ' +
-                             'removeformat code | help',
-                    content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; }',
-                    skin: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'oxide-dark' : 'oxide',
-                    content_css: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
-                    setup: function(ed) {
-                        editor = ed;
-                        ed.on('init', function() {
-                            // Set initial content from Livewire
-                            ed.setContent(@this.content || '');
-                        });
-                        ed.on('change keyup', function() {
-                            // Update Livewire property
-                            @this.set('content', ed.getContent());
-                        });
-                    }
+            if (trixEditor && hiddenInput) {
+                // Set initial content
+                if (@this.content) {
+                    trixEditor.editor.loadHTML(@this.content);
+                }
+                
+                // Update Livewire when editor changes
+                trixEditor.addEventListener('trix-change', function() {
+                    @this.set('content', trixEditor.editor.getDocument().toString());
                 });
             }
         }
         
         // Initialize on page load
-        initEditor();
+        setTimeout(() => {
+            initTrixEditor();
+        }, 100);
         
         // Re-initialize when entering edit mode
         Livewire.hook('message.processed', (message, component) => {
             setTimeout(() => {
-                initEditor();
+                initTrixEditor();
             }, 100);
         });
 

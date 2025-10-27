@@ -53,6 +53,9 @@ class BacklogView extends Component
     // View mode
     public $viewMode = 'tree'; // tree or flat
     
+    // Selection mode
+    public $selectionMode = false;
+    
     // Bulk operations
     public $selectedItems = [];
     public $bulkAction = '';
@@ -113,7 +116,7 @@ class BacklogView extends Component
     {
         $query = $this->project->backlogItems()
             ->with(['parent', 'children', 'assignee', 'sprint'])
-            ->orderBy('order_index');
+            ->whereNull('deleted_at');
         
         // Apply filters
         if ($this->filterType !== 'all') {
@@ -129,7 +132,7 @@ class BacklogView extends Component
         }
         
         if ($this->filterSprint !== 'all') {
-            if ($this->filterSprint === 'none') {
+            if ($this->filterSprint === 'backlog') {
                 $query->whereNull('sprint_id');
             } else {
                 $query->where('sprint_id', $this->filterSprint);
@@ -139,9 +142,15 @@ class BacklogView extends Component
         if ($this->searchTerm) {
             $query->where(function($q) {
                 $q->where('title', 'like', '%' . $this->searchTerm . '%')
-                  ->orWhere('code', 'like', '%' . $this->searchTerm . '%')
-                  ->orWhere('description', 'like', '%' . $this->searchTerm . '%');
+                  ->orWhere('description', 'like', '%' . $this->searchTerm . '%')
+                  ->orWhere('code', 'like', '%' . $this->searchTerm . '%');
             });
+        }
+        
+        // For flat view, order by type hierarchy then order_index
+        if ($this->viewMode === 'flat') {
+            $query->orderByRaw("FIELD(type, 'Epic', 'Feature', 'UserStory', 'Task', 'Subtask')")
+                  ->orderBy('order_index');
         }
         
         return $query->get();
@@ -397,6 +406,12 @@ class BacklogView extends Component
         $this->resetEditForm();
     }
     
+    // Alias for cancelEdit listener
+    public function cancelEdit()
+    {
+        $this->cancelEditing();
+    }
+    
     public function saveItem()
     {
         $this->validate([
@@ -587,8 +602,18 @@ class BacklogView extends Component
         $this->showBulkPanel = count($this->selectedItems) > 0;
     }
     
+    public function toggleSelectionMode()
+    {
+        $this->selectionMode = !$this->selectionMode;
+        if (!$this->selectionMode) {
+            $this->selectedItems = [];
+            $this->showBulkPanel = false;
+        }
+    }
+    
     public function selectAll()
     {
+        $this->selectionMode = true;
         $this->selectedItems = $this->backlogItems->pluck('id')->toArray();
         $this->showBulkPanel = true;
     }

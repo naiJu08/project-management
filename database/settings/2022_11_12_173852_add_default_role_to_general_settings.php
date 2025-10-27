@@ -7,6 +7,10 @@ class AddDefaultRoleToGeneralSettings extends SettingsMigration
 {
     public function up(): void
     {
-        $this->migrator->add('general.default_role');
+        try {
+            $this->migrator->add('general.default_role');
+        } catch (\Exception $e) {
+            // Setting already exists, skip
+        }
     }
 }

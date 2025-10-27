@@ -1,11 +1,46 @@
-<div class="space-y-6">
+<div class="space-y-4 sm:space-y-6">
+    {{-- Header with Help Sidebar --}}
+    <div class="px-3 sm:px-4 md:px-6">
+        <h2 class="text-base sm:text-lg md:text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+            Overview
+            <x-help-sidebar 
+                title="Project Overview"
+                description="Get a comprehensive snapshot of your project status and key metrics"
+                :features="[
+                    'Project information and metadata',
+                    'Team members and roles',
+                    'Active sprint details',
+                    'Key metrics and statistics',
+                    'Recent activity feed',
+                    'Project status and health',
+                    'Quick access to resources',
+                    'Team collaboration info'
+                ]"
+                :benefits="[
+                    'Quick project status check',
+                    'Understand team composition',
+                    'See current sprint progress',
+                    'Identify project health',
+                    'Track recent changes',
+                    'Improve team communication'
+                ]"
+                implementation="<p>1. View project details at the top</p><p>2. Check team members and their roles</p><p>3. See active sprint information</p><p>4. Review key metrics and statistics</p><p>5. Check recent activity</p><p>6. Access project resources</p>"
+                :examples="[
+                    ['title' => 'Project Status', 'description' => 'See if project is on track, at risk, or completed'],
+                    ['title' => 'Team View', 'description' => 'Understand who is working on the project'],
+                    ['title' => 'Sprint Progress', 'description' => 'Check current sprint completion and goals']
+                ]"
+            />
+        </h2>
+    </div>
+
     {{-- Project Info Card --}}
-    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-        <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Project Information</h2>
-        <div class="grid grid-cols-2 gap-6">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 border border-gray-200 dark:border-gray-700">
+        <h3 class="text-base sm:text-lg font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">Project Information</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             <div>
-                <label class="text-sm font-medium text-gray-500 dark:text-gray-400">Owner</label>
-                <p class="text-gray-900 dark:text-white">{{ $this->project->owner->name }}</p>
+                <label class="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Owner</label>
+                <p class="text-sm sm:text-base text-gray-900 dark:text-white">{{ $this->project->owner->name }}</p>
             </div>
             <div>
                 <label class="text-sm font-medium text-gray-500 dark:text-gray-400">Status</label>

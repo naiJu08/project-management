@@ -4,7 +4,7 @@
 
 -- Sample Wiki Pages for Project 14
 INSERT INTO `wiki_pages` (`project_id`, `title`, `content`, `parent_id`, `created_by`, `updated_by`, `order`, `version`, `created_at`, `updated_at`) VALUES
-(12, 'Project Overview', '<h1>E-Commerce Platform Project</h1>
+(14, 'Project Overview', '<h1>E-Commerce Platform Project</h1>
 <p>This document outlines the requirements for building a modern e-commerce platform with the following key features:</p>
 <ul>
   <li><strong>User authentication and authorization</strong> - Secure login and registration</li>
@@ -31,7 +31,7 @@ INSERT INTO `wiki_pages` (`project_id`, `title`, `content`, `parent_id`, `create
   <li>Payment: Stripe and PayPal integration</li>
 </ul>', NULL, 1, 1, 0, 1, NOW(), NOW()),
 
-(12, 'User Management Requirements', '<h1>User Management Module</h1>
+(14, 'User Management Requirements', '<h1>User Management Module</h1>
 <h2>User Registration</h2>
 <p>As a new customer, I want to register on the platform by providing:</p>
 <ul>
@@ -69,7 +69,7 @@ INSERT INTO `wiki_pages` (`project_id`, `title`, `content`, `parent_id`, `create
 </ul>
 <p><strong>Estimated Effort:</strong> 40 hours</p>', 1, 1, 1, 1, 1, NOW(), NOW()),
 
-(12, 'Product Catalog', '<h1>Product Catalog Requirements</h1>
+(14, 'Product Catalog', '<h1>Product Catalog Requirements</h1>
 <h2>Product Listing</h2>
 <p>The platform needs a comprehensive product catalog that supports:</p>
 <ul>
@@ -127,7 +127,7 @@ INSERT INTO `wiki_pages` (`project_id`, `title`, `content`, `parent_id`, `create
 </ul>
 <p><strong>Estimated Effort:</strong> 60 hours</p>', 1, 1, 1, 2, 1, NOW(), NOW()),
 
-(12, 'Shopping Cart & Checkout', '<h1>Shopping Cart & Checkout Process</h1>
+(14, 'Shopping Cart & Checkout', '<h1>Shopping Cart & Checkout Process</h1>
 <h2>Shopping Cart Functionality</h2>
 <p>As a customer, I want to add products to my cart and:</p>
 <ul>
@@ -202,7 +202,7 @@ INSERT INTO `wiki_pages` (`project_id`, `title`, `content`, `parent_id`, `create
 </ul>
 <p><strong>Estimated Effort:</strong> 50 hours</p>', 1, 1, 1, 3, 1, NOW(), NOW()),
 
-(12, 'Order Management', '<h1>Order Management System</h1>
+(14, 'Order Management', '<h1>Order Management System</h1>
 <h2>Customer Order Management</h2>
 <p>Customers should be able to:</p>
 <ul>
@@ -264,7 +264,7 @@ INSERT INTO `wiki_pages` (`project_id`, `title`, `content`, `parent_id`, `create
 </ul>
 <p><strong>Estimated Effort:</strong> 45 hours</p>', 1, 1, 1, 4, 1, NOW(), NOW()),
 
-(12, 'Admin Dashboard', '<h1>Admin Dashboard Requirements</h1>
+(14, 'Admin Dashboard', '<h1>Admin Dashboard Requirements</h1>
 <h2>Dashboard Overview</h2>
 <p>The admin dashboard should provide real-time insights with:</p>
 <ul>
@@ -422,7 +422,7 @@ INSERT INTO `wiki_pages` (`project_id`, `title`, `content`, `parent_id`, `create
 </ul>
 <p><strong>Estimated Effort:</strong> 80 hours</p>', 1, 1, 1, 5, 1, NOW(), NOW()),
 
-(12, 'Security & Performance', '<h1>Security & Performance Requirements</h1>
+(14, 'Security & Performance', '<h1>Security & Performance Requirements</h1>
 <h2>Security Requirements</h2>
 <ul>
   <li><strong>Data Protection</strong>:

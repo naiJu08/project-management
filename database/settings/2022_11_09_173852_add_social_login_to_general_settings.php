@@ -6,6 +6,10 @@ class AddSocialLoginToGeneralSettings extends SettingsMigration
 {
     public function up(): void
     {
-        $this->migrator->add('general.enable_social_login', true);
+        try {
+            $this->migrator->add('general.enable_social_login', true);
+        } catch (\Exception $e) {
+            // Setting already exists, skip
+        }
     }
 }

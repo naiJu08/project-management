@@ -19,6 +19,8 @@ class AiAssistant extends Page
 
     protected static ?int $navigationSort = 1;
 
+    protected static bool $shouldRegisterNavigation = false;
+
     public $selectedSection = null;
     public $conversationId = null;
     public $messages = [];

@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\ProjectResource\Pages;
 
 use App\Filament\Resources\ProjectResource;
-use App\Jobs\GenerateProjectTasks;
+use App\Jobs\GenerateProjectTasksWithCohere;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Schema;
 use Filament\Pages\Actions;
@@ -27,10 +27,10 @@ class CreateProject extends CreateRecord
                 $this->record->ai_last_message = null;
                 $this->record->save();
             }
-            Filament::notify('success', __('AI task generation started in background'));
+            Filament::notify('success', __('AI task generation started using Cohere AI'));
 
-            // Queue background job to generate tasks
-            GenerateProjectTasks::dispatch($this->record->id, null, $context);
+            // Queue background job to generate tasks using Cohere AI
+            GenerateProjectTasksWithCohere::dispatch($this->record->id, null, $context);
         }
     }
 }

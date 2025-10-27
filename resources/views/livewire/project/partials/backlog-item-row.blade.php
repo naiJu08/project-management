@@ -11,12 +11,12 @@
     <div class="flex items-center hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg group {{ $isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : '' }}"
          style="padding-left: {{ $indent }}px">
         
-        {{-- Selection Checkbox --}}
-        <div class="pl-2">
-            <input type="checkbox" 
-                   wire:click="toggleItemSelection({{ $item->id }})"
-                   @if(in_array($item->id, $selectedItems)) checked @endif
-                   class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+        {{-- Type Label (Leftmost) --}}
+        <div class="pl-3 pr-2 py-1 flex-shrink-0">
+            <span class="text-xs font-medium px-2 py-0.5 rounded" 
+                  style="background-color: {{ $item->getTypeColor() }}15; color: {{ $item->getTypeColor() }}; border: 1px solid {{ $item->getTypeColor() }}30;">
+                {{ $item->type }}
+            </span>
         </div>
         
         {{-- Drag Handle --}}
@@ -100,6 +100,16 @@
                 </span>
             @endif
         </div>
+        
+        {{-- Selection Checkbox (Rightmost, only in selection mode) --}}
+        @if(isset($selectionMode) && $selectionMode)
+            <div class="pr-3 flex-shrink-0">
+                <input type="checkbox" 
+                       wire:click="toggleItemSelection({{ $item->id }})"
+                       @if(isset($selectedItems) && in_array($item->id, $selectedItems)) checked @endif
+                       class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer">
+            </div>
+        @endif
 
         {{-- Quick Actions (visible on hover) --}}
         <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2" x-data="{ showMenu: false }">

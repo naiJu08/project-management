@@ -22,7 +22,26 @@ class Ticket extends Model implements HasMedia
     protected $fillable = [
         'name', 'content', 'owner_id', 'responsible_id',
         'status_id', 'project_id', 'code', 'order', 'type_id',
-        'priority_id', 'estimation', 'epic_id', 'sprint_id', 'backlog_item_id'
+        'priority_id', 'estimation', 'epic_id', 'sprint_id', 'backlog_item_id',
+        'description', 'component', 'affected_version', 'fixed_version', 'severity',
+        'start_date', 'due_date', 'estimated_hours', 'parent_ticket_id',
+        'reopened_count', 'first_response_at', 'resolved_at', 'is_blocked',
+        'blocked_reason', 'sla_hours', 'sla_due_at', 'sla_status',
+        'risk_level', 'risk_description', 'mitigation_plan', 'requires_approval',
+        'approval_status', 'budget_allocated', 'budget_spent'
+    ];
+
+    protected $casts = [
+        'start_date' => 'datetime:Y-m-d',
+        'due_date' => 'datetime:Y-m-d',
+        'first_response_at' => 'datetime',
+        'resolved_at' => 'datetime',
+        'sla_due_at' => 'datetime',
+        'estimated_hours' => 'float',
+        'budget_allocated' => 'float',
+        'budget_spent' => 'float',
+        'is_blocked' => 'boolean',
+        'requires_approval' => 'boolean',
     ];
 
     public static function boot()
@@ -237,6 +256,145 @@ class Ticket extends Model implements HasMedia
     public function backlogItem(): BelongsTo
     {
         return $this->belongsTo(BacklogItem::class, 'backlog_item_id', 'id');
+    }
+
+    // Enhanced ticket relationships
+    public function parentTicket(): BelongsTo
+    {
+        return $this->belongsTo(Ticket::class, 'parent_ticket_id', 'id');
+    }
+
+    public function childTickets(): HasMany
+    {
+        return $this->hasMany(Ticket::class, 'parent_ticket_id', 'id');
+    }
+
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(TicketApproval::class, 'ticket_id', 'id');
+    }
+
+    public function dependencies(): HasMany
+    {
+        return $this->hasMany(TicketDependency::class, 'ticket_id', 'id');
+    }
+
+    public function dependentTickets(): HasMany
+    {
+        return $this->hasMany(TicketDependency::class, 'depends_on_ticket_id', 'id');
+    }
+
+    // Enhanced ticket methods
+    public function getTotalLoggedHours(): float
+    {
+        return $this->hours->sum('value');
+    }
+
+    public function getRemainingHours(): ?float
+    {
+        if (!$this->estimated_hours) {
+            return null;
+        }
+        return max(0, $this->estimated_hours - $this->getTotalLoggedHours());
+    }
+
+    public function getProgressPercentage(): float
+    {
+        if (!$this->estimated_hours || $this->estimated_hours == 0) {
+            return 0;
+        }
+        return min(100, ($this->getTotalLoggedHours() / $this->estimated_hours) * 100);
+    }
+
+    public function isOverBudget(): bool
+    {
+        if (!$this->budget_allocated) {
+            return false;
+        }
+        return $this->budget_spent >= $this->budget_allocated;
+    }
+
+    public function getRemainingBudget(): ?float
+    {
+        if (!$this->budget_allocated) {
+            return null;
+        }
+        return max(0, $this->budget_allocated - $this->budget_spent);
+    }
+
+    public function isBlocked(): bool
+    {
+        return $this->is_blocked || $this->dependencies()
+            ->where('type', 'blocked_by')
+            ->whereHas('dependsOnTicket', fn($q) => $q->whereNotIn('status_id', [3, 4])) // Not Done/Closed
+            ->exists();
+    }
+
+    public function getBlockingReasons(): array
+    {
+        $reasons = [];
+        if ($this->is_blocked) {
+            $reasons[] = $this->blocked_reason ?? 'Manually blocked';
+        }
+        
+        $blockedBy = $this->dependencies()
+            ->where('type', 'blocked_by')
+            ->with('dependsOnTicket')
+            ->get();
+        
+        foreach ($blockedBy as $dep) {
+            $reasons[] = "Blocked by {$dep->dependsOnTicket->code}";
+        }
+        
+        return $reasons;
+    }
+
+    public function isSLAAtRisk(): bool
+    {
+        if (!$this->sla_due_at) {
+            return false;
+        }
+        return now()->diffInHours($this->sla_due_at) <= 2;
+    }
+
+    public function isSLABreached(): bool
+    {
+        if (!$this->sla_due_at) {
+            return false;
+        }
+        return now()->isAfter($this->sla_due_at);
+    }
+
+    public function updateSLAStatus(): void
+    {
+        if ($this->isSLABreached()) {
+            $this->sla_status = 'breached';
+        } elseif ($this->isSLAAtRisk()) {
+            $this->sla_status = 'at_risk';
+        } else {
+            $this->sla_status = 'on_track';
+        }
+        $this->save();
+    }
+
+    public function requiresApproval(): bool
+    {
+        return $this->requires_approval && $this->approval_status !== 'approved';
+    }
+
+    public function getPendingApprovals(): int
+    {
+        return $this->approvals()->where('status', 'pending')->count();
+    }
+
+    public function getAllApprovalsCompleted(): bool
+    {
+        $total = $this->approvals()->count();
+        if ($total === 0) {
+            return true;
+        }
+        $approved = $this->approvals()->whereIn('status', ['approved', 'approved_with_comments'])->count();
+        return $approved === $total;
     }
 
     public function getActivitylogOptions(): LogOptionsAttribute
