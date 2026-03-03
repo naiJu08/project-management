@@ -118,9 +118,10 @@
                 $completedCount = $sprint->backlogItems()->where('status', 'Done')->count();
                 $completionPercent = $itemCount > 0 ? round(($completedCount / $itemCount) * 100) : 0;
             @endphp
-            <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow cursor-pointer" wire:click="selectSprint({{ $sprint->id }})">
+            <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow cursor-pointer">
                 <div class="flex items-start justify-between mb-4">
-                    <div class="flex-1">
+                    <div class="flex-1 cursor-pointer"
+                         wire:click="selectSprint({{ $sprint->id }})">
                         <div class="flex items-center gap-3 mb-2">
                             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ $sprint->name }}</h3>
                             <span class="px-2 py-1 text-xs font-medium rounded-full" style="background-color: {{ $statusColor === 'green' ? '#dcfce7' : ($statusColor === 'purple' ? '#f3e8ff' : '#fef3c7') }}; color: {{ $statusColor === 'green' ? '#166534' : ($statusColor === 'purple' ? '#581c87' : '#92400e') }}">
@@ -136,7 +137,9 @@
                     </div>
                     <div class="flex gap-2">
                         @if($status === 'upcoming')
-                            <button wire:click.stop="startSprint({{ $sprint->id }})" class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors">
+                            <button type="button"
+                                wire:click.stop="startSprint({{ $sprint->id }})"
+                                class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors">
                                 Start
                             </button>
                         @elseif($status === 'active')

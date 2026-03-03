@@ -2,12 +2,14 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
     <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">📝 Description</h3>
     <div class="prose dark:prose-invert max-w-none">
-        @if($ticket->content)
-            {!! nl2br(e($ticket->content)) !!}
-        @else
-            <p class="text-gray-500 dark:text-gray-400">No description provided</p>
-        @endif
-    </div>
+    @if($ticket->content)
+        {!! $ticket->content !!}
+    @else
+        <p class="text-gray-500 dark:text-gray-400">
+            No description provided
+        </p>
+    @endif
+</div>
 </div>
 
 {{-- Ticket Details Grid --}}

@@ -62,4 +62,10 @@ class ListView extends Component
             'tickets' => $this->tickets,
         ]);
     }
+
+      public function createTask()
+    {
+        return redirect()->route('filament.resources.tickets.create');
+    }
+
 }
