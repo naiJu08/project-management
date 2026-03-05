@@ -10,9 +10,13 @@ class ViewTicketStatus extends ViewRecord
 {
     protected static string $resource = TicketStatusResource::class;
 
-    protected function getActions(): array
+     protected function getActions(): array
     {
         return [
+            Actions\Action::make('back')
+                ->label('← Back')
+                ->url(TicketStatusResource::getUrl('index')),
+
             Actions\EditAction::make(),
         ];
     }
