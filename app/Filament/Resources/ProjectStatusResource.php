@@ -10,6 +10,7 @@ use Filament\Resources\Form;
 use Filament\Resources\Resource;
 use Filament\Resources\Table;
 use Filament\Tables;
+use Illuminate\Validation\Rule;
 
 class ProjectStatusResource extends Resource
 {
@@ -45,7 +46,11 @@ class ProjectStatusResource extends Resource
                                 Forms\Components\TextInput::make('name')
                                     ->label(__('Status name'))
                                     ->required()
-                                    ->maxLength(255),
+                                    ->maxLength(255)
+                                    ->rule(
+                                Rule::unique('project_statuses', 'name')
+                                    ->whereNull('deleted_at')
+                            ),
 
                                 Forms\Components\ColorPicker::make('color')
                                     ->label(__('Status color'))
