@@ -34,8 +34,7 @@
                             {{ __('Create ticket') }}
                         </div>
                         <div class="dialog-content">
-                            @livewire('road-map.issue-form', ['project' => null])
-                        </div>
+                        @livewire('road-map.issue-form', ['project_id' => $this->project->id])
                     </div>
                 </div>
             @endif

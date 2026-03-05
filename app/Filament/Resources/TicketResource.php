@@ -57,6 +57,7 @@ class TicketResource extends Resource
                                     ->label(__('Project'))
                                     ->searchable()
                                     ->reactive()
+                                    ->default(fn () => request()->get('project_id') ?? request()->route('record')?->project_id)
                                     ->afterStateUpdated(function ($get, $set) {
                                         $project = Project::where('id', $get('project_id'))->first();
                                         if ($project?->status_type === 'custom') {
@@ -82,13 +83,14 @@ class TicketResource extends Resource
                                             return $query->where('users.id', auth()->user()->id);
                                         })->pluck('name', 'id')->toArray()
                                     )
-                                    ->default(fn() => request()->get('project'))
+                                    ->default(fn ($livewire) => request()->get('project_id'))
+                                    ->disabled(fn() => request()->has('project_id'))
                                     ->required(),
                                 Forms\Components\Select::make('epic_id')
                                     ->label(__('Epic'))
                                     ->searchable()
                                     ->reactive()
-                                    ->options(function ($get, $set) {
+                                    ->options(function ($get,) {
                                         return Epic::where('project_id', $get('project_id'))->pluck('name', 'id')->toArray();
                                     }),
                             ]),
@@ -98,7 +100,7 @@ class TicketResource extends Resource
                             ->description(__('Link this ticket to a specific backlog hierarchy'))
                             ->collapsible()
                             ->collapsed(fn() => !request()->has('backlog_parent'))
-                            ->visible(fn($livewire) => $livewire instanceof CreateRecord)
+                            ->visible(fn() => true)
                             ->schema([
                                 Forms\Components\Grid::make()
                                     ->columns(3)
@@ -196,12 +198,12 @@ class TicketResource extends Resource
                         Forms\Components\Card::make()
                             ->schema([
                                 Forms\Components\Grid::make()
-                                    ->columns(12)
-                                    ->columnSpan(2)
+                                 ->columns(12)
+                                    ->columnSpan(2)                               
                                     ->schema([
                                         Forms\Components\TextInput::make('code')
                                             ->label(__('Ticket code'))
-                                            ->visible(fn($livewire) => !($livewire instanceof CreateRecord))
+                                            ->visible(fn() => true)
                                             ->columnSpan(2)
                                             ->disabled(),
 
@@ -287,7 +289,7 @@ class TicketResource extends Resource
                         // AI Generation Section (Create only)
                         Forms\Components\Section::make('AI Task Generation')
                             ->description(__('Generate detailed tasks automatically using AI based on your prompt'))
-                            ->visible(fn($livewire) => $livewire instanceof CreateRecord)
+                            ->visible(fn() => true)
                             ->collapsible()
                             ->collapsed()
                             ->schema([
@@ -507,4 +509,11 @@ class TicketResource extends Resource
             'edit' => Pages\EditTicket::route('/{record}/edit'),
         ];
     }
+
+
+        public static function getFormSchema(): array
+        {
+            return static::form(app(Form::class))->getSchema();
+        }
 }
+
