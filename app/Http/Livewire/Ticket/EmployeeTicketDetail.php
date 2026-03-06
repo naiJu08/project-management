@@ -8,6 +8,7 @@ use App\Models\TicketHour;
 use App\Models\TicketRelation;
 use Livewire\Component;
 use Illuminate\Support\Collection;
+use App\Models\User;
 
 class EmployeeTicketDetail extends Component
 {
@@ -58,12 +59,17 @@ class EmployeeTicketDetail extends Component
     
     protected $listeners = ['ticketUpdated' => 'refreshTicket'];
 
+    public $responsibleUsers = [];
+
     public function mount(Ticket $ticket): void
     {
-        $this->ticket = $ticket;
-        if (request()->has('tab')) {
-        $this->activeTab = request()->get('tab');
-    }
+         $this->ticket = $ticket;
+
+    $this->responsibleUsers = User::whereIn(
+        'id',
+        $this->ticket->responsible_ids ?? []
+    )->get();
+    
         $this->searchResults = collect();
         $this->masterEditData = [];
         

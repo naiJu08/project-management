@@ -20,7 +20,7 @@ class Ticket extends Model implements HasMedia
     use HasFactory, SoftDeletes, InteractsWithMedia;
 
     protected $fillable = [
-        'name', 'content', 'owner_id', 'responsible_id',
+        'name', 'content', 'owner_id', 'responsible_id','responsible_ids',
         'status_id', 'project_id', 'code', 'order', 'type_id',
         'priority_id', 'estimation', 'epic_id', 'sprint_id', 'backlog_item_id',
         'description', 'component', 'affected_version', 'fixed_version', 'severity',
@@ -42,6 +42,7 @@ class Ticket extends Model implements HasMedia
         'budget_spent' => 'float',
         'is_blocked' => 'boolean',
         'requires_approval' => 'boolean',
+        'responsible_ids' => 'array',
     ];
 
     public static function boot()
@@ -180,8 +181,11 @@ class Ticket extends Model implements HasMedia
             get: function () {
                 $users = $this->project->users;
                 $users->push($this->owner);
-                if ($this->responsible) {
-                    $users->push($this->responsible);
+                if ($this->responsible_ids) {
+                    $assignedUsers = \App\Models\User::whereIn('id', $this->responsible_ids)->get();
+                    foreach ($assignedUsers as $user) {
+                        $users->push($user);
+                    }
                 }
                 return $users->unique('id');
             }

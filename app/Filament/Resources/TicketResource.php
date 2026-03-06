@@ -231,12 +231,12 @@ class TicketResource extends Resource
                                     ->default(fn() => auth()->user()->id)
                                     ->required(),
 
-                                Forms\Components\Select::make('responsible_id')
-                                    ->label(__('Ticket responsible'))
-                                    ->searchable()
-                                    ->options(fn() => User::all()->pluck('name', 'id')->toArray())
+                               Forms\Components\Select::make('responsible_ids')
+                                    ->label('Ticket responsible')
+                                    ->options(User::pluck('name','id'))
                                     ->multiple()
                                     ->searchable()
+                                    ->preload()
                                     ->columnSpanFull(),
 
                                 Forms\Components\Grid::make()

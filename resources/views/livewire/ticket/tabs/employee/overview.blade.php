@@ -47,12 +47,18 @@
             </div>
             <div>
                 <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Assigned To</label>
-                @if($ticket->responsible)
-                    <div class="flex items-center gap-2 mt-1">
-                        <img src="{{ $ticket->responsible->avatar_url ?? 'https://ui-avatars.com/api/?name=' . urlencode($ticket->responsible->name) }}" 
-                             alt="{{ $ticket->responsible->name }}" class="w-6 h-6 rounded-full">
-                        <p class="text-gray-900 dark:text-white">{{ $ticket->responsible->name }}</p>
-                    </div>
+                @if(!empty($ticket->responsible_ids))
+                    @foreach(\App\Models\User::whereIn('id', $ticket->responsible_ids)->get() as $user)
+                        <div class="flex items-center gap-2 mt-1">
+                            <div class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs">
+                                {{ strtoupper(substr($user->name,0,2)) }}
+                            </div>
+
+                            <p class="text-gray-900 dark:text-white">
+                                {{ $user->name }}
+                            </p>
+                        </div>
+                    @endforeach
                 @else
                     <p class="text-gray-500 dark:text-gray-400 mt-1">Unassigned</p>
                 @endif
@@ -132,32 +138,26 @@
 </div>
 
 {{-- Status Update Form --}}
-@if($showStatusForm && ($ticket->responsible_id === auth()->id() || $ticket->owner_id === auth()->id()))
-    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">📊 Update Status</h3>
-        <div class="space-y-4">
-            @if($statusError)
-                <div class="p-3 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <p class="text-sm text-red-800 dark:text-red-200">{{ $statusError }}</p>
-                </div>
-            @endif
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New Status</label>
-                <select wire:model="newStatus" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
-                    <option value="">Select a status...</option>
-                    @foreach($availableStatuses as $status)
-                        <option value="{{ $status->id }}">{{ $status->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="flex gap-2">
-                <button wire:click="updateStatus" class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium">
-                    ✓ Update
-                </button>
-                <button wire:click="$set('showStatusForm', false)" class="flex-1 px-4 py-2 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-lg transition-colors text-sm font-medium">
-                    Cancel
-                </button>
-            </div>
-        </div>
+@if($showStatusForm)
+<div class="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+    <label class="block text-sm font-medium mb-2">New Status</label>
+
+    <select wire:model="newStatus" class="w-full border rounded px-3 py-2">
+        <option value="">Select a status...</option>
+
+        @foreach($availableStatuses as $status)
+            <option value="{{ $status->id }}">{{ $status->name }}</option>
+        @endforeach
+    </select>
+
+    <div class="flex gap-2 mt-3">
+        <button wire:click="updateStatus" class="px-4 py-2 bg-green-600 text-white rounded">
+            ✓ Update
+        </button>
+
+        <button wire:click="$set('showStatusForm', false)" class="px-4 py-2 bg-gray-400 text-white rounded">
+            Cancel
+        </button>
     </div>
+</div>
 @endif
