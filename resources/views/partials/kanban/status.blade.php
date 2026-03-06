@@ -20,9 +20,12 @@
         <!-- href="{{ route('filament.resources.tickets.create', ['project' => request()->get('project')]) }}" -->
         @if($status['add_ticket'])
             <div class="-ml-1">
-                <a class="create-record hover:cursor-pointer mt-2 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-white/60 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
-                wire:click="createTicket">
-                    <x-heroicon-o-plus class="w-4 h-4" /> {{ __('Create ticket') }}
+              <a
+                href="{{ route('filament.resources.tickets.create', ['project' => $this->project->id]) }}"
+                class="create-record hover:cursor-pointer mt-2 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-white/60 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                >
+                <x-heroicon-o-plus class="w-4 h-4" />
+                {{ __('Create ticket') }}
                 </a>
             </div>
 

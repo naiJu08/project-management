@@ -53,11 +53,19 @@ class TicketResource extends Resource
                     ->schema([
                         Forms\Components\Grid::make()
                             ->schema([
-                                Forms\Components\Select::make('project_id')
+                            Forms\Components\Select::make('project_id')
                                     ->label(__('Project'))
+                                    ->relationship('project', 'name')
                                     ->searchable()
+                                    ->required()
                                     ->reactive()
-                                    ->default(fn () => request()->get('project_id') ?? request()->route('record')?->project_id)
+                                    ->afterStateHydrated(function ($component, $state) {
+                                        if (!$state && request()->get('project')) {
+                                            $component->state(request()->get('project'));
+                                        }
+                                    })
+                                    ->disabled(fn ($livewire) => request()->has('project'))
+                                    ->extraAttributes(fn () => request()->has('project') ? ['style' => 'pointer-events:none'] : [])
                                     ->afterStateUpdated(function ($get, $set) {
                                         $project = Project::where('id', $get('project_id'))->first();
                                         if ($project?->status_type === 'custom') {
