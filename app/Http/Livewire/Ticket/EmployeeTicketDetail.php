@@ -61,6 +61,9 @@ class EmployeeTicketDetail extends Component
     public function mount(Ticket $ticket): void
     {
         $this->ticket = $ticket;
+        if (request()->has('tab')) {
+        $this->activeTab = request()->get('tab');
+    }
         $this->searchResults = collect();
         $this->masterEditData = [];
         
@@ -607,7 +610,7 @@ class EmployeeTicketDetail extends Component
         }
     }
 
-    public function saveMasterEdit(): void
+    public function saveMasterEdit()
     {
         try {
             $this->validate([
@@ -649,10 +652,11 @@ class EmployeeTicketDetail extends Component
                 $this->ticket->update($updateData);
             }
 
-            $this->showMasterEdit = false;
+           $this->showMasterEdit = false;
             $this->masterEditData = [];
             $this->ticket->refresh();
             $this->notify('success', 'Ticket updated successfully');
+            return redirect()->to('/tickets/' . $this->ticket->id . '?tab=dates');
         } catch (\Exception $e) {
             $this->notify('error', 'Failed to update ticket: ' . $e->getMessage());
         }
