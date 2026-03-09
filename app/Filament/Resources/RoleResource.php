@@ -46,7 +46,7 @@ class RoleResource extends Resource
                             ->schema([
                                 Forms\Components\TextInput::make('name')
                                     ->label(__('Permission name'))
-                                    ->unique(table: Permission::class, column: 'name')
+                                    ->unique(table: Role::class, column: 'name', ignoreRecord: true)
                                     ->maxLength(255)
                                     ->required(),
 
