@@ -54,11 +54,8 @@ class UserResource extends Resource
                                     ->label(__('Email address'))
                                     ->email()
                                     ->required()
-                                    ->rule(
-                                        fn($record) => 'unique:users,email,'
-                                            . ($record ? $record->id : 'NULL')
-                                            . ',id,deleted_at,NULL'
-                                    )
+                                    ->rule('email:rfc,dns')
+                                    ->unique(ignoreRecord: true)
                                     ->maxLength(255),
 
                                 Forms\Components\CheckboxList::make('roles')
