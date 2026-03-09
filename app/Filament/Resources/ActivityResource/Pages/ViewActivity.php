@@ -10,9 +10,13 @@ class ViewActivity extends ViewRecord
 {
     protected static string $resource = ActivityResource::class;
 
-    protected function getActions(): array
+     protected function getActions(): array
     {
         return [
+            Actions\Action::make('back')
+                ->label('← Back')
+                ->url(ActivityResource::getUrl('index')),
+
             Actions\EditAction::make(),
         ];
     }
