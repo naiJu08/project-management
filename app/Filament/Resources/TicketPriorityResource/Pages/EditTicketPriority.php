@@ -27,8 +27,4 @@ class EditTicketPriority extends EditRecord
                 ->update(['is_default' => false]);
         }
     }
-    protected function getRedirectUrl(): string
-{
-    return TicketPriorityResource::getUrl('index');
-}
 }

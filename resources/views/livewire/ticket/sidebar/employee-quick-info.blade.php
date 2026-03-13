@@ -87,37 +87,16 @@
                     </div>
                 </div>
             @endif
-            @php
-                $assignedUsers = [];
-
-                if (!empty($ticket->responsible_ids)) {
-                    $ids = is_array($ticket->responsible_ids)
-                        ? $ticket->responsible_ids
-                        : json_decode($ticket->responsible_ids, true);
-
-                    $assignedUsers = \App\Models\User::whereIn('id', $ids ?? [])->get();
-                }
-                @endphp
-
-                @if($assignedUsers && $assignedUsers->count())
-                    @foreach($assignedUsers as $user)
-                        <div class="flex items-center gap-2">
-                            <img 
-                                src="{{ $user->avatar_url ?? 'https://ui-avatars.com/api/?name=' . urlencode($user->name) }}"
-                                alt="{{ $user->name }}"
-                                class="w-6 h-6 rounded-full">
-
-                            <div class="flex-1 min-w-0">
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Assigned</p>
-                                <p class="text-sm text-gray-900 dark:text-white font-medium truncate">
-                                    {{ $user->name }}
-                                </p>
-                            </div>
-                        </div>
-                    @endforeach
-                @else
-                    <p class="text-sm text-gray-400">Unassigned</p>
-                @endif
+            @if($ticket->responsible)
+                <div class="flex items-center gap-2">
+                    <img src="{{ $ticket->responsible->avatar_url ?? 'https://ui-avatars.com/api/?name=' . urlencode($ticket->responsible->name) }}" 
+                         alt="{{ $ticket->responsible->name }}" class="w-6 h-6 rounded-full">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Assigned</p>
+                        <p class="text-sm text-gray-900 dark:text-white font-medium truncate">{{ $ticket->responsible->name }}</p>
+                    </div>
+                </div>
+            @endif
         </div>
     </div>
 

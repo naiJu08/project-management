@@ -18,7 +18,7 @@ class MonthlyReport extends BarChartWidget
         return __('Logged time monthly');
     }
 
-    public ?string $filter = '2026';
+    public ?string $filter = '2023';
 
     protected function getData(): array
     {
@@ -47,11 +47,9 @@ class MonthlyReport extends BarChartWidget
 
     protected function getFilters(): ?array
     {
-          $year = now()->year;
-
         return [
-            $year => $year,
-            $year - 1 => $year - 1,
+            2022 => 2022,
+            2023 => 2023
         ];
     }
 
@@ -73,7 +71,7 @@ class MonthlyReport extends BarChartWidget
     {
         return TicketHour::select([
             DB::raw("DATE_FORMAT(created_at,'%m') as month"),
-            DB::raw('ROUND(SUM(value), 2) as value'),
+            DB::raw('SUM(value) as value'),
         ])
             ->whereRaw(
                 DB::raw("YEAR(created_at)=" . (is_null($params['year']) ? Carbon::now()->format('Y') : $params['year']))

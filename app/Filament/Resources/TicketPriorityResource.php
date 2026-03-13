@@ -13,7 +13,6 @@ use Filament\Tables;
 use Guava\FilamentIconPicker\Tables\IconColumn;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Illuminate\Validation\Rule;
 
 class TicketPriorityResource extends Resource
 {
@@ -49,11 +48,7 @@ class TicketPriorityResource extends Resource
                                 Forms\Components\TextInput::make('name')
                                     ->label(__('Priority name'))
                                     ->required()
-                                    ->maxLength(255)
-                                    ->rule(
-                                Rule::unique('ticket_priorities', 'name')
-                                    ->whereNull('deleted_at')
-                            ),
+                                    ->maxLength(255),
 
                                 Forms\Components\ColorPicker::make('color')
                                     ->label(__('Priority color'))

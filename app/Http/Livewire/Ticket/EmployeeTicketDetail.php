@@ -8,7 +8,6 @@ use App\Models\TicketHour;
 use App\Models\TicketRelation;
 use Livewire\Component;
 use Illuminate\Support\Collection;
-use App\Models\User;
 
 class EmployeeTicketDetail extends Component
 {
@@ -59,17 +58,9 @@ class EmployeeTicketDetail extends Component
     
     protected $listeners = ['ticketUpdated' => 'refreshTicket'];
 
-    public $responsibleUsers = [];
-
     public function mount(Ticket $ticket): void
     {
-         $this->ticket = $ticket;
-
-    $this->responsibleUsers = User::whereIn(
-        'id',
-        $this->ticket->responsible_ids ?? []
-    )->get();
-    
+        $this->ticket = $ticket;
         $this->searchResults = collect();
         $this->masterEditData = [];
         
@@ -616,7 +607,7 @@ class EmployeeTicketDetail extends Component
         }
     }
 
-    public function saveMasterEdit()
+    public function saveMasterEdit(): void
     {
         try {
             $this->validate([
@@ -658,11 +649,10 @@ class EmployeeTicketDetail extends Component
                 $this->ticket->update($updateData);
             }
 
-           $this->showMasterEdit = false;
+            $this->showMasterEdit = false;
             $this->masterEditData = [];
             $this->ticket->refresh();
             $this->notify('success', 'Ticket updated successfully');
-            return redirect()->to('/tickets/' . $this->ticket->id . '?tab=dates');
         } catch (\Exception $e) {
             $this->notify('error', 'Failed to update ticket: ' . $e->getMessage());
         }
