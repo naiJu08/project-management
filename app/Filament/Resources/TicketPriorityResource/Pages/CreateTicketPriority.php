@@ -19,8 +19,4 @@ class CreateTicketPriority extends CreateRecord
                 ->update(['is_default' => false]);
         }
     }
-    protected function getRedirectUrl(): string
-    {
-        return TicketPriorityResource::getUrl('index');
-    }
 }

@@ -18,8 +18,4 @@ class EditTicketStatus extends EditRecord
             Actions\DeleteAction::make(),
         ];
     }
-    protected function getRedirectUrl(): string
-{
-    return TicketStatusResource::getUrl('index');
-}
 }

@@ -53,19 +53,10 @@ class TicketResource extends Resource
                     ->schema([
                         Forms\Components\Grid::make()
                             ->schema([
-                            Forms\Components\Select::make('project_id')
+                                Forms\Components\Select::make('project_id')
                                     ->label(__('Project'))
-                                    ->relationship('project', 'name')
                                     ->searchable()
-                                    ->required()
                                     ->reactive()
-                                    ->afterStateHydrated(function ($component, $state) {
-                                        if (!$state && request()->get('project')) {
-                                            $component->state(request()->get('project'));
-                                        }
-                                    })
-                                    ->disabled(fn ($livewire) => request()->has('project'))
-                                    ->extraAttributes(fn () => request()->has('project') ? ['style' => 'pointer-events:none'] : [])
                                     ->afterStateUpdated(function ($get, $set) {
                                         $project = Project::where('id', $get('project_id'))->first();
                                         if ($project?->status_type === 'custom') {
@@ -91,14 +82,13 @@ class TicketResource extends Resource
                                             return $query->where('users.id', auth()->user()->id);
                                         })->pluck('name', 'id')->toArray()
                                     )
-                                    ->default(fn ($livewire) => request()->get('project_id'))
-                                    ->disabled(fn() => request()->has('project_id'))
+                                    ->default(fn() => request()->get('project'))
                                     ->required(),
                                 Forms\Components\Select::make('epic_id')
                                     ->label(__('Epic'))
                                     ->searchable()
                                     ->reactive()
-                                    ->options(function ($get,) {
+                                    ->options(function ($get, $set) {
                                         return Epic::where('project_id', $get('project_id'))->pluck('name', 'id')->toArray();
                                     }),
                             ]),
@@ -108,7 +98,7 @@ class TicketResource extends Resource
                             ->description(__('Link this ticket to a specific backlog hierarchy'))
                             ->collapsible()
                             ->collapsed(fn() => !request()->has('backlog_parent'))
-                            ->visible(fn() => true)
+                            ->visible(fn($livewire) => $livewire instanceof CreateRecord)
                             ->schema([
                                 Forms\Components\Grid::make()
                                     ->columns(3)
@@ -206,12 +196,12 @@ class TicketResource extends Resource
                         Forms\Components\Card::make()
                             ->schema([
                                 Forms\Components\Grid::make()
-                                 ->columns(12)
-                                    ->columnSpan(2)                               
+                                    ->columns(12)
+                                    ->columnSpan(2)
                                     ->schema([
                                         Forms\Components\TextInput::make('code')
                                             ->label(__('Ticket code'))
-                                            ->visible(fn() => true)
+                                            ->visible(fn($livewire) => !($livewire instanceof CreateRecord))
                                             ->columnSpan(2)
                                             ->disabled(),
 
@@ -231,13 +221,10 @@ class TicketResource extends Resource
                                     ->default(fn() => auth()->user()->id)
                                     ->required(),
 
-                               Forms\Components\Select::make('responsible_ids')
-                                    ->label('Ticket responsible')
-                                    ->options(User::pluck('name','id'))
-                                    ->multiple()
+                                Forms\Components\Select::make('responsible_id')
+                                    ->label(__('Ticket responsible'))
                                     ->searchable()
-                                    ->preload()
-                                    ->columnSpanFull(),
+                                    ->options(fn() => User::all()->pluck('name', 'id')->toArray()),
 
                                 Forms\Components\Grid::make()
                                     ->columns(3)
@@ -300,7 +287,7 @@ class TicketResource extends Resource
                         // AI Generation Section (Create only)
                         Forms\Components\Section::make('AI Task Generation')
                             ->description(__('Generate detailed tasks automatically using AI based on your prompt'))
-                            ->visible(fn() => true)
+                            ->visible(fn($livewire) => $livewire instanceof CreateRecord)
                             ->collapsible()
                             ->collapsed()
                             ->schema([
@@ -520,11 +507,4 @@ class TicketResource extends Resource
             'edit' => Pages\EditTicket::route('/{record}/edit'),
         ];
     }
-
-
-        public static function getFormSchema(): array
-        {
-            return static::form(app(Form::class))->getSchema();
-        }
 }
-

@@ -131,27 +131,3 @@
         @endif
     </div>
 </div>
-  {{-- Create Ticket Modal --}}
-<x-filament::modal id="create-ticket" width="7xl">
-
-    <x-slot name="heading">
-        Create Ticket
-    </x-slot>
-
-    <form wire:submit.prevent="createTicket">
-
-        {{ $this->form }}
-
-        <div class="mt-4 flex justify-end gap-3">
-            <x-filament::button type="submit">
-                Save Ticket
-            </x-filament::button>
-
-            <x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'create-ticket' })">
-                Cancel
-            </x-filament::button>
-        </div>
-
-    </form>
-
-</x-filament::modal>

@@ -22,19 +22,14 @@ class ViewProject extends ViewRecord
                 ->icon('heroicon-o-view-boards')
                 ->color('secondary')
                 ->url(function () {
-                   return $this->record->type === 'scrum'
-                        ? route('filament.pages.scrum/{project}', ['project' => $this->record->id])
-                        : route('filament.pages.kanban/{project}', ['project' => $this->record->id]);
+                    if ($this->record->type === 'scrum') {
+                        return route('filament.pages.scrum/{project}', ['project' => $this->record->id]);
+                    } else {
+                        return route('filament.pages.kanban/{project}', ['project' => $this->record->id]);
+                    }
                 }),
 
-
             Actions\EditAction::make(),
-
-             Actions\Action::make('createTicket')
-                ->label('Create Ticket')
-                ->icon('heroicon-o-plus')
-                ->color('primary')
-                ->url(fn () => '/tickets/create?project_id=' . $this->record->id)
         ];
     }
 

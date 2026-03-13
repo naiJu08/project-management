@@ -10,7 +10,6 @@ use Filament\Resources\Form;
 use Filament\Resources\Resource;
 use Filament\Resources\Table;
 use Filament\Tables;
-use Illuminate\Validation\Rule;
 
 class TicketStatusResource extends Resource
 {
@@ -46,11 +45,7 @@ class TicketStatusResource extends Resource
                                 Forms\Components\TextInput::make('name')
                                     ->label(__('Status name'))
                                     ->required()
-                                    ->maxLength(255)
-                                    ->rule(
-                                Rule::unique('ticket_statuses', 'name')
-                                    ->whereNull('deleted_at')
-                            ),
+                                    ->maxLength(255),
 
                                 Forms\Components\ColorPicker::make('color')
                                     ->label(__('Status color'))

@@ -11,14 +11,9 @@ use App\Models\Ticket;
 use App\Models\TicketStatus;
 use Livewire\Component;
 use Illuminate\Support\Facades\Auth;
-use Filament\Resources\Form;
-use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Concerns\InteractsWithForms;
-use App\Filament\Resources\TicketResource;
 
-class ProjectDetail extends Component implements HasForms
+class ProjectDetail extends Component
 {
-    use InteractsWithForms;
     public $projectId;
     public $activeTab = 'board';
     public $enabledTabs = [];
@@ -78,7 +73,6 @@ class ProjectDetail extends Component implements HasForms
     protected $queryString = ['activeTab' => ['except' => 'board']];
     
     protected $listeners = ['tabPreferencesUpdated' => 'reloadTabPreferences'];
-    
 
     public function mount($projectId)
     {
@@ -853,15 +847,7 @@ class ProjectDetail extends Component implements HasForms
     }
 
     public function render()
-{
-    return view('livewire.project-detail');
-}
-
-    public function form(Form $form): Form
     {
-        return $form
-            ->schema(TicketResource::getFormSchema())
-            ->model(Ticket::class);
+        return view('livewire.project-detail');
     }
 }
-
