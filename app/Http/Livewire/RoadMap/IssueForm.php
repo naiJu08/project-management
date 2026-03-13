@@ -23,29 +23,34 @@ class IssueForm extends Component implements HasForms
     public array $epics;
     public array $sprints;
 
-    public function mount()
-    {
-        $this->initProject($this->project?->id);
-        if ($this->project?->status_type === 'custom') {
-            $defaultStatus = TicketStatus::where('project_id', $this->project->id)
-                ->where('is_default', true)
-                ->first()
-                ?->id;
-        } else {
-            $defaultStatus = TicketStatus::whereNull('project_id')
-                ->where('is_default', true)
-                ->first()
-                ?->id;
-        }
-        $this->form->fill([
-            'project_id' => $this->project?->id ?? null,
-            'owner_id' => auth()->user()->id,
-            'status_id' => $defaultStatus,
-            'type_id' => TicketType::where('is_default', true)->first()?->id,
-            'priority_id' => TicketPriority::where('is_default', true)->first()?->id
-        ]);
+    public $project_id;
+
+   public function mount($project_id = null)
+{
+    if ($project_id) {
+        $this->project = Project::find($project_id);
     }
 
+    $this->initProject($this->project?->id);
+
+    if ($this->project?->status_type === 'custom') {
+        $defaultStatus = TicketStatus::where('project_id', $this->project->id)
+            ->where('is_default', true)
+            ->first()?->id;
+    } else {
+        $defaultStatus = TicketStatus::whereNull('project_id')
+            ->where('is_default', true)
+            ->first()?->id;
+    }
+
+    $this->form->fill([
+        'project_id' => $project_id,
+        'owner_id' => auth()->user()->id,
+        'status_id' => $defaultStatus,
+        'type_id' => TicketType::where('is_default', true)->first()?->id,
+        'priority_id' => TicketPriority::where('is_default', true)->first()?->id
+    ]);
+}
     public function render()
     {
         return view('livewire.road-map.issue-form');
@@ -70,6 +75,7 @@ class IssueForm extends Component implements HasForms
                     Forms\Components\Grid::make(4)
                         ->schema([
                             Forms\Components\Select::make('project_id')
+                                ->default($this->project_id)
                                 ->label(__('Project'))
                                 ->searchable()
                                 ->reactive()
@@ -183,4 +189,6 @@ class IssueForm extends Component implements HasForms
     {
         $this->emit('closeTicketDialog', $refresh);
     }
+
+    
 }

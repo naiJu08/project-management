@@ -15,6 +15,12 @@ class CreateTicket extends CreateRecord
     
     protected function mutateFormDataBeforeFill(array $data): array
     {
+          // Ensure project_id is always set
+        if (request()->has('project_id')) {
+            $data['project_id'] = request()->get('project_id');
+        } elseif (!isset($data['project_id']) && $this->record?->project_id) {
+            $data['project_id'] = $this->record->project_id;
+        }
         // Pre-populate backlog fields from URL parameters
         if (request()->has('backlog_parent')) {
             $parent = BacklogItem::find(request()->get('backlog_parent'));
@@ -44,6 +50,15 @@ class CreateTicket extends CreateRecord
         
         return $data;
     }
+
+    protected function mutateFormDataBeforeCreate(array $data): array
+{
+    if (request()->has('project_id')) {
+        $data['project_id'] = request()->get('project_id');
+    }
+
+    return $data;
+}
 
     protected function afterCreate(): void
     {
@@ -121,15 +136,22 @@ class CreateTicket extends CreateRecord
         }
     }
     
-    protected function getRedirectUrl(): string
-    {
-        // If created from backlog, redirect back to backlog tab
-        if (request()->has('backlog_parent')) {
-            return route('filament.resources.projects.view', [
-                'record' => $this->record->project_id,
-            ]) . '?activeTab=backlog';
-        }
-        
-        return parent::getRedirectUrl();
+   protected function getRedirectUrl(): string
+{
+    // If created from backlog
+    if (request()->has('backlog_parent')) {
+        return route('filament.resources.projects.view', [
+            'record' => $this->record->project_id,
+        ]) . '?activeTab=backlog';
     }
+
+    // If created from board
+    if (request()->has('project_id')) {
+        return route('filament.resources.projects.view', [
+            'record' => $this->record->project_id,
+        ]) . '?activeTab=board';
+    }
+
+    return parent::getRedirectUrl();
+}
 }

@@ -10,9 +10,13 @@ class ViewPermission extends ViewRecord
 {
     protected static string $resource = PermissionResource::class;
 
-    protected function getActions(): array
+   protected function getActions(): array
     {
         return [
+            Actions\Action::make('back')
+                ->label('← Back')
+                ->url(PermissionResource::getUrl('index')),
+
             Actions\EditAction::make(),
         ];
     }

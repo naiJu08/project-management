@@ -13,6 +13,10 @@ class ViewRole extends ViewRecord
     protected function getActions(): array
     {
         return [
+            Actions\Action::make('back')
+                ->label('← Back')
+                ->url(RoleResource::getUrl('index')),
+
             Actions\EditAction::make(),
         ];
     }

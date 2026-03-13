@@ -27,4 +27,8 @@ class EditProjectStatus extends EditRecord
                 ->update(['is_default' => false]);
         }
     }
+    protected function getRedirectUrl(): string
+{
+    return $this->getResource()::getUrl('index');
+}
 }
