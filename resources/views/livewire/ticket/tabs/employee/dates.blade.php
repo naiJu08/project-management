@@ -138,7 +138,7 @@
                     <p class="text-lg font-semibold text-gray-900 dark:text-white mt-1">
                         @if($ticket->start_date)
                             {{ $ticket->start_date->format('M d, Y') }}
-                            <span class="text-xs text-gray-500">({{ $ticket->start_date->isToday() ? 'Today' : $ticket->start_date->diffForHumans() }})</span>
+                            <span class="text-xs text-gray-500">({{ $ticket->start_date->diffForHumans() }})</span>
                         @else
                             <span class="text-gray-500">Not set</span>
                         @endif
@@ -171,7 +171,7 @@
                                 @if($isOverdue)
                                     (Overdue by {{ now()->diffInDays($ticket->due_date) }} days)
                                 @else
-                                    ({{ $ticket->due_date->diffForHumans(['parts' => 2]) }})
+                                    ({{ $ticket->due_date->diffForHumans() }})
                                 @endif
                             </span>
                         @else

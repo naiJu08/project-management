@@ -13,10 +13,6 @@ class ViewUser extends ViewRecord
     protected function getActions(): array
     {
         return [
-            Actions\Action::make('back')
-                ->label('← Back')
-                ->url(UserResource::getUrl('index')),
-
             Actions\EditAction::make(),
         ];
     }

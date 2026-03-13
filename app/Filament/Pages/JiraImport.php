@@ -54,7 +54,7 @@ class JiraImport extends Page implements HasForms
 
     protected static function shouldRegisterNavigation(): bool
     {
-        return false;
+        return auth()->user()->can('Import from Jira');
     }
 
     protected function getSubheading(): string|Htmlable|null
@@ -267,5 +267,4 @@ class JiraImport extends Page implements HasForms
         }
         $this->loadingTickets = false;
     }
-
 }

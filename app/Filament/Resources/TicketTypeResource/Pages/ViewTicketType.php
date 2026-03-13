@@ -13,10 +13,6 @@ class ViewTicketType extends ViewRecord
     protected function getActions(): array
     {
         return [
-            Actions\Action::make('back')
-                ->label('← Back')
-                ->url(TicketTypeResource::getUrl('index')),
-
             Actions\EditAction::make(),
         ];
     }

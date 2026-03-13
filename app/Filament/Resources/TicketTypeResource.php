@@ -12,7 +12,6 @@ use Filament\Resources\Table;
 use Filament\Tables;
 use Guava\FilamentIconPicker\Forms\IconPicker;
 use Guava\FilamentIconPicker\Tables\IconColumn;
-use Illuminate\Validation\Rule;
 
 class TicketTypeResource extends Resource
 {
@@ -48,11 +47,7 @@ class TicketTypeResource extends Resource
                                 Forms\Components\TextInput::make('name')
                                     ->label(__('Type name'))
                                     ->required()
-                                    ->maxLength(255)
-                                    ->rule(
-                                Rule::unique('ticket_types', 'name')
-                                    ->whereNull('deleted_at')
-                            ),
+                                    ->maxLength(255),
 
                                 Forms\Components\ColorPicker::make('color')
                                     ->label(__('Type color'))

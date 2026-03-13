@@ -189,14 +189,7 @@ class AiAssistantPanel extends Component
         $data = $this->draft;
         $rules = [
             'name' => ['required','string','max:255'],
-            'ticket_prefix' => [
-            'required',
-            'string',
-            'min:1',
-            'max:3',
-            Rule::unique('projects', 'ticket_prefix')
-                ->whereNull('deleted_at'),
-        ],
+            'ticket_prefix' => ['required','string','min:1','max:3', Rule::unique('projects', 'ticket_prefix')],
             'owner_id' => ['required','integer','exists:users,id'],
             'status_id' => ['required','integer','exists:project_statuses,id'],
             'type' => ['required','in:kanban,scrum'],
@@ -270,11 +263,7 @@ class AiAssistantPanel extends Component
         $base = substr($base, 0, 3) ?: 'PRJ';
         $prefix = $base;
         $i = 0;
-        while (
-            Project::where('ticket_prefix', $prefix)
-                ->whereNull('deleted_at')
-                ->exists()
-        ) {
+        while (Project::where('ticket_prefix', $prefix)->exists()) {
             $i++;
             $suffix = strtoupper(base_convert($i, 10, 36));
             $prefix = substr($base, 0, max(1, 3 - strlen($suffix))) . $suffix;
