@@ -11,10 +11,14 @@ class ListView extends Component
 {
     use WithPagination;
 
+    protected $paginationTheme = 'tailwind';
+
     public $projectId;
     public $search = '';
     public $filterStatus = '';
     public $filterPriority = '';
+
+    public $showCreateTask = false;
 
     protected $queryString = ['search', 'filterStatus', 'filterPriority'];
 
@@ -62,4 +66,21 @@ class ListView extends Component
             'tickets' => $this->tickets,
         ]);
     }
+
+    public function createTask()
+{
+    $this->showCreateTask = true;
+}
+
+public function updatingFilterStatus()
+{
+    $this->resetPage();
+}
+
+public function updatingFilterPriority()
+{
+    $this->resetPage();
+}
+
+    
 }

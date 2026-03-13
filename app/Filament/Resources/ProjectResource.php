@@ -19,6 +19,8 @@ use Filament\Tables;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Validation\Rule;
+
 
 class ProjectResource extends Resource
 {
@@ -74,14 +76,15 @@ class ProjectResource extends Resource
                                                     ->maxLength(255),
 
                                                 Forms\Components\TextInput::make('ticket_prefix')
-                                                    ->label(__('Ticket prefix'))
-                                                    ->maxLength(3)
-                                                    ->columnSpan(2)
-                                                    ->unique(Project::class, column: 'ticket_prefix', ignoreRecord: true)
-                                                    ->disabled(
-                                                        fn($record) => $record && $record->tickets()->count() != 0
-                                                    )
                                                     ->required()
+                                                    ->label(__('Ticket prefix'))
+                                                    ->columnSpan(2)
+                                                    ->maxLength(3)
+                                                    ->rule(
+                                                        Rule::unique('projects', 'ticket_prefix')
+                                                            ->whereNull('deleted_at')
+                                                    ),
+                                                   
                                             ]),
 
                                         Forms\Components\Select::make('owner_id')

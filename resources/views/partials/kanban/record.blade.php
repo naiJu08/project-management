@@ -18,10 +18,10 @@
         </div>
     </div>
     <div class="record-footer flex items-center justify-between">
-        <div class="record-type-code">
+        <div class="record-type-code flex items-center gap-2 flex-wrap mt-1">
             @php($epic = $record['epic'])
             @if($epic && $epic != "")
-                <div class="px-2 py-0.5 rounded flex items-center justify-center text-center text-xs text-white bg-purple-600" title="{{ __('Epic') }}">
+                <div class="px-3 py-0.5 rounded flex items-center justify-center text-center text-xs text-white bg-blue-600" title="{{ __('Epic') }}">
                     {{ $epic->name }}
                 </div>
             @endif
