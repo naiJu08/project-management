@@ -33,7 +33,9 @@ Route::get('/validate-account/{user:creation_token}', function (User $user) {
     ]);
 
 // Login default redirection
+// Route::redirect('/login', '/admin/login');
 Route::redirect('/login-redirect', '/login')->name('login');
+
 
 // Road map JSON data
 Route::get('road-map/data/{project}', [DataController::class, 'data'])
@@ -48,11 +50,10 @@ Route::name('oidc.')
     });
 
 
-Route::get('/user-chat', UserChat::class);
 
-Route::get('/admin/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
+Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
     $request->fulfill();
-    return redirect('/admin');
+    return redirect('/');
 })->middleware(['auth', 'signed'])->name('verification.verify');
 
 

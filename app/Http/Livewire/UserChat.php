@@ -42,6 +42,14 @@ class UserChat extends Component
         $this->selectedUser = $userId;
         $this->selectedUserModel = User::find($userId);
 
+         // ⭐ mark messages as read
+            DirectMessage::where('sender_id', $userId)
+                ->where('receiver_id', auth()->id())
+                ->whereNull('read_at')
+                ->update([
+                    'read_at' => now()
+                ]);
+
         $this->loadMessages();
     }
 
@@ -125,10 +133,19 @@ class UserChat extends Component
         $this->loadMessages();
     }
 
-    public function render()
+   public function render()
 {
     if ($this->selectedUser) {
+
         $this->loadMessages();
+
+        // mark new messages as read automatically
+        DirectMessage::where('sender_id', $this->selectedUser)
+            ->where('receiver_id', auth()->id())
+            ->whereNull('read_at')
+            ->update([
+                'read_at' => now()
+            ]);
     }
 
     return view('livewire.user-chat');
