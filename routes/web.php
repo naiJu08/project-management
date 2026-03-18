@@ -10,6 +10,7 @@ use App\Http\Livewire\UserChat;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use App\Events\CallOffer;
 use App\Events\CallAnswer;
+use App\Events\IceCandidate;
 use Illuminate\Http\Request;
 
 // Test AI Assistant
@@ -33,7 +34,9 @@ Route::get('/validate-account/{user:creation_token}', function (User $user) {
     ]);
 
 // Login default redirection
+// Route::redirect('/login', '/admin/login');
 Route::redirect('/login-redirect', '/login')->name('login');
+
 
 // Road map JSON data
 Route::get('road-map/data/{project}', [DataController::class, 'data'])
@@ -48,11 +51,10 @@ Route::name('oidc.')
     });
 
 
-Route::get('/user-chat', UserChat::class);
 
-Route::get('/admin/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
+Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
     $request->fulfill();
-    return redirect('/admin');
+    return redirect('/');
 })->middleware(['auth', 'signed'])->name('verification.verify');
 
 
@@ -67,16 +69,35 @@ Route::get('/voice-call/{id}', function ($id) {
 
 Route::post('/send-offer', function (Request $request) {
 
-    broadcast(new CallOffer($request->offer));
+    broadcast(new CallOffer(
+        $request->offer,
+        auth()->id(),
+        auth()->user()->name,
+        $request->receiverId
+    ))->toOthers();
 
-    return response()->json(['status' => 'sent']);
-
+    return response()->json(['status' => 'offer sent']);
 });
+
 
 Route::post('/send-answer', function (Request $request) {
 
-    broadcast(new CallAnswer($request->answer));
+    broadcast(new CallAnswer(
+        $request->answer,
+        auth()->id(),
+        $request->receiverId
+    ))->toOthers();
 
-    return response()->json(['status' => 'sent']);
+    return response()->json(['status' => 'answer sent']);
+});
 
+
+Route::post('/send-ice', function (Request $request) {
+
+    broadcast(new IceCandidate(
+        $request->candidate,
+        auth()->id(),
+        $request->receiverId
+    ))->toOthers();
+    return response()->json(['status' => 'ice sent']);
 });

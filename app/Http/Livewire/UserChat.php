@@ -7,6 +7,9 @@ use Livewire\WithFileUploads;
 use App\Models\User;
 use App\Models\DirectMessage;
 use Illuminate\Support\Facades\Storage;
+use App\Events\CallOffer;
+use App\Events\CallAnswer;
+use App\Events\IceCandidate;
 
 class UserChat extends Component
 {
@@ -42,6 +45,13 @@ class UserChat extends Component
         $this->selectedUser = $userId;
         $this->selectedUserModel = User::find($userId);
 
+        DirectMessage::where('sender_id', $userId)
+            ->where('receiver_id', auth()->id())
+            ->whereNull('read_at')
+            ->update([
+                'read_at' => now()
+            ]);
+
         $this->loadMessages();
     }
 
@@ -62,63 +72,56 @@ class UserChat extends Component
     }
 
     public function sendMessage()
-{
-    if(empty($this->message) && empty($this->files)){
-        return;
-    }
+    {
+        if(empty($this->message) && empty($this->files)){
+            return;
+        }
 
-    $this->validate([
-        'files.*' => 'nullable|file|max:10240'
-    ]);
+        $this->validate([
+            'files.*' => 'nullable|file|max:10240'
+        ]);
 
-    if(!empty($this->files)){
+        if(!empty($this->files)){
+            $total = count($this->files);
 
-        $total = count($this->files);
+            foreach ($this->files as $index => $file){
+                $filePath = $file->store('chat-files','public');
 
-        foreach ($this->files as $index => $file){
+                DirectMessage::create([
+                    'sender_id' => auth()->id(),
+                    'receiver_id' => $this->selectedUser,
+                    'message' => $index == ($total - 1) ? $this->message : '',
+                    'file' => $filePath
+                ]);
+            }
 
-            $filePath = $file->store('chat-files','public');
-
+        } else {
             DirectMessage::create([
                 'sender_id' => auth()->id(),
                 'receiver_id' => $this->selectedUser,
-                'message' => $index == ($total - 1) ? $this->message : '',
-                'file' => $filePath
+                'message' => $this->message
             ]);
         }
 
-    } else {
-
-        DirectMessage::create([
-            'sender_id' => auth()->id(),
-            'receiver_id' => $this->selectedUser,
-            'message' => $this->message
-        ]);
+        $this->reset(['message','files']);
+        $this->loadMessages();
+        $this->emit('messageSent');
     }
 
-    $this->reset(['message','files']);
-
-    $this->loadMessages();
-
-    $this->emit('messageSent');
-}
     public function removeFile($index)
-{
-    unset($this->files[$index]);
-    $this->files = array_values($this->files);
-}
+    {
+        unset($this->files[$index]);
+        $this->files = array_values($this->files);
+    }
 
-    // ⭐ DELETE MESSAGE FUNCTION
     public function deleteMessage($id)
     {
         $msg = DirectMessage::find($id);
 
         if ($msg && $msg->sender_id == auth()->id()) {
-
             if ($msg->file) {
                 Storage::disk('public')->delete($msg->file);
             }
-
             $msg->delete();
         }
 
@@ -126,42 +129,86 @@ class UserChat extends Component
     }
 
     public function render()
-{
-    if ($this->selectedUser) {
-        $this->loadMessages();
+    {
+        if ($this->selectedUser) {
+            $this->loadMessages();
+
+            DirectMessage::where('sender_id', $this->selectedUser)
+                ->where('receiver_id', auth()->id())
+                ->whereNull('read_at')
+                ->update([
+                    'read_at' => now()
+                ]);
+        }
+
+        return view('livewire.user-chat');
     }
 
-    return view('livewire.user-chat');
-}
-
     public function editMessage($id)
-{
-    $msg = DirectMessage::find($id);
+    {
+        $msg = DirectMessage::find($id);
 
-    $this->editingMessageId = $msg->id;
-    $this->editingText = $msg->message;
-}
+        $this->editingMessageId = $msg->id;
+        $this->editingText = $msg->message;
+    }
+
     public function updateMessage()
+    {
+        $msg = DirectMessage::find($this->editingMessageId);
+
+        $msg->update([
+            'message' => $this->editingText
+        ]);
+
+        // ✅ FIXED PART (moved inside function)
+        $this->editingMessageId = null;
+        $this->editingText = '';
+
+        $this->chatMessages = DirectMessage::where(function ($q) {
+            $q->where('sender_id', auth()->id())
+              ->where('receiver_id', $this->selectedUser);
+        })->orWhere(function ($q) {
+            $q->where('sender_id', $this->selectedUser)
+              ->where('receiver_id', auth()->id());
+        })
+        ->orderBy('created_at')
+        ->get();
+    }
+
+   // ================= VOICE CALL METHODS =================
+
+// SEND OFFER
+public function sendCallOffer($offer, $receiverId)
 {
-    $msg = DirectMessage::find($this->editingMessageId);
-
-    $msg->update([
-        'message' => $this->editingText
-    ]);
-
-    // reset edit mode
-    $this->editingMessageId = null;
-    $this->editingText = '';
-
-    // ⭐ refresh chat messages instantly
-    $this->chatMessages = DirectMessage::where(function ($q) {
-        $q->where('sender_id', auth()->id())
-          ->where('receiver_id', $this->selectedUser);
-    })->orWhere(function ($q) {
-        $q->where('sender_id', $this->selectedUser)
-          ->where('receiver_id', auth()->id());
-    })
-    ->orderBy('created_at')
-    ->get();
+    
+    broadcast(new CallOffer(
+        $offer,
+        auth()->id(),                  // callerId
+        auth()->user()->name,          // callerName
+        $receiverId
+    ));
 }
+
+
+// SEND ANSWER
+public function sendCallAnswer($answer, $receiverId)
+{
+    broadcast(new CallAnswer(
+        $answer,
+        auth()->id(),   // answer from
+        $receiverId
+    ));
+}
+
+
+// SEND ICE
+public function sendIceCandidate($candidate, $receiverId)
+{
+    broadcast(new IceCandidate(
+        $candidate,
+        auth()->id(),   // ✅ senderId (NEW)
+        $receiverId     // ✅ receiverId
+    ));
+}
+
 }

@@ -13,14 +13,24 @@ class CallOffer implements ShouldBroadcast
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $offer;
+    public $callerId;
+    public $callerName;
+    public $receiverId;
 
-    public function __construct($offer)
+    public function __construct($offer, $callerId, $callerName, $receiverId)
     {
         $this->offer = $offer;
+        $this->callerId = $callerId;
+        $this->callerName = $callerName;
+        $this->receiverId = $receiverId;
     }
 
     public function broadcastOn()
     {
-        return new Channel('voice-call');
+          return new Channel('voice-call.' . $this->receiverId);
     }
+    public function broadcastAs()
+{
+    return 'CallOffer';
+}
 }

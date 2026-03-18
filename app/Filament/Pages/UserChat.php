@@ -52,20 +52,44 @@ class UserChat extends Page
         ->get();
     }
 
-    public function sendMessage()
+     public function getChatMessagesProperty()
+{
+    if(!$this->selectedUser){
+        return collect();
+    }
+
+    return DirectMessage::where(function ($q) {
+        $q->where('sender_id', auth()->id())
+          ->where('receiver_id', $this->selectedUser);
+    })
+    ->orWhere(function ($q) {
+        $q->where('sender_id', $this->selectedUser)
+          ->where('receiver_id', auth()->id());
+    })
+    ->orderBy('created_at','asc')
+    ->get();
+}
+    public function refreshMessages()
     {
-        if(!$this->message || !$this->selectedUser){
-            return;
-        }
-
-        DirectMessage::create([
-            'sender_id' => auth()->id(),
-            'receiver_id' => $this->selectedUser,
-            'message' => $this->message,
-        ]);
-
-        $this->message = '';
-
         $this->loadMessages();
     }
+
+   public function sendMessage()
+{
+    $this->message = trim($this->message);
+
+    if(!$this->message || !$this->selectedUser){
+        return;
+    }
+
+    DirectMessage::create([
+        'sender_id' => auth()->id(),
+        'receiver_id' => $this->selectedUser,
+        'message' => $this->message,
+    ]);
+
+    $this->message = '';
+
+    $this->loadMessages();
+}
 }
