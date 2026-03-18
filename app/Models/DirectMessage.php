@@ -15,6 +15,11 @@ class DirectMessage extends Model
         'message',
         'is_read',
         'file',
+        'read_at',
+    ];
+
+     protected $casts = [
+        'read_at' => 'datetime', 
     ];
 
     public function sender()
