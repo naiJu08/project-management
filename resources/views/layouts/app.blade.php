@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>User Chat</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
     @livewireStyles
 </head>

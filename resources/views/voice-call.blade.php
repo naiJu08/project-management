@@ -1,35 +1,177 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <title>Voice Call</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
-
-
-<!-- Pusher -->
-<script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-
-<!-- Echo -->
-<script src="https://unpkg.com/laravel-echo/dist/echo.iife.js"></script>
+<script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
 <script>
-window.Pusher = Pusher;
+console.log("✅ JS LOADED");
 
-const EchoInstance = new Echo.default({
-    broadcaster: 'pusher',
-    key: 'local',
-    cluster: 'mt1',   
-    wsHost: window.location.hostname,
-    wsPort: 6001,
-    forceTLS: false,
-    disableStats: true
+const userId = {{ auth()->id() }};
+const otherUserId = {{ $user->id }};
+
+let localStream;
+let peerConnection;
+
+// ✅ PUSHER INIT
+const pusher = new Pusher("0c08d7f3f0fa0c883f22", {
+    cluster: "ap2",
+    forceTLS: true
 });
 
-window.Echo = EchoInstance;
+const channel = pusher.subscribe('voice-call.' + userId);
+
+// ✅ CREATE PEER
+function createPeer() {
+
+    console.log("🧠 Creating Peer");
+
+    peerConnection = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    });
+
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+
+            console.log("📡 Sending ICE");
+
+            fetch('/send-ice', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({
+                    candidate: event.candidate,
+                    senderId: userId,
+                    receiverId: otherUserId
+                })
+            });
+        }
+    };
+
+    peerConnection.ontrack = (event) => {
+
+        console.log("🔊 AUDIO RECEIVED");
+
+        const audio = document.createElement("audio");
+        audio.srcObject = event.streams[0];
+        audio.autoplay = true;
+
+        document.body.appendChild(audio);
+    };
+}
+
+// ✅ START CALL (CALLER)
+async function startCall() {
+
+    console.log("🚀 START BUTTON CLICKED");
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+        console.error("MIC ERROR:", err);
+        alert("Microphone permission blocked");
+        return;
+    }
+
+    createPeer();
+
+    localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+    });
+
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    console.log("📤 SENDING OFFER");
+
+    await fetch('/send-offer', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+            offer: offer,
+            receiverId: otherUserId
+        })
+    });
+
+    console.log("✅ OFFER SENT");
+}
+
+// ✅ RECEIVE OFFER (RECEIVER)
+channel.bind('.CallOffer', async (data) => {
+
+    console.log("📞 OFFER RECEIVED");
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+        alert("Mic blocked");
+        return;
+    }
+
+    createPeer();
+
+    localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+    });
+
+    await peerConnection.setRemoteDescription(
+        new RTCSessionDescription(data.offer)
+    );
+
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+
+    console.log("📤 SENDING ANSWER");
+
+    fetch('/send-answer', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+            answer: answer,
+            receiverId: data.callerId
+        })
+    });
+});
+
+// ✅ RECEIVE ANSWER
+channel.bind('.CallAnswer', async (data) => {
+
+    console.log("✅ ANSWER RECEIVED");
+
+    await peerConnection.setRemoteDescription(
+        new RTCSessionDescription(data.answer)
+    );
+});
+
+// ✅ RECEIVE ICE
+channel.bind('.IceCandidate', async (data) => {
+
+    console.log("❄ ICE RECEIVED");
+
+    if (peerConnection) {
+        await peerConnection.addIceCandidate(
+            new RTCIceCandidate(data.candidate)
+        );
+    }
+});
+
+// ✅ END CALL
+function endCall(){
+    window.close();
+}
 </script>
 
 </head>
@@ -38,162 +180,33 @@ window.Echo = EchoInstance;
 
 <div class="text-center">
 
-<!-- USER AVATAR -->
-<div class="w-24 h-24 rounded-full bg-primary-600 flex items-center justify-center text-3xl font-bold mx-auto">
-{{ strtoupper(substr($user->name,0,1)) }}
-</div>
+    <div class="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-3xl font-bold mx-auto">
+        {{ strtoupper(substr($user->name,0,1)) }}
+    </div>
 
-<h2 class="mt-4 text-xl font-semibold">
-Calling {{ $user->name }}
-</h2>
+    <h2 class="mt-4 text-xl font-semibold">
+        Calling {{ $user->name }}
+    </h2>
 
-<p class="text-gray-400 text-sm mt-1">
-Connecting...
-</p>
+    <p class="text-gray-400 text-sm mt-1">
+        Connecting...
+    </p>
 
-<!-- CALL BUTTONS -->
-<div class="flex gap-6 justify-center mt-8">
+    <div class="flex gap-6 justify-center mt-8">
 
-<button onclick="startVoice()"
+        <!-- ✅ START CALL -->
+        <button onclick="startCall()" class="bg-green-500 px-6 py-3 rounded-full text-lg">
+            📞 Start Call
+        </button>
 
-class="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-full text-lg">
-🎤
-</button>
+        <!-- END -->
+        <button onclick="endCall()" class="bg-red-500 px-6 py-3 rounded-full text-lg">
+            ❌
+        </button>
 
-<button onclick="endCall()"
-class="bg-red-500 hover:bg-red-600 px-6 py-3 rounded-full text-lg">
-❌
-</button>
-
-</div>
+    </div>
 
 </div>
-
-<script>
-
-let localStream;
-let peerConnection;
-
-// START CALL
-async function startVoice(){
-
-    try{
-
-        localStream = await navigator.mediaDevices.getUserMedia({ audio:true });
-
-        peerConnection = new RTCPeerConnection({
-            iceServers: [
-                { urls: "stun:stun.l.google.com:19302" }
-            ]
-        });
-
-        peerConnection.onicecandidate = event => {
-            if(event.candidate){
-                console.log("ICE candidate:", event.candidate);
-            }
-        };
-
-        peerConnection.ontrack = function(event){
-
-            let audio = document.createElement("audio");
-            audio.srcObject = event.streams[0];
-            audio.autoplay = true;
-
-            document.body.appendChild(audio);
-
-        };
-
-        localStream.getTracks().forEach(track=>{
-            peerConnection.addTrack(track, localStream);
-        });
-
-        const offer = await peerConnection.createOffer();
-
-        await peerConnection.setLocalDescription(offer);
-
-
-        // SUBSCRIBE TO CHANNEL
-        window.Echo.channel('voice-call')
-
-        .subscribed(() => {
-            console.log("Connected to voice-call channel");
-        })
-
-        // RECEIVE OFFER
-        .listen('.CallOffer', async (data) => {
-
-            console.log("Offer received", data);
-
-            await peerConnection.setRemoteDescription(data.offer);
-
-            const answer = await peerConnection.createAnswer();
-
-            await peerConnection.setLocalDescription(answer);
-
-            fetch('/send-answer', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({
-                    answer: answer
-                })
-            });
-
-        })
-
-        // RECEIVE ANSWER
-        .listen('.CallAnswer', async (data) => {
-
-            console.log("Answer received", data);
-
-            await peerConnection.setRemoteDescription(data.answer);
-
-        });
-
-
-        // SEND OFFER
-        fetch('/send-offer', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify({
-                offer: offer
-            })
-        });
-
-        console.log("Offer created", offer);
-
-        alert("Microphone connected 🎤");
-
-    }catch(err){
-
-        alert("Microphone permission required");
-
-    }
-
-}
-
-
-// END CALL
-function endCall(){
-
-    if(peerConnection){
-        peerConnection.close();
-    }
-
-    if(localStream){
-        localStream.getTracks().forEach(track=>track.stop());
-    }
-
-    window.close();
-
-}
-
-</script>
 
 </body>
 </html>

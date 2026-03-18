@@ -1,5 +1,5 @@
 @php use Illuminate\Support\Str; @endphp
-
+<div>
 <div class="flex flex-col overflow-hidden" style="height:800px;">
 
 <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4">
@@ -135,7 +135,7 @@ Online
 <!-- ⭐ NEW : HEADER ACTIONS -->
 <div class="flex gap-3 text-gray-400">
 
-<button onclick="startCall({{ $selectedUserModel->id }})" class="hover:text-primary-500">
+<button onclick="openCall({{ $selectedUserModel->id }})">
 📞
 </button>
 
@@ -473,6 +473,10 @@ Press Enter to send, Shift+Enter for new line
 
 </div>
 
+
+</div>
+
+
 <script>
 
 document.addEventListener("click", function(e){
@@ -567,192 +571,7 @@ document.addEventListener("click", function(e){
 });
 </script>
 
-<script>
 
-document.addEventListener('livewire:load', function () {
-
-let localStream;
-let peerConnection;
-let currentUserId = null;
-
-
-// START CALL
-window.startCall = async function(userId){
-
-    currentUserId = userId;
-
-    window.open(
-        "/voice-call/" + userId,
-        "VoiceCallWindow",
-        "width=420,height=650"
-    );
-
-    try{
-
-        localStream = await navigator.mediaDevices.getUserMedia({ audio:true });
-
-        peerConnection = new RTCPeerConnection({
-            iceServers: [
-                { urls: "stun:stun.l.google.com:19302" }
-            ]
-        });
-
-        peerConnection.onicecandidate = (event)=>{
-
-            if(event.candidate){
-                Livewire.emit('sendIceCandidate', event.candidate, currentUserId);
-            }
-
-        };
-
-        localStream.getTracks().forEach(track=>{
-            peerConnection.addTrack(track, localStream);
-        });
-
-        setupAudio();
-
-        const offer = await peerConnection.createOffer();
-
-        await peerConnection.setLocalDescription(offer);
-
-        Livewire.emit(
-            'sendCallOffer',
-            offer,
-            userId,
-            {{ auth()->id() }},
-            "{{ auth()->user()->name }}"
-        );
-
-    }catch(err){
-
-        alert("Microphone permission required");
-
-    }
-
-}
-
-
-// ACCEPT CALL
-async function acceptCall(offer){
-
-    peerConnection = new RTCPeerConnection({
-        iceServers: [
-            { urls: "stun:stun.l.google.com:19302" }
-        ]
-    });
-
-    peerConnection.onicecandidate = (event)=>{
-
-        if(event.candidate){
-            Livewire.emit('sendIceCandidate', event.candidate, currentUserId);
-        }
-
-    };
-
-    localStream = await navigator.mediaDevices.getUserMedia({ audio:true });
-
-    localStream.getTracks().forEach(track=>{
-        peerConnection.addTrack(track, localStream);
-    });
-
-    setupAudio();
-
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-
-    const answer = await peerConnection.createAnswer();
-
-    await peerConnection.setLocalDescription(answer);
-
-    Livewire.emit('sendCallAnswer', answer);
-
-}
-
-
-// END CALL
-window.endCall = function(){
-
-    if(peerConnection){
-        peerConnection.close();
-    }
-
-    if(localStream){
-        localStream.getTracks().forEach(track=>track.stop());
-    }
-
-    alert("Call ended");
-
-}
-
-
-// RECEIVE AUDIO
-function setupAudio(){
-
-    if(!peerConnection) return;
-
-    peerConnection.ontrack = function(event){
-
-        let audio = document.createElement("audio");
-
-        audio.srcObject = event.streams[0];
-
-        audio.autoplay = true;
-
-        document.body.appendChild(audio);
-
-    }
-
-}
-
-
-// RECEIVE OFFER (Incoming Call)
-Livewire.on('receiveCallOffer', async (offer, callerId, callerName)=>{
-
-    console.log("Incoming call from:", callerName);
-
-    currentUserId = callerId;
-
-    const accept = confirm("Incoming voice call from " + callerName);
-
-    if(!accept) return;
-
-    window.open(
-        "/voice-call/" + callerId,
-        "VoiceCallWindow",
-        "width=420,height=650"
-    );
-
-    setTimeout(async ()=>{
-        await acceptCall(offer);
-    },500);
-
-});
-
-
-// RECEIVE ANSWER
-Livewire.on('receiveCallAnswer', async (answer)=>{
-
-    if(!peerConnection) return;
-
-    await peerConnection.setRemoteDescription(
-        new RTCSessionDescription(answer)
-    );
-
-});
-
-
-// RECEIVE ICE
-Livewire.on('receiveIceCandidate', async (candidate)=>{
-
-    if(peerConnection){
-        await peerConnection.addIceCandidate(
-            new RTCIceCandidate(candidate)
-        );
-    }
-
-});
-
-});
-</script>
 
 <style>
 .chat-bubble-right{
@@ -777,3 +596,54 @@ Livewire.on('receiveIceCandidate', async (candidate)=>{
     border-color:transparent #e5e7eb transparent transparent;
 }
 </style>
+
+<script>
+function openCall(userId){
+    window.open(
+        "/voice-call/" + userId,
+        "VoiceCallWindow",
+        "width=420,height=650"
+    );
+}
+</script>
+
+<script src="https://js.pusher.com/7.2/pusher.min.js"></script>
+
+<script>
+document.addEventListener("livewire:load", function () {
+
+    console.log("✅ Pusher INIT");
+
+    const myId = {{ auth()->id() }};
+
+    const pusher = new Pusher("0c08d7f3f0fa0c883f22", {
+        cluster: "ap2",
+        forceTLS: true
+    });
+
+    const channel = pusher.subscribe('voice-call.' + myId);
+
+    let incomingCallerId = null;
+
+    channel.bind('CallOffer', function(data) {
+
+    console.log("📞 INCOMING CALL", data);
+
+    incomingCallerId = data.callerId;
+
+    if (confirm("Incoming call from " + data.callerName + " 📞")) {
+
+        window.open(
+            "/voice-call/" + incomingCallerId,
+            "VoiceCallWindow",
+            "width=420,height=650"
+        );
+
+    } else {
+        console.log("❌ Call Rejected");
+    }
+
+});
+
+}); 
+</script>

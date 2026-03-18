@@ -10,6 +10,7 @@ use App\Http\Livewire\UserChat;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use App\Events\CallOffer;
 use App\Events\CallAnswer;
+use App\Events\IceCandidate;
 use Illuminate\Http\Request;
 
 // Test AI Assistant
@@ -68,16 +69,35 @@ Route::get('/voice-call/{id}', function ($id) {
 
 Route::post('/send-offer', function (Request $request) {
 
-    broadcast(new CallOffer($request->offer));
+    broadcast(new CallOffer(
+        $request->offer,
+        auth()->id(),
+        auth()->user()->name,
+        $request->receiverId
+    ))->toOthers();
 
-    return response()->json(['status' => 'sent']);
-
+    return response()->json(['status' => 'offer sent']);
 });
+
 
 Route::post('/send-answer', function (Request $request) {
 
-    broadcast(new CallAnswer($request->answer));
+    broadcast(new CallAnswer(
+        $request->answer,
+        auth()->id(),
+        $request->receiverId
+    ))->toOthers();
 
-    return response()->json(['status' => 'sent']);
+    return response()->json(['status' => 'answer sent']);
+});
 
+
+Route::post('/send-ice', function (Request $request) {
+
+    broadcast(new IceCandidate(
+        $request->candidate,
+        auth()->id(),
+        $request->receiverId
+    ))->toOthers();
+    return response()->json(['status' => 'ice sent']);
 });

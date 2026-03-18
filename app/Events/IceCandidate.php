@@ -10,24 +10,19 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class CallAnswer implements ShouldBroadcast
+class IceCandidate implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-     public $answer;
-    public $callerId;
-   public $receiverId;
+    public $candidate;
+    public $receiverId;
+    public $senderId;
 
-    /**
-     * Create a new event instance.
-     *
-     * @return void
-     */
-    public function __construct($answer, $callerId, $receiverId)
+   public function __construct($candidate, $senderId, $receiverId)
     {
-         $this->answer = $answer;
-         $this->callerId = $callerId;
-         $this->receiverId = $receiverId;
+        $this->candidate = $candidate;
+        $this->senderId = $senderId;
+        $this->receiverId = $receiverId;
     }
 
     /**
@@ -37,11 +32,11 @@ class CallAnswer implements ShouldBroadcast
      */
     public function broadcastOn()
     {
-        return new Channel('voice-call.' . $this->receiverId);
+         return new Channel('voice-call.' . $this->receiverId);
     }
 
     public function broadcastAs()
 {
-    return 'CallAnswer';
+    return 'IceCandidate';
 }
 }
