@@ -600,7 +600,7 @@ document.addEventListener("click", function(e){
 <script>
 function openCall(userId){
     window.open(
-        "/voice-call/" + userId,
+        "/voice-call/" + userId + "?mode=caller",
         "VoiceCallWindow",
         "width=420,height=650"
     );
