@@ -69,8 +69,22 @@ Route::get('/voice-call/{id}', function ($id) {
 
 Route::post('/send-offer', function (Request $request) {
 
+    $offer = $request->offer;
+    
+    // Ensure offer is an array/object with type and sdp
+    if (is_string($offer)) {
+        $offer = json_decode($offer, true);
+    }
+    
+    \Log::info('CallOffer received:', [
+        'offer_type' => $offer['type'] ?? 'MISSING',
+        'has_sdp' => !empty($offer['sdp']),
+        'sdp_length' => strlen($offer['sdp'] ?? ''),
+        'receiverId' => $request->receiverId
+    ]);
+
     broadcast(new CallOffer(
-        $request->offer,
+        $offer,
         auth()->id(),
         auth()->user()->name,
         $request->receiverId
@@ -82,8 +96,22 @@ Route::post('/send-offer', function (Request $request) {
 
 Route::post('/send-answer', function (Request $request) {
 
+    $answer = $request->answer;
+    
+    // Ensure answer is an array/object with type and sdp
+    if (is_string($answer)) {
+        $answer = json_decode($answer, true);
+    }
+    
+    \Log::info('CallAnswer received:', [
+        'answer_type' => $answer['type'] ?? 'MISSING',
+        'has_sdp' => !empty($answer['sdp']),
+        'sdp_length' => strlen($answer['sdp'] ?? ''),
+        'receiverId' => $request->receiverId
+    ]);
+
     broadcast(new CallAnswer(
-        $request->answer,
+        $answer,
         auth()->id(),
         $request->receiverId
     ))->toOthers();

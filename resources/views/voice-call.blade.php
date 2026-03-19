@@ -301,6 +301,20 @@
         async function acceptCall() {
 
             if (callActive) return;
+            
+            // ✅ CHECK IF OFFER EXISTS
+            if (!incomingOffer) {
+                console.error("❌ Cannot accept call - no offer received yet");
+                updateStatus("❌ Waiting for call offer... please wait");
+                return;
+            }
+
+            if (!incomingOffer.type || !incomingOffer.sdp) {
+                console.error("❌ Offer incomplete:", incomingOffer);
+                updateStatus("❌ Offer data is incomplete");
+                return;
+            }
+
             callActive = true;
 
             hideAllButtons();
@@ -327,6 +341,11 @@
             });
 
             try {
+                console.log("🔄 About to set remote description with:", {
+                    type: incomingOffer.type,
+                    sdp: incomingOffer.sdp ? incomingOffer.sdp.substring(0, 100) : 'NO SDP'
+                });
+                
                 await peerConnection.setRemoteDescription(
                     new RTCSessionDescription({
                         type: incomingOffer.type,
@@ -436,26 +455,52 @@
         channel.bind('CallOffer', (data) => {
 
             console.log("📞 ============ OFFER RECEIVED ============");
+            console.log("📞 Full data object keys:", Object.keys(data));
+            console.log("📞 Full data:", JSON.stringify(data, null, 2));
+            
+            // Handle nested offer structure (in case it comes wrapped)
+            let offer = data.offer;
+            if (offer && typeof offer === 'string') {
+                try {
+                    offer = JSON.parse(offer);
+                    console.log("📞 Parsed offer from string");
+                } catch (e) {
+                    console.error("❌ Failed to parse offer string:", e);
+                    updateStatus("❌ Invalid offer format received");
+                    return;
+                }
+            }
+            
             console.log("📞 Caller ID:", data.callerId, "| My ID:", userId);
+            
+            // Validate offer structure
+            if (!offer) {
+                console.error("❌ No offer found in data");
+                updateStatus("❌ No offer received from caller");
+                return;
+            }
+
             console.log("📞 Offer structure:", {
-                type: data.offer?.type,
-                sdp: data.offer?.sdp ? data.offer.sdp.substring(0, 50) + '...' : null
+                type: offer.type,
+                sdp: offer.sdp ? offer.sdp.substring(0, 100) + '...' : 'MISSING SDP',
+                hasType: !!offer.type,
+                hasSdp: !!offer.sdp
             });
 
             // Store the offer
-            incomingOffer = data.offer;
+            incomingOffer = offer;
             incomingCallerId = data.callerId;
 
-            console.log("📞 Stored offer and caller ID");
+            console.log("📞 Stored offer and caller ID - ready to accept");
 
             // Update status
-            const statusMsg = "Incoming call from " + data.callerId + "...";
+            const statusMsg = "Incoming call from User " + data.callerId;
             updateStatus(statusMsg);
 
             // Switch to accept mode - this handles title and button updates
-            console.log("📞 Calling showAcceptMode()...");
+            console.log("📞 Switching to accept mode...");
             showAcceptMode();
-            console.log("📞 ============ ACCEPT MODE ACTIVATED ============");
+            console.log("📞 ✅ ACCEPT MODE - Ready to accept call");
         });
 
         // ✅ RECEIVE ANSWER
