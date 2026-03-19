@@ -10,12 +10,43 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
+    <style>
+        /* Start button defaults to visible */
+        #startBtn {
+            display: block;
+        }
+
+        /* Accept button defaults to hidden */
+        #acceptBtn {
+            display: none;
+        }
+
+        /* When in hidden state */
+        #startBtn.hidden-btn,
+        #acceptBtn.hidden-btn {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* When in show state */
+        #startBtn.show-btn,
+        #acceptBtn.show-btn {
+            display: block !important;
+            visibility: visible !important;
+        }
+    </style>
+
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             console.log("✅ JS LOADED");
 
             const userId = {{ auth()->id() }};
             const otherUserId = {{ $user->id }};
+
+            // ✅ CHECK BUTTONS EXIST
+            console.log("🔍 Checking buttons...");
+            console.log("✅ startBtn exists:", document.getElementById("startBtn") !== null);
+            console.log("✅ acceptBtn exists:", document.getElementById("acceptBtn") !== null);
 
             let localStream;
             let peerConnection;
@@ -32,410 +63,486 @@
                 console.log("📊 STATUS: " + message);
                 document.getElementById("callStatus").textContent = message;
             }
+
+            // ✅ BUTTON VISIBILITY HELPERS
+            function showStartMode() {
+                console.log("🔘 Switching to START mode");
+                const startBtn = document.getElementById("startBtn");
+                const acceptBtn = document.getElementById("acceptBtn");
+
+                if (startBtn) {
+                    startBtn.style.display = "block";
+                    startBtn.style.visibility = "visible";
+                    console.log("✅ Start button: visible");
+                }
+                if (acceptBtn) {
+                    acceptBtn.style.display = "none";
+                    acceptBtn.style.visibility = "hidden";
+                    console.log("✅ Accept button: hidden");
+                }
+            }
+
+            function showAcceptMode() {
+                console.log("🔘 Switching to ACCEPT mode");
+                const startBtn = document.getElementById("startBtn");
+                const acceptBtn = document.getElementById("acceptBtn");
+                const title = document.getElementById("callTitle");
+
+                if (startBtn) {
+                    startBtn.style.display = "none";
+                    startBtn.style.visibility = "hidden";
+                    console.log("✅ Start button: hidden");
+                }
+                if (acceptBtn) {
+                    acceptBtn.style.display = "block";
+                    acceptBtn.style.visibility = "visible";
+                    console.log("✅ Accept button: visible");
+                }
+
+                if (title) {
+                    title.textContent = "Incoming Call";
+                    console.log("✅ Title updated to: Incoming Call");
+                }
+            }
+
+            function hideAllButtons() {
+                console.log("🔘 Hiding all buttons (call active)");
+                const startBtn = document.getElementById("startBtn");
+                const acceptBtn = document.getElementById("acceptBtn");
+
+                if (startBtn) startBtn.style.display = "none";
+                if (acceptBtn) acceptBtn.style.display = "none";
+            }
+
+            // ✅ INITIALIZE PAGE MODE
+            function initializePage() {
+                console.log("🎯 Initializing page...");
+                const isReceiver = new URLSearchParams(window.location.search).get('mode') !== 'caller';
+                
+                if (isReceiver) {
+                    console.log("📱 Page mode: RECEIVER - waiting for incoming call");
+                    showAcceptMode();
+                    updateStatus("Ready to receive call...");
+                } else {
+                    console.log("📱 Page mode: CALLER - ready to initiate call");
+                    showStartMode();
+                    updateStatus("Ready - Click Start to call");
+                }
+            }
+
             // ✅ PUSHER INIT
             const pusher = new Pusher("0c08d7f3f0fa0c883f22", {
                 cluster: "ap2",
                 forceTLS: true
             });
 
-            pusher.connection.bind('connected', () => {
-                console.log("✅ PUSHER CONNECTED");
-                updateStatus("Ready - Click Start to call");
-            });
+        pusher.connection.bind('connected', () => {
+            console.log("✅ PUSHER CONNECTED");
+            initializePage();
+        });
 
-            pusher.connection.bind('error', (error) => {
-                console.error("❌ PUSHER ERROR:", error);
-                updateStatus("Connection Error: " + error.type);
-            });
+        pusher.connection.bind('error', (error) => {
+            console.error("❌ PUSHER ERROR:", error);
+            updateStatus("Connection Error: " + error.type);
+        });
 
-            const channel = pusher.subscribe('voice-call.' + userId);
+        const channel = pusher.subscribe('voice-call.' + userId);
 
-            channel.bind('subscription_succeeded', () => {
-                console.log("✅ CHANNEL SUBSCRIBED: voice-call." + userId);
-            });
+        channel.bind('subscription_succeeded', () => {
+            console.log("✅ CHANNEL SUBSCRIBED: voice-call." + userId);
+            console.log("🎧 Listening for call offers on channel: voice-call." + userId);
+        });
 
-            // ✅ CREATE PEER
-            function createPeer() {
+        // ✅ CREATE PEER
+        function createPeer() {
 
-                console.log("🧠 Creating Peer");
-                updateStatus("Setting up connection...");
+            console.log("🧠 Creating Peer");
+            updateStatus("Setting up connection...");
 
-                pendingCandidates = [];
-                isRemoteSet = false;
+            pendingCandidates = [];
+            isRemoteSet = false;
 
-                peerConnection = new RTCPeerConnection({
-                    iceServers: [
-                        { urls: "stun:stun.l.google.com:19302" },
-                        {
-                            urls: [
-                                "turn:pm.inovace.in:3478?transport=udp",
-                                "turn:pm.inovace.in:3478?transport=tcp"
-                            ],
-                            username: "webrtcuser",
-                            credential: "strongpassword123"
-                        }
-                    ]
-                });
-
-                // ✅ CONNECTION STATE
-                peerConnection.onconnectionstatechange = () => {
-                    console.log("🔗 Connection State: " + peerConnection.connectionState);
-                    updateStatus("Connection: " + peerConnection.connectionState);
-                };
-
-                peerConnection.oniceconnectionstatechange = () => {
-                    console.log("❄ ICE Connection State: " + peerConnection.iceConnectionState);
-                    updateStatus("ICE: " + peerConnection.iceConnectionState);
-                };
-
-                peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-
-                        console.log("📡 Sending ICE");
-
-                        fetch('/send-ice', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                            },
-                            body: JSON.stringify({
-                                candidate: event.candidate,
-                                senderId: userId,
-                                receiverId: incomingCallerId ?? otherUserId
-                            })
-                        }).catch(err => {
-                            console.error("❌ Error sending ICE candidate:", err);
-                        });
+            peerConnection = new RTCPeerConnection({
+                iceServers: [
+                    { urls: "stun:stun.l.google.com:19302" },
+                    {
+                        urls: [
+                            "turn:pm.inovace.in:3478?transport=udp",
+                            "turn:pm.inovace.in:3478?transport=tcp"
+                        ],
+                        username: "webrtcuser",
+                        credential: "strongpassword123"
                     }
-                };
+                ]
+            });
 
-                peerConnection.ontrack = (event) => {
+            // ✅ CONNECTION STATE
+            peerConnection.onconnectionstatechange = () => {
+                console.log("🔗 Connection State: " + peerConnection.connectionState);
+                updateStatus("Connection: " + peerConnection.connectionState);
+            };
 
-                    console.log("🔊 AUDIO RECEIVED");
-                    updateStatus("Audio received - Call active");
+            peerConnection.oniceconnectionstatechange = () => {
+                console.log("❄ ICE Connection State: " + peerConnection.iceConnectionState);
+                updateStatus("ICE: " + peerConnection.iceConnectionState);
+            };
 
-                    let audio = document.getElementById("remoteAudio");
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
 
-                    if (!audio) {
-                        audio = document.createElement("audio");
-                        audio.id = "remoteAudio";
-                        audio.autoplay = true;
-                        document.body.appendChild(audio);
-                    }
+                    console.log("📡 Sending ICE");
 
-                    audio.srcObject = event.streams[0];
-                };
-
-            }
-
-            // ✅ START CALL (CALLER)
-            async function startCall() {
-
-                if (callActive) return;
-                callActive = true;
-
-                document.getElementById("startBtn").classList.add("hidden");
-                document.getElementById("acceptBtn").classList.add("hidden");
-
-                updateStatus("Requesting microphone access...");
-
-                console.log("🚀 START BUTTON CLICKED");
-
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    updateStatus("Microphone accessed, creating offer...");
-                } catch (err) {
-                    alert("Microphone permission blocked");
-                    updateStatus("❌ Microphone access denied");
-                    callActive = false;
-                    document.getElementById("startBtn").classList.remove("hidden");
-                    return;
-                }
-
-                createPeer();
-
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                });
-
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-
-                updateStatus("Sending offer to recipient...");
-
-                try {
-                    const response = await fetch('/send-offer', {
+                    fetch('/send-ice', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         },
                         body: JSON.stringify({
-                            offer: offer,
-                            receiverId: otherUserId
+                            candidate: event.candidate,
+                            senderId: userId,
+                            receiverId: incomingCallerId ?? otherUserId
                         })
+                    }).catch(err => {
+                        console.error("❌ Error sending ICE candidate:", err);
                     });
-                    if (!response.ok) {
-                        throw new Error('Failed to send offer: ' + response.statusText);
-                    }
-                    console.log("✅ Offer sent successfully");
-                    updateStatus("Offer sent, waiting for answer...");
-
-                    // Set timeout for answer
-                    connectionTimeout = setTimeout(() => {
-                        console.error("❌ No answer received within 30 seconds");
-                        updateStatus("❌ No response - call may have been declined or is unreachable");
-                    }, 30000);
-
-                } catch (err) {
-                    console.error('❌ Error sending offer:', err);
-                    updateStatus("❌ Failed to send offer: " + err.message);
-                    callActive = false;
-                    document.getElementById("startBtn").classList.remove("hidden");
-                    throw err;
                 }
-            }
+            };
 
-            async function acceptCall() {
+            peerConnection.ontrack = (event) => {
 
-                if (callActive) return;
-                callActive = true;
+                console.log("🔊 AUDIO RECEIVED");
+                updateStatus("Audio received - Call active");
 
-                document.getElementById("startBtn").classList.add("hidden");
-                document.getElementById("acceptBtn").classList.add("hidden");
+                let audio = document.getElementById("remoteAudio");
 
-                updateStatus("Requesting microphone access...");
-
-                console.log("✅ ACCEPT CLICKED");
-
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    updateStatus("Microphone accessed, creating answer...");
-                } catch (err) {
-                    alert("Mic blocked");
-                    updateStatus("❌ Microphone access denied");
-                    callActive = false;
-                    document.getElementById("acceptBtn").classList.remove("hidden");
-                    return;
+                if (!audio) {
+                    audio = document.createElement("audio");
+                    audio.id = "remoteAudio";
+                    audio.autoplay = true;
+                    document.body.appendChild(audio);
                 }
 
-                createPeer();
+                audio.srcObject = event.streams[0];
+            };
 
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                });
+        }
 
-                try {
-                    await peerConnection.setRemoteDescription(
-                        new RTCSessionDescription(incomingOffer)
-                    );
-                    updateStatus("Processing offer, creating answer...");
-                } catch (err) {
-                    console.error("❌ Error setting remote description:", err);
-                    updateStatus("❌ Error processing offer: " + err.message);
-                    callActive = false;
-                    document.getElementById("acceptBtn").classList.remove("hidden");
-                    return;
-                }
+        // ✅ START CALL (CALLER)
+        async function startCall() {
 
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
+            if (callActive) return;
+            callActive = true;
 
-                isRemoteSet = true;
+            hideAllButtons();
 
-                pendingCandidates.forEach(c => {
-                    peerConnection.addIceCandidate(new RTCIceCandidate(c)).catch(err => {
-                        console.error("❌ Error adding ICE candidate:", err);
-                    });
-                });
+            updateStatus("Requesting microphone access...");
 
-                pendingCandidates = [];
+            console.log("🚀 START BUTTON CLICKED");
 
-                updateStatus("Sending answer...");
-
-                try {
-                    const response = await fetch('/send-answer', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                        },
-                        body: JSON.stringify({
-                            answer: answer,
-                            receiverId: incomingCallerId
-                        })
-                    });
-                    if (!response.ok) {
-                        throw new Error('Failed to send answer: ' + response.statusText);
-                    }
-                    console.log("✅ Answer sent successfully");
-                    updateStatus("Answer sent, establishing connection...");
-                } catch (err) {
-                    console.error('❌ Error sending answer:', err);
-                    updateStatus("❌ Failed to send answer: " + err.message);
-                    callActive = false;
-                    document.getElementById("acceptBtn").classList.remove("hidden");
-                    throw err;
-                }
-            }
-            // ✅ RECEIVE OFFER (RECEIVER)
-            // channel.bind('.CallOffer', async (data) => {
-
-            //     console.log("📞 OFFER RECEIVED");
-
-            //     try {
-            //         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            //     } catch (err) {
-            //         alert("Mic blocked");
-            //         return;
-            //     }
-
-            //     createPeer();
-
-            //     localStream.getTracks().forEach(track => {
-            //         peerConnection.addTrack(track, localStream);
-            //     });
-
-            //     await peerConnection.setRemoteDescription(
-            //         new RTCSessionDescription(data.offer)
-            //     );
-
-            //     const answer = await peerConnection.createAnswer();
-            //     await peerConnection.setLocalDescription(answer);
-
-            //     console.log("📤 SENDING ANSWER");
-
-            //     fetch('/send-answer', {
-            //         method: 'POST',
-            //         headers: {
-            //             'Content-Type': 'application/json',
-            //             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            //         },
-            //         body: JSON.stringify({
-            //             answer: answer,
-            //             receiverId: data.callerId
-            //         })
-            //     });
-            // });
-
-            // let incomingOffer = null;
-            // let incomingCallerId = null;
-
-            channel.bind('.CallOffer', (data) => {
-
-                console.log("📞 OFFER RECEIVED from caller:", data.callerId);
-                updateStatus("Incoming call from " + data.callerId + "...");
-
-                incomingOffer = data.offer;
-                incomingCallerId = data.callerId;
-
-                document.getElementById("startBtn").classList.add("hidden");
-                document.getElementById("acceptBtn").classList.remove("hidden");
-            });
-
-            // ✅ RECEIVE ANSWER
-            channel.bind('.CallAnswer', async (data) => {
-
-                console.log("✅ ANSWER RECEIVED");
-                updateStatus("Answer received, connecting...");
-
-                if (connectionTimeout) {
-                    clearTimeout(connectionTimeout);
-                }
-
-                if (!peerConnection) {
-                    console.log("⚠ Peer not ready");
-                    updateStatus("❌ Peer connection not ready");
-                    return;
-                }
-
-                try {
-                    await peerConnection.setRemoteDescription(
-                        new RTCSessionDescription(data.answer)
-                    );
-                    console.log("✅ Remote description set");
-                } catch (err) {
-                    console.error("❌ Error setting answer description:", err);
-                    updateStatus("❌ Error setting answer: " + err.message);
-                    return;
-                }
-
-                isRemoteSet = true;
-
-                pendingCandidates.forEach(c => {
-                    peerConnection.addIceCandidate(new RTCIceCandidate(c)).catch(err => {
-                        console.error("❌ Error adding ICE candidate:", err);
-                    });
-                });
-
-                pendingCandidates = [];
-            });
-
-            // ✅ RECEIVE ICE
-            channel.bind('.IceCandidate', async (data) => {
-
-                console.log("❄ ICE RECEIVED from:", data.senderId);
-
-                if (!peerConnection) {
-                    console.log("⚠ Peer not created yet, buffering candidate");
-                    pendingCandidates.push(data.candidate);
-                    return;
-                }
-
-                if (!isRemoteSet) {
-                    console.log("⚠ Remote not set yet, buffering candidate");
-                    pendingCandidates.push(data.candidate);
-                } else {
-                    try {
-                        await peerConnection.addIceCandidate(
-                            new RTCIceCandidate(data.candidate)
-                        );
-                        console.log("✅ ICE candidate added");
-                    } catch (err) {
-                        console.error("❌ Error adding ICE candidate:", err);
-                    }
-                }
-            });
-
-            // ✅ END CALL
-            function endCall() {
-
-                console.log("❌ CALL ENDED");
-
-                if (connectionTimeout) {
-                    clearTimeout(connectionTimeout);
-                }
-
-                if (peerConnection) {
-                    peerConnection.close();
-                    peerConnection = null;
-                }
-
-                if (localStream) {
-                    localStream.getTracks().forEach(track => track.stop());
-                }
-
-                const audio = document.getElementById("remoteAudio");
-                if (audio) {
-                    audio.srcObject = null;
-                    audio.remove();
-                }
-
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                updateStatus("Microphone accessed, creating offer...");
+            } catch (err) {
+                alert("Microphone permission blocked");
+                updateStatus("❌ Microphone access denied");
                 callActive = false;
-                incomingOffer = null;
-                incomingCallerId = null;
-
-                updateStatus("Call ended");
-
-                setTimeout(() => {
-                    window.close();
-                }, 1000);
+                showStartMode();
+                return;
             }
 
-            window.startCall = startCall;
-            window.acceptCall = acceptCall;
-            window.endCall = endCall;
+            createPeer();
+
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+
+            updateStatus("Sending offer to recipient...");
+
+            try {
+                const response = await fetch('/send-offer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({
+                        offer: offer,
+                        receiverId: otherUserId
+                    })
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to send offer: ' + response.statusText);
+                }
+                console.log("✅ Offer sent successfully");
+                updateStatus("Offer sent, waiting for answer...");
+
+                // Set timeout for answer
+                connectionTimeout = setTimeout(() => {
+                    console.error("❌ No answer received within 30 seconds");
+                    updateStatus("❌ No response - call may have been declined or is unreachable");
+                }, 30000);
+
+            } catch (err) {
+                console.error('❌ Error sending offer:', err);
+                updateStatus("❌ Failed to send offer: " + err.message);
+                callActive = false;
+                showStartMode();
+                throw err;
+            }
+        }
+
+        async function acceptCall() {
+
+            if (callActive) return;
+            callActive = true;
+
+            hideAllButtons();
+
+            updateStatus("Requesting microphone access...");
+
+            console.log("✅ ACCEPT CLICKED");
+
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                updateStatus("Microphone accessed, creating answer...");
+            } catch (err) {
+                alert("Mic blocked");
+                updateStatus("❌ Microphone access denied");
+                callActive = false;
+                showAcceptMode();
+                return;
+            }
+
+            createPeer();
+
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+
+            try {
+                await peerConnection.setRemoteDescription(
+                    new RTCSessionDescription(incomingOffer)
+                );
+                updateStatus("Processing offer, creating answer...");
+            } catch (err) {
+                console.error("❌ Error setting remote description:", err);
+                updateStatus("❌ Error processing offer: " + err.message);
+                callActive = false;
+                showAcceptMode();
+                return;
+            }
+
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            isRemoteSet = true;
+
+            pendingCandidates.forEach(c => {
+                peerConnection.addIceCandidate(new RTCIceCandidate(c)).catch(err => {
+                    console.error("❌ Error adding ICE candidate:", err);
+                });
+            });
+
+            pendingCandidates = [];
+
+            updateStatus("Sending answer...");
+
+            try {
+                const response = await fetch('/send-answer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({
+                        answer: answer,
+                        receiverId: incomingCallerId
+                    })
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to send answer: ' + response.statusText);
+                }
+                console.log("✅ Answer sent successfully");
+                updateStatus("Answer sent, establishing connection...");
+            } catch (err) {
+                console.error('❌ Error sending answer:', err);
+                updateStatus("❌ Failed to send answer: " + err.message);
+                callActive = false;
+                showAcceptMode();
+                throw err;
+            }
+        }
+        // ✅ RECEIVE OFFER (RECEIVER)
+        // channel.bind('.CallOffer', async (data) => {
+
+        //     console.log("📞 OFFER RECEIVED");
+
+        //     try {
+        //         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        //     } catch (err) {
+        //         alert("Mic blocked");
+        //         return;
+        //     }
+
+        //     createPeer();
+
+        //     localStream.getTracks().forEach(track => {
+        //         peerConnection.addTrack(track, localStream);
+        //     });
+
+        //     await peerConnection.setRemoteDescription(
+        //         new RTCSessionDescription(data.offer)
+        //     );
+
+        //     const answer = await peerConnection.createAnswer();
+        //     await peerConnection.setLocalDescription(answer);
+
+        //     console.log("📤 SENDING ANSWER");
+
+        //     fetch('/send-answer', {
+        //         method: 'POST',
+        //         headers: {
+        //             'Content-Type': 'application/json',
+        //             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+        //         },
+        //         body: JSON.stringify({
+        //             answer: answer,
+        //             receiverId: data.callerId
+        //         })
+        //     });
+        // });
+
+        // let incomingOffer = null;
+        // let incomingCallerId = null;
+
+        channel.bind('CallOffer', (data) => {
+
+            console.log("📞 ============ OFFER RECEIVED ============");
+            console.log("📞 Caller ID:", data.callerId, "| My ID:", userId);
+            console.log("📞 Offer data received:", data);
+
+            // Store the offer
+            incomingOffer = data.offer;
+            incomingCallerId = data.callerId;
+
+            console.log("📞 Stored offer and caller ID");
+
+            // Update status
+            const statusMsg = "Incoming call from " + data.callerId + "...";
+            updateStatus(statusMsg);
+
+            // Switch to accept mode - this handles title and button updates
+            console.log("📞 Calling showAcceptMode()...");
+            showAcceptMode();
+            console.log("📞 ============ ACCEPT MODE ACTIVATED ============");
+        });
+
+        // ✅ RECEIVE ANSWER
+        channel.bind('CallAnswer', async (data) => {
+
+            console.log("✅ ANSWER RECEIVED");
+            updateStatus("Answer received, connecting...");
+
+            if (connectionTimeout) {
+                clearTimeout(connectionTimeout);
+            }
+
+            if (!peerConnection) {
+                console.log("⚠ Peer not ready");
+                updateStatus("❌ Peer connection not ready");
+                return;
+            }
+
+            try {
+                await peerConnection.setRemoteDescription(
+                    new RTCSessionDescription(data.answer)
+                );
+                console.log("✅ Remote description set");
+            } catch (err) {
+                console.error("❌ Error setting answer description:", err);
+                updateStatus("❌ Error setting answer: " + err.message);
+                return;
+            }
+
+            isRemoteSet = true;
+
+            pendingCandidates.forEach(c => {
+                peerConnection.addIceCandidate(new RTCIceCandidate(c)).catch(err => {
+                    console.error("❌ Error adding ICE candidate:", err);
+                });
+            });
+
+            pendingCandidates = [];
+        });
+
+        // ✅ RECEIVE ICE
+        channel.bind('IceCandidate', async (data) => {
+
+            console.log("❄ ICE RECEIVED from:", data.senderId);
+
+            if (!peerConnection) {
+                console.log("⚠ Peer not created yet, buffering candidate");
+                pendingCandidates.push(data.candidate);
+                return;
+            }
+
+            if (!isRemoteSet) {
+                console.log("⚠ Remote not set yet, buffering candidate");
+                pendingCandidates.push(data.candidate);
+            } else {
+                try {
+                    await peerConnection.addIceCandidate(
+                        new RTCIceCandidate(data.candidate)
+                    );
+                    console.log("✅ ICE candidate added");
+                } catch (err) {
+                    console.error("❌ Error adding ICE candidate:", err);
+                }
+            }
+        });
+
+        // ✅ END CALL
+        function endCall() {
+
+            console.log("❌ CALL ENDED");
+
+            if (connectionTimeout) {
+                clearTimeout(connectionTimeout);
+            }
+
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+
+            const audio = document.getElementById("remoteAudio");
+            if (audio) {
+                audio.srcObject = null;
+                audio.remove();
+            }
+
+            callActive = false;
+            incomingOffer = null;
+            incomingCallerId = null;
+
+            updateStatus("Call ended");
+
+            setTimeout(() => {
+                window.close();
+            }, 1000);
+        }
+
+        window.startCall = startCall;
+        window.acceptCall = acceptCall;
+        window.endCall = endCall;
         });
     </script>
 
@@ -449,7 +556,7 @@
             {{ strtoupper(substr($user->name, 0, 1)) }}
         </div>
 
-        <h2 class="mt-4 text-xl font-semibold">
+        <h2 id="callTitle" class="mt-4 text-xl font-semibold">
             Calling {{ $user->name }}
         </h2>
 
@@ -470,7 +577,7 @@
             </button>
 
             <!-- ✅ ACCEPT CALL -->
-            <button id="acceptBtn" onclick="acceptCall()" class="hidden bg-green-600 px-6 py-3 rounded-full text-lg">
+            <button id="acceptBtn" onclick="acceptCall()" class="bg-green-600 px-6 py-3 rounded-full text-lg">
                 ✅ Accept Call
             </button>
 
