@@ -519,6 +519,12 @@
         // let incomingOffer = null;
         // let incomingCallerId = null;
 
+        console.log("🔗 [CRITICAL] About to bind 'CallOffer' event listener...");
+        console.log("🔗 [CRITICAL] Current channel state:", channel.state);
+        console.log("🔗 [CRITICAL] Current channel name:", channel.name);
+        console.log("🔗 [CRITICAL] userId:", userId);
+        console.log("🔗 [CRITICAL] otherUserId:", otherUserId);
+
         channel.bind('CallOffer', (data) => {
 
             console.log("📞 ============ OFFER RECEIVED ============");
@@ -574,12 +580,26 @@
             console.log("📞 ✅ ACCEPT MODE - Ready to accept call");
         });
 
+        console.log("🔗 [CRITICAL] ✅ 'CallOffer' event binding SUCCESSFUL");
+        console.log("🔗 [CRITICAL] All channel callbacks:", channel.callbacks);
+
         // Timeout to show if offer never arrives
         setTimeout(() => {
             if (!incomingOffer) {
-                console.warn("⏱️ TIMEOUT: Offer not received after 5 seconds");
-                console.warn("⏱️ Check if voice-call page subscribed to correct channel");
-                console.warn("⏱️ Check if CallOffer event is being broadcast");
+                console.error("⏱️ ❌ TIMEOUT: Offer not received after 5 seconds");
+                console.error("⏱️ DIAGNOSTICS:");
+                console.error("  - Channel subscribed?", channel.state === 'subscribed');
+                console.error("  - Channel name:", channel.name);
+                console.error("  - CallOffer bound?", channel.callbacks && channel.callbacks['CallOffer'] && channel.callbacks['CallOffer'].length > 0);
+                console.error("  - Total callbacks bound:", channel.callbacks ? Object.keys(channel.callbacks).length : 0);
+                console.error("  - incomingOffer value:", incomingOffer);
+                console.error("⏱️ Possible causes:");
+                console.error("  1. Event not being broadcast from backend");
+                console.error("  2. Event being broadcast to wrong channel");
+                console.error("  3. Frontend not listening on correct channel");
+                console.error("  4. Event name mismatch (CallOffer vs calloffer?)");
+            } else {
+                console.log("✅ Offer received in time!");
             }
         }, 5000);
 
