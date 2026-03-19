@@ -43,6 +43,12 @@
             const userId = {{ auth()->id() }};
             const otherUserId = {{ $user->id }};
 
+            // ✅ DIAGNOSTIC: Show user IDs
+            console.log("👤 DIAGNOSTIC: Current user (userId):", userId);
+            console.log("👤 DIAGNOSTIC: Other user (otherUserId):", otherUserId);
+            console.log("📍 DIAGNOSTIC: Voice-call page URL:", window.location.href);
+            console.log("📍 DIAGNOSTIC: Will subscribe to channel: voice-call." + userId);
+
             // ✅ CHECK BUTTONS EXIST
             console.log("🔍 Checking buttons...");
             console.log("✅ startBtn exists:", document.getElementById("startBtn") !== null);
@@ -121,10 +127,13 @@
                 
                 if (isReceiver) {
                     console.log("📱 Page mode: RECEIVER - waiting for incoming call");
+                    console.log("📱 DIAGNOSTIC: This is RECEIVER mode - expecting voice-call from user", otherUserId);
+                    console.log("📱 DIAGNOSTIC: Will receive offer on channel 'voice-call." + userId + "'");
                     showAcceptMode();
                     updateStatus("Ready to receive call...");
                 } else {
                     console.log("📱 Page mode: CALLER - ready to initiate call");
+                    console.log("📱 DIAGNOSTIC: This is CALLER mode - will call user", otherUserId);
                     showStartMode();
                     updateStatus("Ready - Click Start to call");
                 }
@@ -133,24 +142,63 @@
             // ✅ PUSHER INIT
             const pusher = new Pusher("0c08d7f3f0fa0c883f22", {
                 cluster: "ap2",
-                forceTLS: true
+                forceTLS: true,
+                activityTimeout: 30000,  // 30s timeout
+                pongTimeout: 10000        // 10s wait for pong
             });
+
+            // **DEBUG: Track Pusher lifecycle**
+            window.Pusher.logToConsole = true;  // Enable Pusher debug logs
 
         pusher.connection.bind('connected', () => {
             console.log("✅ PUSHER CONNECTED");
+            console.log("🔌 DIAGNOSTIC: Pusher WebSocket connected at", new Date().toLocaleTimeString());
+            console.log("🔌 DIAGNOSTIC: Socket ID:", pusher.connection.socket_id);
             initializePage();
         });
 
         pusher.connection.bind('error', (error) => {
             console.error("❌ PUSHER ERROR:", error);
+            console.error("❌ DIAGNOSTIC: Pusher connection failed:", error.message);
+            console.error("❌ DIAGNOSTIC: Error type:", error.type);
             updateStatus("Connection Error: " + error.type);
+        });
+
+        pusher.connection.bind('state_change', (states) => {
+            console.log("🔄 PUSHER STATE CHANGE:", states);
+            console.log("  Previous:", states.previous, "→ Current:", states.current);
         });
 
         const channel = pusher.subscribe('voice-call.' + userId);
 
+        console.log("🔄 DIAGNOSTIC: Subscribing to 'voice-call." + userId + "'...");
+        console.log("🔄 DIAGNOSTIC: Expected channel name: voice-call." + userId);
+
         channel.bind('subscription_succeeded', () => {
             console.log("✅ CHANNEL SUBSCRIBED: voice-call." + userId);
             console.log("🎧 Listening for call offers on channel: voice-call." + userId);
+            console.log("📢 DIAGNOSTIC: Ready to receive events on this channel");
+            console.log("📢 DIAGNOSTIC: Channel object:", channel);
+            console.log("📢 DIAGNOSTIC: Channel auth_status:", channel.auth_status);
+            updateStatus("Ready - Waiting for incoming calls...");
+        });
+
+        channel.bind('error', (error) => {
+            console.error("❌ CHANNEL ERROR:", error);
+            console.error("❌ Channel subscription error:", error.message);
+        });
+        
+        channel.bind('pusher:subscription_error', (data) => {
+            console.error("❌ PUSHER SUBSCRIPTION ERROR:", data);
+            console.error("❌ Status code:", data.status);
+        });
+
+        // ✅ TEST MESSAGE HANDLER
+        channel.bind('TestBroadcast', (data) => {
+            console.log("✅ TEST MESSAGE RECEIVED!");
+            console.log("✅ Test message:", data.message);
+            console.log("✅ BROADCAST SYSTEM IS WORKING!");
+            updateStatus("✅ Test broadcast received! System working!");
         });
 
         // ✅ CREATE PEER
@@ -474,8 +522,10 @@
         channel.bind('CallOffer', (data) => {
 
             console.log("📞 ============ OFFER RECEIVED ============");
+            console.log("📞 Event fired at:", new Date().toLocaleTimeString());
             console.log("📞 Full data object keys:", Object.keys(data));
             console.log("📞 Full data:", JSON.stringify(data, null, 2));
+            console.log("📞 DIAGNOSTIC: This event is firing on receiver's voice-call page!");
             
             // Handle nested offer structure (in case it comes wrapped)
             let offer = data.offer;
@@ -511,6 +561,8 @@
             incomingCallerId = data.callerId;
 
             console.log("📞 Stored offer and caller ID - ready to accept");
+            console.log("📞 incomingOffer is now:", incomingOffer ? "SET ✅" : "NULL ❌");
+            console.log("📞 incomingCallerId is now:", incomingCallerId ? "SET ✅" : "NULL ❌");
 
             // Update status
             const statusMsg = "Incoming call from User " + data.callerId;
@@ -521,6 +573,15 @@
             showAcceptMode();
             console.log("📞 ✅ ACCEPT MODE - Ready to accept call");
         });
+
+        // Timeout to show if offer never arrives
+        setTimeout(() => {
+            if (!incomingOffer) {
+                console.warn("⏱️ TIMEOUT: Offer not received after 5 seconds");
+                console.warn("⏱️ Check if voice-call page subscribed to correct channel");
+                console.warn("⏱️ Check if CallOffer event is being broadcast");
+            }
+        }, 5000);
 
         // ✅ RECEIVE ANSWER
         channel.bind('CallAnswer', async (data) => {
@@ -635,6 +696,33 @@
         window.startCall = startCall;
         window.acceptCall = acceptCall;
         window.endCall = endCall;
+
+        // ✅ TEST BROADCAST FUNCTION
+        window.testBroadcast = async function() {
+            console.log("🧪 Testing broadcast system...");
+            updateStatus("🧪 Sending test message...");
+            
+            try {
+                const response = await fetch('/api/test-broadcast', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Test broadcast failed: ' + response.statusText);
+                }
+                
+                const data = await response.json();
+                console.log("🧪 Test broadcast sent:", data);
+                updateStatus("🧪 Test message sent - check console for response");
+            } catch (err) {
+                console.error("❌ Test broadcast error:", err);
+                updateStatus("❌ Test broadcast failed: " + err.message);
+            }
+        };
         });
     </script>
 
@@ -671,6 +759,11 @@
             <!-- ✅ ACCEPT CALL -->
             <button id="acceptBtn" onclick="acceptCall()" class="bg-green-600 px-6 py-3 rounded-full text-lg">
                 ✅ Accept Call
+            </button>
+
+            <!-- 🧪 TEST BROADCAST -->
+            <button onclick="testBroadcast()" class="bg-blue-500 px-6 py-3 rounded-full text-lg" title="Test if Pusher broadcasting is working">
+                🧪 Test
             </button>
 
         </div>
