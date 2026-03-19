@@ -3,45 +3,42 @@
 namespace App\Events;
 
 use Illuminate\Broadcasting\Channel;
-use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
-use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Queue\SerializesModels;
 
 class CallAnswer implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-     public $answer;
+    public $answer;
     public $callerId;
-   public $receiverId;
+    public $receiverId;
 
-    /**
-     * Create a new event instance.
-     *
-     * @return void
-     */
     public function __construct($answer, $callerId, $receiverId)
     {
-         $this->answer = $answer;
-         $this->callerId = $callerId;
-         $this->receiverId = $receiverId;
+        $this->answer = $answer;
+        $this->callerId = $callerId;
+        $this->receiverId = $receiverId;
     }
 
-    /**
-     * Get the channels the event should broadcast on.
-     *
-     * @return \Illuminate\Broadcasting\Channel|array
-     */
     public function broadcastOn()
     {
         return new Channel('voice-call.' . $this->receiverId);
     }
 
     public function broadcastAs()
-{
-    return 'CallAnswer';
-}
+    {
+        return 'CallAnswer';
+    }
+
+    public function broadcastWith()
+    {
+        return [
+            'answer' => $this->answer,
+            'callerId' => $this->callerId,
+            'receiverId' => $this->receiverId
+        ];
+    }
 }

@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\Route;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use App\Http\Controllers\RoadMap\DataController;
 use App\Http\Controllers\Auth\OidcAuthController;
-use App\Http\Livewire\UserChat;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use App\Events\CallOffer;
 use App\Events\CallAnswer;
@@ -33,16 +32,15 @@ Route::get('/validate-account/{user:creation_token}', function (User $user) {
         DispatchServingFilamentEvent::class
     ]);
 
-// Login default redirection
-// Route::redirect('/login', '/admin/login');
+// Login redirection
 Route::redirect('/login-redirect', '/login')->name('login');
-
 
 // Road map JSON data
 Route::get('road-map/data/{project}', [DataController::class, 'data'])
     ->middleware(['verified', 'auth'])
     ->name('road-map.data');
 
+// OIDC Authentication
 Route::name('oidc.')
     ->prefix('oidc')
     ->group(function () {
@@ -50,51 +48,39 @@ Route::name('oidc.')
         Route::get('callback', [OidcAuthController::class, 'callback'])->name('callback');
     });
 
-
-
+// Email verification
 Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
     $request->fulfill();
     return redirect('/');
 })->middleware(['auth', 'signed'])->name('verification.verify');
 
+// ==================== VOICE CALL ROUTES ====================
 
+// ==================== VOICE CALL ROUTES ====================
 
+// Voice call page - Caller adds ?caller parameter, receiver doesn't
 Route::get('/voice-call/{id}', function ($id) {
-
-    $user = User::find($id);
-
+    $user = User::findOrFail($id);
     return view('voice-call', compact('user'));
+})->middleware(['auth'])->name('voice-call');
 
-});
-
+// Send WebRTC offer
 Route::post('/send-offer', function (Request $request) {
-
     $offer = $request->offer;
-    
-    // Ensure offer is an array/object with type and sdp
+
     if (is_string($offer)) {
         $offer = json_decode($offer, true);
     }
-    
+
     $callerId = auth()->id();
     $callerName = auth()->user()->name;
     $receiverId = $request->receiverId;
-    
-    \Log::info('CallOffer received:', [
-        'offer_type' => $offer['type'] ?? 'MISSING',
-        'has_sdp' => !empty($offer['sdp']),
-        'sdp_length' => strlen($offer['sdp'] ?? ''),
-        'callerId' => $callerId,
-        'callerName' => $callerName,
-        'receiverId' => $receiverId,
-        'broadcast_channel' => 'voice-call.' . $receiverId,
-    ]);
 
-    \Log::info('BROADCAST: About to broadcast CallOffer event', [
-        'channel' => 'voice-call.' . $receiverId,
-        'event' => 'CallOffer',
-        'sender' => $callerId,
-        'recipient' => $receiverId,
+    \Log::info('📞 Sending call offer', [
+        'from' => $callerId,
+        'to' => $receiverId,
+        'caller' => $callerName,
+        'has_sdp' => !empty($offer['sdp'])
     ]);
 
     broadcast(new CallOffer(
@@ -104,67 +90,87 @@ Route::post('/send-offer', function (Request $request) {
         $receiverId
     ))->toOthers();
 
-    \Log::info('BROADCAST: CallOffer event broadcasted successfully', [
-        'recipient' => $receiverId,
-    ]);
-
     return response()->json(['status' => 'offer sent']);
-});
+})->middleware(['auth']);
 
-// ✅ TEST ENDPOINT: Broadcast a test message
-Route::post('/api/test-broadcast', function (Request $request) {
-    $userId = auth()->id();
-    $channelName = 'voice-call.' . $userId;
-    
-    \Log::info('TEST BROADCAST: Sending test message', [
-        'user_id' => $userId,
-        'channel' => $channelName,
-        'timestamp' => now(),
-    ]);
-    
-    broadcast(new \App\Events\TestBroadcast($userId, "Test message from " . auth()->user()->name))->toOthers();
-    
-    return response()->json([
-        'status' => 'test broadcast sent',
-        'channel' => $channelName,
-        'user_id' => $userId,
-        'message' => 'Check receiver console for message'
-    ]);
-});
-
-
+// Send WebRTC answer
 Route::post('/send-answer', function (Request $request) {
-
     $answer = $request->answer;
-    
-    // Ensure answer is an array/object with type and sdp
+
     if (is_string($answer)) {
         $answer = json_decode($answer, true);
     }
-    
-    \Log::info('CallAnswer received:', [
-        'answer_type' => $answer['type'] ?? 'MISSING',
-        'has_sdp' => !empty($answer['sdp']),
-        'sdp_length' => strlen($answer['sdp'] ?? ''),
-        'receiverId' => $request->receiverId
+
+    $answererId = auth()->id();
+    $receiverId = $request->receiverId;
+
+    \Log::info('📞 Sending call answer', [
+        'from' => $answererId,
+        'to' => $receiverId,
+        'has_sdp' => !empty($answer['sdp'])
     ]);
 
     broadcast(new CallAnswer(
         $answer,
-        auth()->id(),
-        $request->receiverId
+        $answererId,
+        $receiverId
     ))->toOthers();
 
     return response()->json(['status' => 'answer sent']);
-});
+})->middleware(['auth']);
 
-
+// Send ICE candidate
 Route::post('/send-ice', function (Request $request) {
+    $senderId = auth()->id();
+    $receiverId = $request->receiverId;
+
+    \Log::info('❄️ Sending ICE candidate', [
+        'from' => $senderId,
+        'to' => $receiverId
+    ]);
 
     broadcast(new IceCandidate(
         $request->candidate,
-        auth()->id(),
-        $request->receiverId
+        $senderId,
+        $receiverId
     ))->toOthers();
+
     return response()->json(['status' => 'ice sent']);
-});
+})->middleware(['auth']);
+
+// Test broadcast endpoint
+Route::post('/api/test-broadcast', function (Request $request) {
+    $userId = auth()->id();
+    $userName = auth()->user()->name;
+
+    \Log::info('🧪 Test broadcast', [
+        'user_id' => $userId,
+        'channel' => 'voice-call.' . $userId
+    ]);
+
+    broadcast(new \App\Events\TestBroadcast($userId, "Test from {$userName}"))->toOthers();
+
+    return response()->json([
+        'status' => 'test broadcast sent',
+        'channel' => 'voice-call.' . $userId,
+        'user_id' => $userId
+    ]);
+})->middleware(['auth']);
+// Test broadcast endpoint
+Route::post('/api/test-broadcast', function (Request $request) {
+    $userId = auth()->id();
+    $userName = auth()->user()->name;
+
+    \Log::info('🧪 Test broadcast', [
+        'user_id' => $userId,
+        'channel' => 'voice-call.' . $userId
+    ]);
+
+    broadcast(new \App\Events\TestBroadcast($userId, "Test from {$userName}"))->toOthers();
+
+    return response()->json([
+        'status' => 'test broadcast sent',
+        'channel' => 'voice-call.' . $userId,
+        'user_id' => $userId
+    ]);
+})->middleware(['auth']);
