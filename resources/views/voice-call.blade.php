@@ -25,18 +25,40 @@
             let pendingCandidates = [];
             let isRemoteSet = false;
             let callActive = false;
+            let connectionTimeout = null;
+
+            // ✅ UPDATE STATUS
+            function updateStatus(message) {
+                console.log("📊 STATUS: " + message);
+                document.getElementById("callStatus").textContent = message;
+            }
             // ✅ PUSHER INIT
             const pusher = new Pusher("0c08d7f3f0fa0c883f22", {
                 cluster: "ap2",
                 forceTLS: true
             });
 
+            pusher.connection.bind('connected', () => {
+                console.log("✅ PUSHER CONNECTED");
+                updateStatus("Ready - Click Start to call");
+            });
+
+            pusher.connection.bind('error', (error) => {
+                console.error("❌ PUSHER ERROR:", error);
+                updateStatus("Connection Error: " + error.type);
+            });
+
             const channel = pusher.subscribe('voice-call.' + userId);
+
+            channel.bind('subscription_succeeded', () => {
+                console.log("✅ CHANNEL SUBSCRIBED: voice-call." + userId);
+            });
 
             // ✅ CREATE PEER
             function createPeer() {
 
                 console.log("🧠 Creating Peer");
+                updateStatus("Setting up connection...");
 
                 pendingCandidates = [];
                 isRemoteSet = false;
@@ -54,15 +76,17 @@
                         }
                     ]
                 });
-                // iceServers: [
-                //   { urls: "stun:stun.l.google.com:19302" },
-                // {
-                //     urls: "turn:pm.inovace.in:3478",
-                //     username: "webrtcuser",
-                //     credential: "strongpassword123"
-                // }
-                //    ]
-                // });
+
+                // ✅ CONNECTION STATE
+                peerConnection.onconnectionstatechange = () => {
+                    console.log("🔗 Connection State: " + peerConnection.connectionState);
+                    updateStatus("Connection: " + peerConnection.connectionState);
+                };
+
+                peerConnection.oniceconnectionstatechange = () => {
+                    console.log("❄ ICE Connection State: " + peerConnection.iceConnectionState);
+                    updateStatus("ICE: " + peerConnection.iceConnectionState);
+                };
 
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
@@ -89,6 +113,7 @@
                 peerConnection.ontrack = (event) => {
 
                     console.log("🔊 AUDIO RECEIVED");
+                    updateStatus("Audio received - Call active");
 
                     let audio = document.getElementById("remoteAudio");
 
@@ -113,13 +138,18 @@
                 document.getElementById("startBtn").classList.add("hidden");
                 document.getElementById("acceptBtn").classList.add("hidden");
 
+                updateStatus("Requesting microphone access...";
+
                 console.log("🚀 START BUTTON CLICKED");
 
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    updateStatus("Microphone accessed, creating offer...");
                 } catch (err) {
                     alert("Microphone permission blocked");
+                    updateStatus("❌ Microphone access denied");
                     callActive = false;
+                    document.getElementById("startBtn").classList.remove("hidden");
                     return;
                 }
 
@@ -131,6 +161,8 @@
 
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
+
+                updateStatus("Sending offer to recipient...";
 
                 try {
                     const response = await fetch('/send-offer', {
@@ -147,8 +179,18 @@
                     if (!response.ok) {
                         throw new Error('Failed to send offer: ' + response.statusText);
                     }
+                    console.log("✅ Offer sent successfully");
+                    updateStatus("Offer sent, waiting for answer...");
+
+                    // Set timeout for answer
+                    connectionTimeout = setTimeout(() => {
+                        console.error("❌ No answer received within 30 seconds");
+                        updateStatus("❌ No response - call may have been declined or is unreachable");
+                    }, 30000);
+
                 } catch (err) {
                     console.error('❌ Error sending offer:', err);
+                    updateStatus("❌ Failed to send offer: " + err.message);
                     callActive = false;
                     document.getElementById("startBtn").classList.remove("hidden");
                     throw err;
@@ -163,13 +205,18 @@
                 document.getElementById("startBtn").classList.add("hidden");
                 document.getElementById("acceptBtn").classList.add("hidden");
 
+                updateStatus("Requesting microphone access...");
+
                 console.log("✅ ACCEPT CLICKED");
 
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    updateStatus("Microphone accessed, creating answer...");
                 } catch (err) {
                     alert("Mic blocked");
+                    updateStatus("❌ Microphone access denied");
                     callActive = false;
+                    document.getElementById("acceptBtn").classList.remove("hidden");
                     return;
                 }
 
@@ -183,8 +230,10 @@
                     await peerConnection.setRemoteDescription(
                         new RTCSessionDescription(incomingOffer)
                     );
+                    updateStatus("Processing offer, creating answer...");
                 } catch (err) {
                     console.error("❌ Error setting remote description:", err);
+                    updateStatus("❌ Error processing offer: " + err.message);
                     callActive = false;
                     document.getElementById("acceptBtn").classList.remove("hidden");
                     return;
@@ -203,6 +252,8 @@
 
                 pendingCandidates = [];
 
+                updateStatus("Sending answer...");
+
                 try {
                     const response = await fetch('/send-answer', {
                         method: 'POST',
@@ -218,8 +269,11 @@
                     if (!response.ok) {
                         throw new Error('Failed to send answer: ' + response.statusText);
                     }
+                    console.log("✅ Answer sent successfully");
+                    updateStatus("Answer sent, establishing connection...");
                 } catch (err) {
                     console.error('❌ Error sending answer:', err);
+                    updateStatus("❌ Failed to send answer: " + err.message);
                     callActive = false;
                     document.getElementById("acceptBtn").classList.remove("hidden");
                     throw err;
@@ -270,7 +324,8 @@
 
             channel.bind('.CallOffer', (data) => {
 
-                console.log("📞 OFFER RECEIVED");
+                console.log("📞 OFFER RECEIVED from caller:", data.callerId);
+                updateStatus("Incoming call from " + data.callerId + "...");
 
                 incomingOffer = data.offer;
                 incomingCallerId = data.callerId;
@@ -283,9 +338,15 @@
             channel.bind('.CallAnswer', async (data) => {
 
                 console.log("✅ ANSWER RECEIVED");
+                updateStatus("Answer received, connecting...");
+
+                if (connectionTimeout) {
+                    clearTimeout(connectionTimeout);
+                }
 
                 if (!peerConnection) {
                     console.log("⚠ Peer not ready");
+                    updateStatus("❌ Peer connection not ready");
                     return;
                 }
 
@@ -293,8 +354,10 @@
                     await peerConnection.setRemoteDescription(
                         new RTCSessionDescription(data.answer)
                     );
+                    console.log("✅ Remote description set");
                 } catch (err) {
                     console.error("❌ Error setting answer description:", err);
+                    updateStatus("❌ Error setting answer: " + err.message);
                     return;
                 }
 
@@ -312,7 +375,7 @@
             // ✅ RECEIVE ICE
             channel.bind('.IceCandidate', async (data) => {
 
-                console.log("❄ ICE RECEIVED");
+                console.log("❄ ICE RECEIVED from:", data.senderId);
 
                 if (!peerConnection) {
                     console.log("⚠ Peer not created yet, buffering candidate");
@@ -328,6 +391,7 @@
                         await peerConnection.addIceCandidate(
                             new RTCIceCandidate(data.candidate)
                         );
+                        console.log("✅ ICE candidate added");
                     } catch (err) {
                         console.error("❌ Error adding ICE candidate:", err);
                     }
@@ -338,6 +402,10 @@
             function endCall() {
 
                 console.log("❌ CALL ENDED");
+
+                if (connectionTimeout) {
+                    clearTimeout(connectionTimeout);
+                }
 
                 if (peerConnection) {
                     peerConnection.close();
@@ -358,7 +426,11 @@
                 incomingOffer = null;
                 incomingCallerId = null;
 
-                window.close();
+                updateStatus("Call ended");
+
+                setTimeout(() => {
+                    window.close();
+                }, 1000);
             }
 
             window.startCall = startCall;
@@ -381,8 +453,8 @@
             Calling {{ $user->name }}
         </h2>
 
-        <p class="text-gray-400 text-sm mt-1">
-            Connecting...
+        <p id="callStatus" class="text-gray-400 text-sm mt-1">
+            Waiting to start...
         </p>
 
         <div class="flex gap-6 justify-center mt-8">
