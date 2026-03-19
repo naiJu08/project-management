@@ -6,8 +6,7 @@
             User Chat
         </h1>
 
-        <div
-            class="flex flex-1 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 h-full">
+        <div class="flex flex-1 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 h-full">
 
             <!-- USERS LIST -->
             <div wire:poll.5s class="w-72 border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
@@ -19,7 +18,6 @@
                 </div>
 
                 @foreach($this->users as $user)
-
                 <div wire:click="selectUser({{ $user->id }})" 
                      class="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800
                            @if($selectedUser == $user->id) bg-gray-100 dark:bg-gray-800 @endif">
@@ -28,11 +26,7 @@
                         <div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
                             {{ strtoupper(substr($user->name, 0, 1)) }}
                         </div>
-
-                        @php
-                            $isOnline = $user->last_seen && $user->last_seen->gt(now()->subMinutes(2));
-                        @endphp
-
+                        @php $isOnline = $user->last_seen && $user->last_seen->gt(now()->subMinutes(2)); @endphp
                         <span class="absolute bottom-0 right-0 w-3 h-3 
                               {{ $isOnline ? 'bg-green-500' : 'bg-gray-400' }} 
                               border-2 border-white rounded-full"></span>
@@ -42,18 +36,14 @@
                         <div class="font-semibold text-sm text-gray-800 dark:text-gray-200 truncate">
                             {{ $user->name }}
                         </div>
-
                         <div class="text-xs text-gray-500 dark:text-gray-400 truncate">
                             @php
                                 $lastMsg = \App\Models\DirectMessage::where(function ($q) use ($user) {
-                                    $q->where('sender_id', auth()->id())
-                                      ->where('receiver_id', $user->id);
+                                    $q->where('sender_id', auth()->id())->where('receiver_id', $user->id);
                                 })->orWhere(function ($q) use ($user) {
-                                    $q->where('sender_id', $user->id)
-                                      ->where('receiver_id', auth()->id());
+                                    $q->where('sender_id', $user->id)->where('receiver_id', auth()->id());
                                 })->latest()->first();
                             @endphp
-
                             @if($lastMsg)
                                 @if($lastMsg->file)
                                     @if(Str::contains($lastMsg->file, ['jpg', 'jpeg', 'png', 'gif', 'webp']))
@@ -76,7 +66,6 @@
                             ->whereNull('read_at')
                             ->count();
                     @endphp
-
                     @if($unreadCount > 0)
                         <span class="bg-green-500 text-white text-xs px-2 py-0.5 rounded-full min-w-[20px] text-center">
                             {{ $unreadCount }}
@@ -106,12 +95,8 @@
                     <div class="flex gap-3 text-gray-400">
                         <button onclick="openCall({{ $selectedUserModel->id }})" 
                                 class="hover:text-green-500 transition text-xl" 
-                                title="Voice Call">
-                            📞
-                        </button>
-                        <button class="hover:text-blue-500 transition text-xl" title="Video Call (Coming Soon)">
-                            🎥
-                        </button>
+                                title="Voice Call">📞</button>
+                        <button class="hover:text-blue-500 transition text-xl" title="Video Call (Coming Soon)">🎥</button>
                     </div>
                 </div>
                 @endif
@@ -120,10 +105,6 @@
                 <div id="chatMessages" wire:poll.10s.keep-alive wire:key="chatMessages"
                     class="flex-1 overflow-y-auto px-6 pt-6 space-y-4 min-h-0">
                     @forelse($chatMessages as $index => $msg)
-                        @php
-                            $showAvatar = $index === 0 || $chatMessages[$index - 1]->sender_id !== $msg->sender_id;
-                        @endphp
-
                         @if($msg->sender_id == auth()->id())
                         <!-- MY MESSAGE -->
                         <div class="flex justify-end">
@@ -168,18 +149,13 @@
                                                        class="px-2 py-1 rounded border border-gray-400 w-full text-sm text-gray-900
                                                               focus:outline-none focus:ring-2 focus:ring-blue-400
                                                               dark:bg-gray-800 dark:text-white dark:border-gray-600">
-                                                <button wire:click="updateMessage" class="text-xs bg-green-500 text-white px-2 py-1 rounded">
-                                                    Save
-                                                </button>
+                                                <button wire:click="updateMessage" class="text-xs bg-green-500 text-white px-2 py-1 rounded">Save</button>
                                             </div>
                                         @else
-                                            <div class="!text-base break-words">
-                                                {{ $msg->message }}
-                                            </div>
+                                            <div class="!text-base break-words">{{ $msg->message }}</div>
                                         @endif
                                     @endif
                                 </div>
-
                                 <div class="text-xs text-gray-400 mt-1 text-right flex items-center justify-end gap-1">
                                     <span>{{ $msg->created_at->timezone(config('app.timezone'))->format('h:i A') }}</span>
                                     @if($msg->read_at)
@@ -196,30 +172,22 @@
                             <div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
                                 {{ strtoupper(substr($this->selectedUserModel->name, 0, 1)) }}
                             </div>
-
                             <div class="max-w-md relative">
                                 <div class="bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-4 py-2 rounded-xl shadow-sm space-y-1">
                                     @if($msg->file)
                                         @if(Str::contains($msg->file, ['jpg', 'jpeg', 'png', 'gif', 'webp']))
-                                            <img src="{{ asset('storage/' . $msg->file) }}"
-                                                 class="rounded-lg max-w-[250px] cursor-pointer transform hover:scale-100 transition duration-200">
+                                            <img src="{{ asset('storage/' . $msg->file) }}" class="rounded-lg max-w-[250px] cursor-pointer transform hover:scale-100 transition duration-200">
                                         @else
-                                            <a href="{{ asset('storage/' . $msg->file) }}" target="_blank"
-                                               class="text-blue-500 underline text-xs">
+                                            <a href="{{ asset('storage/' . $msg->file) }}" target="_blank" class="text-blue-500 underline text-xs">
                                                 📎 {{ basename($msg->file) }}
                                             </a>
                                         @endif
                                     @endif
-
                                     @if($msg->message)
-                                        <div class="!text-base break-words">
-                                            {{ $msg->message }}
-                                        </div>
+                                        <div class="!text-base break-words">{{ $msg->message }}</div>
                                     @endif
                                 </div>
-                                <div class="text-xs text-gray-400 mt-1">
-                                    {{ $msg->created_at->timezone(config('app.timezone'))->format('h:i A') }}
-                                </div>
+                                <div class="text-xs text-gray-400 mt-1">{{ $msg->created_at->timezone(config('app.timezone'))->format('h:i A') }}</div>
                             </div>
                         </div>
                         @endif
@@ -235,23 +203,6 @@
                         </div>
                     @endforelse
                 </div>
-
-                @php
-                    $isOnline = $this->selectedUserModel
-                        && $this->selectedUserModel->last_seen
-                        && $this->selectedUserModel->last_seen->gt(now()->subMinutes(2));
-                @endphp
-
-                @if($message && $isOnline)
-                <div class="flex items-center gap-2 px-6 pb-2 text-sm text-gray-500 animate-pulse">
-                    <div class="flex gap-1">
-                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
-                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></span>
-                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></span>
-                    </div>
-                    <span>User is typing...</span>
-                </div>
-                @endif
 
                 @if($selectedUser)
                 <!-- MESSAGE INPUT -->
@@ -275,7 +226,6 @@
                             📎
                             <input type="file" wire:model="files" multiple class="hidden">
                         </label>
-
                         <textarea id="chatInput" wire:model.defer="message" rows="1" 
                                   class="flex-1 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white
                                          focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 resize-none"
@@ -287,9 +237,7 @@
                                             $wire.sendMessage();
                                             $event.target.value = '';
                                         }
-                                    }">
-                        </textarea>
-
+                                    }"></textarea>
                         <button type="submit" class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700
                                                       focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0">
                             <svg class="w-5 h-5 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -312,15 +260,12 @@
                 background:none; border:none; cursor:pointer;">✕</button>
         <img id="previewImage" style="max-width:90%; max-height:90%; border-radius:10px;">
     </div>
-
-    <!-- Incoming Call Toast Container -->
-    <div id="callToastContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
 </div>
 
 <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
 <script>
-// Image preview functionality
+// Image preview
 document.addEventListener("click", function (e) {
     if (e.target.tagName === "IMG" && e.target.closest("#chatMessages")) {
         document.getElementById("previewImage").src = e.target.src;
@@ -331,29 +276,25 @@ document.addEventListener("click", function (e) {
     }
 });
 
-// Auto-scroll to bottom
+// Auto-scroll
 document.addEventListener("DOMContentLoaded", function () {
     const chat = document.getElementById("chatMessages");
     if (!chat) return;
-
-    function scrollToBottom() {
-        chat.scrollTop = chat.scrollHeight;
-    }
-
+    function scrollToBottom() { chat.scrollTop = chat.scrollHeight; }
     setTimeout(scrollToBottom, 300);
-
     const observer = new MutationObserver(scrollToBottom);
     observer.observe(chat, { childList: true, subtree: true });
 });
 
 // ==================== VOICE CALL FUNCTIONALITY ====================
-
-// Configuration
 const PUSHER_APP_KEY = "0c08d7f3f0fa0c883f22";
 const PUSHER_CLUSTER = "ap2";
 const currentUserId = {{ auth()->id() }};
 
-// Initialize Pusher when Livewire is ready
+// Track open call windows
+let callWindow = null;
+
+// Initialize Pusher
 document.addEventListener("livewire:load", function () {
     console.log("✅ Initializing Pusher for voice calls...");
     
@@ -369,42 +310,59 @@ document.addEventListener("livewire:load", function () {
             console.log("✅ Subscribed to voice-call." + currentUserId);
         });
 
-        channel.bind('subscription_error', function(error) {
-            console.error("❌ Subscription error:", error);
-            showToast("Failed to connect to call service", "error");
-        });
-
-        // Handle incoming calls
+        // Handle incoming calls - AUTOMATICALLY OPEN RECEIVER WINDOW
         channel.bind('CallOffer', function(data) {
             console.log("📞 INCOMING CALL from user " + data.callerId + ": " + data.callerName);
             
-            // Store call data in sessionStorage
+            // Store call data
             const callData = {
                 offer: data.offer,
                 callerId: data.callerId,
                 callerName: data.callerName,
                 timestamp: Date.now()
             };
+            sessionStorage.setItem('pendingCall', JSON.stringify(callData));
             
-            try {
-                sessionStorage.setItem('pendingCall', JSON.stringify(callData));
-            } catch (e) {
-                console.error("Failed to store call data:", e);
+            // Check if call window is already open
+            if (callWindow && !callWindow.closed) {
+                console.log("Call window already open, focusing it");
+                callWindow.focus();
+                // Send offer to existing window
+                setTimeout(() => {
+                    try {
+                        callWindow.postMessage({
+                            type: 'incoming-offer',
+                            offer: data.offer,
+                            callerId: data.callerId,
+                            callerName: data.callerName
+                        }, '*');
+                    } catch (e) {
+                        console.error("Failed to send offer to existing window:", e);
+                    }
+                }, 500);
+            } else {
+                // Open new receiver window
+                console.log("Opening receiver call window");
+                callWindow = window.open(
+                    "/voice-call/" + data.callerId,
+                    "VoiceCallWindow",
+                    "width=420,height=650,resizable=yes,scrollbars=yes"
+                );
+                
+                if (!callWindow) {
+                    console.error("Failed to open call window - popup blocked");
+                    // Show fallback message
+                    alert("Incoming call from " + data.callerName + "!\n\nPlease click OK to open the call window.");
+                    window.open("/voice-call/" + data.callerId, "_blank");
+                }
             }
-            
-            // Show visual notification
-            showIncomingCallToast(data.callerId, data.callerName);
-            
-            // Try to show browser notification (with error handling)
-            showBrowserNotification(data.callerName);
         });
 
-        // Handle ICE candidates for multi-tab support
+        // Handle ICE candidates for multi-window support
         channel.bind('IceCandidate', function(data) {
-            const voiceWindow = window.open('', 'VoiceCallWindow');
-            if (voiceWindow && !voiceWindow.closed) {
+            if (callWindow && !callWindow.closed) {
                 try {
-                    voiceWindow.postMessage({
+                    callWindow.postMessage({
                         type: 'ice-candidate',
                         candidate: data.candidate,
                         senderId: data.senderId
@@ -415,108 +373,25 @@ document.addEventListener("livewire:load", function () {
             }
         });
 
+        // Handle call answers
+        channel.bind('CallAnswer', function(data) {
+            if (callWindow && !callWindow.closed) {
+                try {
+                    callWindow.postMessage({
+                        type: 'call-answer',
+                        answer: data.answer,
+                        callerId: data.callerId
+                    }, '*');
+                } catch (e) {
+                    console.error("Failed to forward call answer:", e);
+                }
+            }
+        });
+
     } catch (error) {
         console.error("❌ Failed to initialize Pusher:", error);
-        showToast("Failed to initialize call service", "error");
     }
 });
-
-// Show browser notification (with error handling)
-function showBrowserNotification(callerName) {
-    if (!("Notification" in window)) {
-        console.log("Browser doesn't support notifications");
-        return;
-    }
-
-    try {
-        if (Notification.permission === 'granted') {
-            new Notification('Incoming Call 📞', {
-                body: `From: ${callerName}`,
-                icon: '/favicon.ico',
-                silent: false
-            });
-        } else if (Notification.permission !== 'denied') {
-            Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                    new Notification('Incoming Call 📞', {
-                        body: `From: ${callerName}`,
-                        icon: '/favicon.ico'
-                    });
-                }
-            }).catch(err => {
-                console.log("Notification permission request failed:", err);
-            });
-        }
-    } catch (error) {
-        console.log("Notification error:", error);
-        // Fallback - just show toast
-    }
-}
-
-// Show incoming call toast
-function showIncomingCallToast(callerId, callerName) {
-    const toastContainer = document.getElementById('callToastContainer');
-    if (!toastContainer) return;
-
-    const toastId = 'call-toast-' + Date.now();
-    const toastHtml = `
-        <div id="${toastId}" class="bg-green-600 text-white px-6 py-4 rounded-lg shadow-lg animate-slide-in max-w-sm">
-            <div class="flex items-center gap-4">
-                <div class="text-3xl">📞</div>
-                <div class="flex-1">
-                    <div class="font-bold">Incoming Call</div>
-                    <div class="text-sm opacity-90">From: ${callerName}</div>
-                </div>
-                <button onclick="window.open('/voice-call/${callerId}', 'VoiceCallWindow', 'width=420,height=650')" 
-                        class="bg-white text-green-600 px-4 py-2 rounded-lg font-bold hover:bg-green-50 transition whitespace-nowrap">
-                    Answer
-                </button>
-                <button onclick="document.getElementById('${toastId}').remove()" 
-                        class="text-white hover:text-gray-200 text-xl">
-                    ✕
-                </button>
-            </div>
-        </div>
-    `;
-
-    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-
-    // Auto-remove after 15 seconds
-    setTimeout(() => {
-        const toast = document.getElementById(toastId);
-        if (toast) toast.remove();
-    }, 15000);
-}
-
-// Show general toast message
-function showToast(message, type = 'info') {
-    const toastContainer = document.getElementById('callToastContainer');
-    if (!toastContainer) return;
-
-    const colors = {
-        info: 'bg-blue-600',
-        success: 'bg-green-600',
-        error: 'bg-red-600',
-        warning: 'bg-yellow-600'
-    };
-
-    const toastId = 'toast-' + Date.now();
-    const toastHtml = `
-        <div id="${toastId}" class="${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg animate-slide-in">
-            <div class="flex items-center gap-3">
-                <div class="flex-1">${message}</div>
-                <button onclick="document.getElementById('${toastId}').remove()" class="text-white hover:text-gray-200">✕</button>
-            </div>
-        </div>
-    `;
-
-    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-
-    setTimeout(() => {
-        const toast = document.getElementById(toastId);
-        if (toast) toast.remove();
-    }, 5000);
-}
 
 // Open call window (caller)
 function openCall(userId) {
@@ -526,16 +401,21 @@ function openCall(userId) {
         // Clear any pending calls
         sessionStorage.removeItem('pendingCall');
         
+        // Close existing window if any
+        if (callWindow && !callWindow.closed) {
+            callWindow.close();
+        }
+        
         // Open caller window
-        const callWindow = window.open(
+        callWindow = window.open(
             "/voice-call/" + userId + "?mode=caller",
             "VoiceCallWindow",
             "width=420,height=650,resizable=yes,scrollbars=yes"
         );
         
         if (!callWindow) {
-            // Popup blocked
-            alert("Please allow popups for this site to make calls");
+            alert("Please allow popups for this site to make calls.\n\nClick OK to open manually.");
+            window.open("/voice-call/" + userId + "?mode=caller", "_blank");
         }
     } catch (error) {
         console.error("Failed to open call window:", error);
@@ -543,36 +423,12 @@ function openCall(userId) {
     }
 }
 
-// Make functions globally available
+// Make function globally available
 window.openCall = openCall;
-window.showToast = showToast;
 
 </script>
 
 <style>
-@keyframes slideIn {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-.animate-slide-in {
-    animation: slideIn 0.3s ease-out;
-}
-
-.chat-bubble-right {
-    position: relative;
-}
-
-.chat-bubble-left {
-    position: relative;
-}
-
 .chat-bubble-left:after {
     content: "";
     position: absolute;
@@ -582,7 +438,6 @@ window.showToast = showToast;
     border-style: solid;
     border-color: transparent #e5e7eb transparent transparent;
 }
-
 .dark .chat-bubble-left:after {
     border-color: transparent #374151 transparent transparent;
 }
