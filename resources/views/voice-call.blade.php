@@ -11,18 +11,9 @@
     <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
     <style>
-        #startBtn {
-            display: block;
-        }
-
-        #acceptBtn {
-            display: none;
-        }
-
-        #endBtn {
-            display: block;
-        }
-
+        #startBtn { display: block; }
+        #acceptBtn { display: none; }
+        #endBtn { display: block; }
         .spinner {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #3498db;
@@ -33,22 +24,15 @@
             display: inline-block;
             margin-right: 8px;
         }
-
         @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
-
         #debugPanel {
             position: fixed;
             bottom: 10px;
             left: 10px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0,0,0,0.8);
             color: #0f0;
             padding: 10px;
             border-radius: 5px;
@@ -59,7 +43,6 @@
             z-index: 9999;
             display: none;
         }
-
         .debug-visible #debugPanel {
             display: block;
         }
@@ -85,20 +68,16 @@
 
         <!-- Action Buttons -->
         <div class="flex gap-4 justify-center mt-8 flex-wrap">
-            <button id="startBtn" onclick="startCall()"
-                class="bg-green-500 px-6 py-3 rounded-full text-lg hover:bg-green-600 transition flex items-center gap-2">
+            <button id="startBtn" onclick="startCall()" class="bg-green-500 px-6 py-3 rounded-full text-lg hover:bg-green-600 transition flex items-center gap-2">
                 <span>📞</span> Start Call
             </button>
-            <button id="acceptBtn" onclick="acceptCall()"
-                class="bg-green-600 px-6 py-3 rounded-full text-lg hover:bg-green-700 transition flex items-center gap-2 animate-pulse">
+            <button id="acceptBtn" onclick="acceptCall()" class="bg-green-600 px-6 py-3 rounded-full text-lg hover:bg-green-700 transition flex items-center gap-2 animate-pulse">
                 <span>✅</span> Accept Call
             </button>
-            <button id="endBtn" onclick="endCall()"
-                class="bg-red-500 px-6 py-3 rounded-full text-lg hover:bg-red-600 transition">
+            <button id="endBtn" onclick="endCall()" class="bg-red-500 px-6 py-3 rounded-full text-lg hover:bg-red-600 transition">
                 ❌ End
             </button>
-            <button onclick="toggleDebug()"
-                class="bg-gray-600 px-4 py-3 rounded-full text-lg hover:bg-gray-700 transition">🐛 Debug</button>
+            <button onclick="toggleDebug()" class="bg-gray-600 px-4 py-3 rounded-full text-lg hover:bg-gray-700 transition">🐛 Debug</button>
         </div>
 
         <!-- Debug Panel -->
@@ -106,7 +85,7 @@
     </div>
 
     <script>
-        (function () {
+        (function() {
             "use strict";
 
             // ==================== CONFIG ====================
@@ -115,7 +94,7 @@
             const userId = {{ auth()->id() }};
             const otherUserId = {{ $user->id }};
             const otherUserName = "{{ $user->name }}";
-
+            
             // ==================== DEBUG LOGGING ====================
             const debugLogs = [];
             function debug(...args) {
@@ -124,14 +103,14 @@
                 debugLogs.unshift({ time: new Date().toLocaleTimeString(), message });
                 updateDebugPanel();
             }
-            window.toggleDebug = function () {
+            window.toggleDebug = function() {
                 document.body.classList.toggle('debug-visible');
                 updateDebugPanel();
             };
             function updateDebugPanel() {
                 const panel = document.getElementById('debugPanel');
                 if (panel) {
-                    panel.innerHTML = debugLogs.slice(0, 20).map(log =>
+                    panel.innerHTML = debugLogs.slice(0, 20).map(log => 
                         `<div>${log.time}: ${log.message}</div>`
                     ).join('');
                 }
@@ -157,21 +136,21 @@
                     if (pendingCall) {
                         const callData = JSON.parse(pendingCall);
                         const age = Date.now() - callData.timestamp;
-
+                        
                         debug(`Found pending call, age: ${age}ms`);
-
+                        
                         if (age < 15000) {
                             debug("Using pending call data");
                             incomingOffer = callData.offer;
                             incomingCallerId = callData.callerId;
                             incomingCallerName = callData.callerName;
-
+                            
                             sessionStorage.removeItem('pendingCall');
-
+                            
                             showAcceptMode();
                             document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
                             updateStatus("Incoming call - Click Accept");
-
+                            
                             return true;
                         } else {
                             sessionStorage.removeItem('pendingCall');
@@ -184,9 +163,9 @@
             }
 
             // ==================== LISTEN FOR POST MESSAGES ====================
-            window.addEventListener('message', function (event) {
+            window.addEventListener('message', function(event) {
                 debug("📨 Received message:", event.data.type);
-
+                
                 if (event.data.type === 'incoming-offer') {
                     debug("📞 Received offer via postMessage");
                     incomingOffer = event.data.offer;
@@ -196,7 +175,7 @@
                     document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
                     updateStatus("Incoming call - Click Accept");
                 }
-
+                
                 if (event.data.type === 'ice-candidate') {
                     debug("❄️ Received ICE candidate via postMessage");
                     if (!peerConnection) {
@@ -208,7 +187,7 @@
                             .catch(err => debug("Error adding ICE:", err));
                     }
                 }
-
+                
                 if (event.data.type === 'call-answer') {
                     debug("✅ Received answer via postMessage");
                     handleAnswer(event.data.answer);
@@ -307,9 +286,9 @@
             }
 
             // ==================== CALL FUNCTIONS ====================
-            window.startCall = async function () {
+            window.startCall = async function() {
                 debug("Starting call...");
-
+                
                 if (callActive) return;
                 callActive = true;
                 hideAllButtons();
@@ -333,9 +312,9 @@
                 try {
                     const offer = await peerConnection.createOffer();
                     await peerConnection.setLocalDescription(offer);
-
+                    
                     updateStatus("Sending call request...");
-
+                    
                     const response = await fetch('/send-offer', {
                         method: 'POST',
                         headers: {
@@ -367,18 +346,22 @@
                 }
             };
 
-            window.acceptCall = async function () {
+            window.acceptCall = async function() {
                 try {
                     console.log("========== ACCEPT CALL CLICKED (console) ==========");
                     debug("========== ACCEPT CALL CLICKED ==========");
                     debug("incomingOffer:", incomingOffer ? "present" : "null");
                     debug("incomingCallerId:", incomingCallerId);
-
+                    
                     // Log the full offer for inspection
                     if (incomingOffer) {
                         debug("Offer type:", incomingOffer.type);
                         debug("Offer has sdp:", !!incomingOffer.sdp);
                         console.log("Full offer:", incomingOffer);
+                        // Log first 200 chars of SDP to check for corruption
+                        if (incomingOffer.sdp) {
+                            console.log("SDP preview:", incomingOffer.sdp.substring(0, 200));
+                        }
                     }
 
                     if (!incomingOffer || !incomingCallerId) {
@@ -396,11 +379,8 @@
                     hideAllButtons();
                     updateStatus('<span class="spinner"></span> Accessing microphone...');
 
-                    // SYNCHRONOUS CHECK - this should log immediately
-                    console.log("Before getUserMedia - this should appear in console");
                     debug("Before getUserMedia - this should appear in debug panel");
-
-                    // Try-catch specifically for getUserMedia
+                    
                     try {
                         debug("Requesting microphone permission...");
                         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -418,74 +398,80 @@
                     createPeer();
                     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
+                    // IMPORTANT FIX: Pass the offer object directly, don't wrap it again
+                    debug("Setting remote description with direct object...");
                     try {
-                        debug("Setting remote description...");
-                        await peerConnection.setRemoteDescription(
-                            new RTCSessionDescription({
-                                type: incomingOffer.type,
-                                sdp: incomingOffer.sdp
-                            })
-                        );
+                        // Ensure the SDP is a clean string
+                        if (typeof incomingOffer.sdp === 'string') {
+                            // Trim any extra whitespace
+                            incomingOffer.sdp = incomingOffer.sdp.trim();
+                        }
+                        await peerConnection.setRemoteDescription(incomingOffer);
                         debug("✅ Remote description set");
                     } catch (sdpErr) {
                         debug("❌ setRemoteDescription error:", sdpErr);
                         console.error("setRemoteDescription error:", sdpErr);
-                        throw sdpErr;
+                        // Try to recover by re-creating the description object
+                        try {
+                            debug("Attempting fallback: create new RTCSessionDescription");
+                            const cleanOffer = new RTCSessionDescription({
+                                type: incomingOffer.type,
+                                sdp: incomingOffer.sdp.trim()
+                            });
+                            await peerConnection.setRemoteDescription(cleanOffer);
+                            debug("✅ Remote description set with fallback");
+                        } catch (fallbackErr) {
+                            debug("❌ Fallback also failed:", fallbackErr);
+                            throw sdpErr; // rethrow original
+                        }
                     }
 
-                    try {
-                        debug("Creating answer...");
-                        const answer = await peerConnection.createAnswer();
-                        debug("Answer created:", answer.type);
+                    debug("Creating answer...");
+                    const answer = await peerConnection.createAnswer();
+                    debug("Answer created:", answer.type);
+                    
+                    debug("Setting local description...");
+                    await peerConnection.setLocalDescription(answer);
+                    debug("✅ Local description set");
 
-                        debug("Setting local description...");
-                        await peerConnection.setLocalDescription(answer);
-                        debug("✅ Local description set");
-
-                        isRemoteSet = true;
-
-                        debug("Adding buffered ICE candidates:", pendingCandidates.length);
-                        for (const candidate of pendingCandidates) {
-                            try {
-                                await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                                debug("Added buffered ICE candidate");
-                            } catch (err) {
-                                debug("Error adding ICE:", err);
-                            }
+                    isRemoteSet = true;
+                    
+                    debug("Adding buffered ICE candidates:", pendingCandidates.length);
+                    for (const candidate of pendingCandidates) {
+                        try {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                            debug("Added buffered ICE candidate");
+                        } catch (err) {
+                            debug("Error adding ICE:", err);
                         }
-                        pendingCandidates = [];
-
-                        updateStatus("Sending answer...");
-                        debug("Sending answer to /send-answer, receiverId:", incomingCallerId);
-
-                        const response = await fetch('/send-answer', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                            },
-                            body: JSON.stringify({
-                                answer: { type: answer.type, sdp: answer.sdp },
-                                receiverId: incomingCallerId
-                            })
-                        });
-
-                        debug("Fetch response status:", response.status);
-
-                        if (!response.ok) {
-                            const text = await response.text();
-                            throw new Error(`Failed to send answer: ${response.status} ${text}`);
-                        }
-
-                        const result = await response.json();
-                        debug("✅ Answer sent successfully:", result);
-                        updateStatus("Call connected!");
-
-                    } catch (err) {
-                        debug("❌ Error during WebRTC setup or fetch:", err);
-                        console.error("WebRTC/fetch error:", err);
-                        throw err; // rethrow to outer catch
                     }
+                    pendingCandidates = [];
+
+                    updateStatus("Sending answer...");
+                    debug("Sending answer to /send-answer, receiverId:", incomingCallerId);
+                    
+                    const response = await fetch('/send-answer', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        body: JSON.stringify({
+                            answer: { type: answer.type, sdp: answer.sdp },
+                            receiverId: incomingCallerId
+                        })
+                    });
+
+                    debug("Fetch response status:", response.status);
+                    
+                    if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error(`Failed to send answer: ${response.status} ${text}`);
+                    }
+
+                    const result = await response.json();
+                    debug("✅ Answer sent successfully:", result);
+                    updateStatus("Call connected!");
 
                 } catch (err) {
                     debug("❌ UNCAUGHT ERROR in acceptCall:", err);
@@ -498,7 +484,7 @@
 
             async function handleAnswer(answer) {
                 debug("Handling answer");
-
+                
                 if (connectionTimeout) {
                     clearTimeout(connectionTimeout);
                     connectionTimeout = null;
@@ -517,9 +503,9 @@
                         })
                     );
                     debug("✅ Remote description set from answer");
-
+                    
                     isRemoteSet = true;
-
+                    
                     for (const candidate of pendingCandidates) {
                         try {
                             await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
@@ -528,47 +514,47 @@
                         }
                     }
                     pendingCandidates = [];
-
+                    
                     updateStatus("Call connected!");
-
+                    
                 } catch (err) {
                     debug("❌ Error setting answer:", err);
                     updateStatus("❌ Connection failed");
                 }
             }
 
-            window.endCall = function () {
+            window.endCall = function() {
                 debug("Ending call");
-
+                
                 if (connectionTimeout) clearTimeout(connectionTimeout);
-
+                
                 if (peerConnection) {
                     peerConnection.close();
                     peerConnection = null;
                 }
-
+                
                 if (localStream) {
                     localStream.getTracks().forEach(track => track.stop());
                     localStream = null;
                 }
-
+                
                 const audio = document.getElementById("remoteAudio");
                 if (audio) {
                     audio.srcObject = null;
                     audio.remove();
                 }
-
+                
                 pendingCandidates = [];
                 isRemoteSet = false;
                 callActive = false;
-
+                
                 if (incomingCallerId) {
                     document.getElementById("callTitle").textContent = "Call ended";
                     updateStatus("Call ended - close window");
                 } else {
                     showStartMode();
                 }
-
+                
                 incomingOffer = null;
                 incomingCallerId = null;
             };
@@ -576,9 +562,9 @@
             // ==================== PUSHER ====================
             function initPusher() {
                 debug("Initializing Pusher...");
-
+                
                 Pusher.logToConsole = true;
-
+                
                 pusher = new Pusher(PUSHER_APP_KEY, {
                     cluster: PUSHER_CLUSTER,
                     forceTLS: true
@@ -586,12 +572,12 @@
 
                 pusher.connection.bind('connected', () => {
                     debug("Pusher connected");
-
+                    
                     const isCaller = new URLSearchParams(window.location.search).has('mode=caller');
                     debug("Mode:", isCaller ? "CALLER" : "RECEIVER");
-
+                    
                     const hasPending = checkPendingCall();
-
+                    
                     if (isCaller) {
                         showStartMode();
                         updateStatus("Ready to start call");
@@ -646,20 +632,19 @@
             }
 
             // ==================== INIT ====================
-            document.addEventListener("DOMContentLoaded", function () {
+            document.addEventListener("DOMContentLoaded", function() {
                 debug("Voice call page loaded");
                 debug("User ID:", userId, "Other User ID:", otherUserId);
                 debug("URL params:", window.location.search);
-
+                
                 // Check if CSRF token exists
                 const token = document.querySelector('meta[name="csrf-token"]')?.content;
                 debug("CSRF token present:", !!token);
-
+                
                 initPusher();
             });
 
         })();
     </script>
 </body>
-
 </html>
