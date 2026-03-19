@@ -58,104 +58,50 @@ Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $requ
 
 // ==================== VOICE CALL ROUTES ====================
 
-// Voice call page - Caller adds ?caller parameter, receiver doesn't
+// ==================== VOICE CALL ROUTES ====================
 Route::get('/voice-call/{id}', function ($id) {
-    $user = User::findOrFail($id);
+    $user = App\Models\User::findOrFail($id);
     return view('voice-call', compact('user'));
 })->middleware(['auth'])->name('voice-call');
 
-// Send WebRTC offer
 Route::post('/send-offer', function (Request $request) {
     $offer = $request->offer;
-
-    if (is_string($offer)) {
+    if (is_string($offer))
         $offer = json_decode($offer, true);
-    }
 
     $callerId = auth()->id();
     $callerName = auth()->user()->name;
     $receiverId = $request->receiverId;
 
-    \Log::info('📞 Sending call offer', [
-        'from' => $callerId,
-        'to' => $receiverId,
-        'caller' => $callerName,
-        'has_sdp' => !empty($offer['sdp'])
-    ]);
+    \Log::info('📞 Sending call offer', ['from' => $callerId, 'to' => $receiverId]);
 
-    broadcast(new CallOffer(
-        $offer,
-        $callerId,
-        $callerName,
-        $receiverId
-    ))->toOthers();
-
+    broadcast(new \App\Events\CallOffer($offer, $callerId, $callerName, $receiverId))->toOthers();
     return response()->json(['status' => 'offer sent']);
 })->middleware(['auth']);
 
-// Send WebRTC answer
 Route::post('/send-answer', function (Request $request) {
     $answer = $request->answer;
-
-    if (is_string($answer)) {
+    if (is_string($answer))
         $answer = json_decode($answer, true);
-    }
 
     $answererId = auth()->id();
     $receiverId = $request->receiverId;
 
-    \Log::info('📞 Sending call answer', [
-        'from' => $answererId,
-        'to' => $receiverId,
-        'has_sdp' => !empty($answer['sdp'])
-    ]);
+    \Log::info('📞 Sending call answer', ['from' => $answererId, 'to' => $receiverId]);
 
-    broadcast(new CallAnswer(
-        $answer,
-        $answererId,
-        $receiverId
-    ))->toOthers();
-
+    broadcast(new \App\Events\CallAnswer($answer, $answererId, $receiverId))->toOthers();
     return response()->json(['status' => 'answer sent']);
 })->middleware(['auth']);
 
-// Send ICE candidate
 Route::post('/send-ice', function (Request $request) {
     $senderId = auth()->id();
     $receiverId = $request->receiverId;
 
-    \Log::info('❄️ Sending ICE candidate', [
-        'from' => $senderId,
-        'to' => $receiverId
-    ]);
-
-    broadcast(new IceCandidate(
-        $request->candidate,
-        $senderId,
-        $receiverId
-    ))->toOthers();
-
+    broadcast(new \App\Events\IceCandidate($request->candidate, $senderId, $receiverId))->toOthers();
     return response()->json(['status' => 'ice sent']);
 })->middleware(['auth']);
 
-// Test broadcast endpoint
-Route::post('/api/test-broadcast', function (Request $request) {
-    $userId = auth()->id();
-    $userName = auth()->user()->name;
 
-    \Log::info('🧪 Test broadcast', [
-        'user_id' => $userId,
-        'channel' => 'voice-call.' . $userId
-    ]);
-
-    broadcast(new \App\Events\TestBroadcast($userId, "Test from {$userName}"))->toOthers();
-
-    return response()->json([
-        'status' => 'test broadcast sent',
-        'channel' => 'voice-call.' . $userId,
-        'user_id' => $userId
-    ]);
-})->middleware(['auth']);
 // Test broadcast endpoint
 Route::post('/api/test-broadcast', function (Request $request) {
     $userId = auth()->id();
