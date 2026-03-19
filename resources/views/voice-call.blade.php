@@ -260,6 +260,12 @@
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
 
+            updateStatus("Notifying recipient and waiting for connection...");
+            console.log("📢 Offer created, waiting 2s for receiver to connect to Pusher...");
+
+            // Wait for receiver to open and subscribe before sending offer
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
             updateStatus("Sending offer to recipient...");
 
             try {

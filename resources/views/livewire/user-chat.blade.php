@@ -599,11 +599,17 @@ document.addEventListener("click", function(e){
 
 <script>
 function openCall(userId){
+    console.log("📞 Opening voice call to user:", userId);
+    
+    // Open ONLY the caller's window with ?mode=caller
     window.open(
         "/voice-call/" + userId + "?mode=caller",
         "VoiceCallWindow",
         "width=420,height=650"
     );
+    
+    // Receiver's window will be auto-opened by Pusher when CallOffer arrives
+    console.log("📞 Waiting for receiver's Pusher notification to auto-open receiver window");
 }
 </script>
 
@@ -612,7 +618,7 @@ function openCall(userId){
 <script>
 document.addEventListener("livewire:load", function () {
 
-    console.log("✅ Pusher INIT");
+    console.log("✅ Pusher INIT in user-chat");
 
     const myId = {{ auth()->id() }};
 
@@ -623,27 +629,22 @@ document.addEventListener("livewire:load", function () {
 
     const channel = pusher.subscribe('voice-call.' + myId);
 
-    let incomingCallerId = null;
+    channel.bind('subscription_succeeded', function() {
+        console.log("✅ Subscribed to voice-call." + myId + " in user-chat");
+    });
 
+    // Auto-open voice-call window when incoming call arrives
     channel.bind('CallOffer', function(data) {
-
-    console.log("📞 INCOMING CALL", data);
-
-    incomingCallerId = data.callerId;
-
-    if (confirm("Incoming call from " + data.callerName + " 📞")) {
-
+        console.log("📞 INCOMING CALL from user " + data.callerId + ": " + data.callerName);
+        
+        // Auto-open the receiver's voice-call window (no mode=caller parameter)
+        // This opens the page showing the caller's info
         window.open(
-            "/voice-call/" + incomingCallerId,
+            "/voice-call/" + data.callerId,
             "VoiceCallWindow",
             "width=420,height=650"
         );
-
-    } else {
-        console.log("❌ Call Rejected");
-    }
-
-});
-
+        console.log("✅ Receiver window auto-opened");
+    });
 }); 
 </script>
