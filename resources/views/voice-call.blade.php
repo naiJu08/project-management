@@ -110,7 +110,8 @@
                 if (callActive) return;
                 callActive = true;
 
-                document.getElementById("acceptBtn").style.display = "none";
+                document.getElementById("startBtn").classList.add("hidden");
+                document.getElementById("acceptBtn").classList.add("hidden");
 
                 console.log("🚀 START BUTTON CLICKED");
 
@@ -118,6 +119,7 @@
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 } catch (err) {
                     alert("Microphone permission blocked");
+                    callActive = false;
                     return;
                 }
 
@@ -148,6 +150,7 @@
                 } catch (err) {
                     console.error('❌ Error sending offer:', err);
                     callActive = false;
+                    document.getElementById("startBtn").classList.remove("hidden");
                     throw err;
                 }
             }
@@ -157,7 +160,8 @@
                 if (callActive) return;
                 callActive = true;
 
-                document.getElementById("acceptBtn").style.display = "none";
+                document.getElementById("startBtn").classList.add("hidden");
+                document.getElementById("acceptBtn").classList.add("hidden");
 
                 console.log("✅ ACCEPT CLICKED");
 
@@ -165,6 +169,7 @@
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 } catch (err) {
                     alert("Mic blocked");
+                    callActive = false;
                     return;
                 }
 
@@ -180,6 +185,8 @@
                     );
                 } catch (err) {
                     console.error("❌ Error setting remote description:", err);
+                    callActive = false;
+                    document.getElementById("acceptBtn").classList.remove("hidden");
                     return;
                 }
 
@@ -214,6 +221,7 @@
                 } catch (err) {
                     console.error('❌ Error sending answer:', err);
                     callActive = false;
+                    document.getElementById("acceptBtn").classList.remove("hidden");
                     throw err;
                 }
             }
@@ -267,10 +275,8 @@
                 incomingOffer = data.offer;
                 incomingCallerId = data.callerId;
 
-                document.getElementById("acceptBtn").style.display = "inline-block";
-
-                // hide start button
-                document.querySelector("button[onclick='startCall()']").style.display = "none";
+                document.getElementById("startBtn").classList.add("hidden");
+                document.getElementById("acceptBtn").classList.remove("hidden");
             });
 
             // ✅ RECEIVE ANSWER
@@ -349,6 +355,8 @@
                 }
 
                 callActive = false;
+                incomingOffer = null;
+                incomingCallerId = null;
 
                 window.close();
             }
@@ -380,7 +388,7 @@
         <div class="flex gap-6 justify-center mt-8">
 
             <!-- ✅ START CALL -->
-            <button onclick="startCall()" class="bg-green-500 px-6 py-3 rounded-full text-lg">
+            <button id="startBtn" onclick="startCall()" class="bg-green-500 px-6 py-3 rounded-full text-lg">
                 📞 Start Call
             </button>
 
@@ -389,8 +397,8 @@
                 ❌
             </button>
 
-            <button id="acceptBtn" onclick="acceptCall()" style="display:none"
-                class="bg-green-600 px-6 py-3 rounded-full text-lg">
+            <!-- ✅ ACCEPT CALL -->
+            <button id="acceptBtn" onclick="acceptCall()" class="hidden bg-green-600 px-6 py-3 rounded-full text-lg">
                 ✅ Accept Call
             </button>
 
