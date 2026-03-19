@@ -27,10 +27,21 @@ class CallOffer implements ShouldBroadcast
 
     public function broadcastOn()
     {
-          return new Channel('voice-call.' . $this->receiverId);
+        return new Channel('voice-call.' . $this->receiverId);
     }
+
     public function broadcastAs()
-{
-    return 'CallOffer';
-}
+    {
+        return 'CallOffer';
+    }
+
+    public function broadcastWith()
+    {
+        return [
+            'offer' => $this->offer,
+            'callerId' => $this->callerId,
+            'callerName' => $this->callerName,
+            'receiverId' => $this->receiverId
+        ];
+    }
 }

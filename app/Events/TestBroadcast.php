@@ -30,4 +30,12 @@ class TestBroadcast implements ShouldBroadcast
     {
         return 'TestBroadcast';
     }
+
+    public function broadcastWith()
+    {
+        return [
+            'message' => $this->message,
+            'timestamp' => now()->toDateTimeString()
+        ];
+    }
 }
