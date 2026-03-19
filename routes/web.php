@@ -76,21 +76,60 @@ Route::post('/send-offer', function (Request $request) {
         $offer = json_decode($offer, true);
     }
     
+    $callerId = auth()->id();
+    $callerName = auth()->user()->name;
+    $receiverId = $request->receiverId;
+    
     \Log::info('CallOffer received:', [
         'offer_type' => $offer['type'] ?? 'MISSING',
         'has_sdp' => !empty($offer['sdp']),
         'sdp_length' => strlen($offer['sdp'] ?? ''),
-        'receiverId' => $request->receiverId
+        'callerId' => $callerId,
+        'callerName' => $callerName,
+        'receiverId' => $receiverId,
+        'broadcast_channel' => 'voice-call.' . $receiverId,
+    ]);
+
+    \Log::info('BROADCAST: About to broadcast CallOffer event', [
+        'channel' => 'voice-call.' . $receiverId,
+        'event' => 'CallOffer',
+        'sender' => $callerId,
+        'recipient' => $receiverId,
     ]);
 
     broadcast(new CallOffer(
         $offer,
-        auth()->id(),
-        auth()->user()->name,
-        $request->receiverId
+        $callerId,
+        $callerName,
+        $receiverId
     ))->toOthers();
 
+    \Log::info('BROADCAST: CallOffer event broadcasted successfully', [
+        'recipient' => $receiverId,
+    ]);
+
     return response()->json(['status' => 'offer sent']);
+});
+
+// ✅ TEST ENDPOINT: Broadcast a test message
+Route::post('/api/test-broadcast', function (Request $request) {
+    $userId = auth()->id();
+    $channelName = 'voice-call.' . $userId;
+    
+    \Log::info('TEST BROADCAST: Sending test message', [
+        'user_id' => $userId,
+        'channel' => $channelName,
+        'timestamp' => now(),
+    ]);
+    
+    broadcast(new \App\Events\TestBroadcast($userId, "Test message from " . auth()->user()->name))->toOthers();
+    
+    return response()->json([
+        'status' => 'test broadcast sent',
+        'channel' => $channelName,
+        'user_id' => $userId,
+        'message' => 'Check receiver console for message'
+    ]);
 });
 
 
