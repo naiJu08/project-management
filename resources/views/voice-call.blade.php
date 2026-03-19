@@ -270,7 +270,10 @@
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                     },
                     body: JSON.stringify({
-                        offer: offer,
+                        offer: {
+                            type: offer.type,
+                            sdp: offer.sdp
+                        },
                         receiverId: otherUserId
                     })
                 });
@@ -325,11 +328,19 @@
 
             try {
                 await peerConnection.setRemoteDescription(
-                    new RTCSessionDescription(incomingOffer)
+                    new RTCSessionDescription({
+                        type: incomingOffer.type,
+                        sdp: incomingOffer.sdp
+                    })
                 );
                 updateStatus("Processing offer, creating answer...");
             } catch (err) {
                 console.error("❌ Error setting remote description:", err);
+                console.error("❌ incomingOffer structure:", {
+                    type: incomingOffer?.type,
+                    sdp: incomingOffer?.sdp ? incomingOffer.sdp.substring(0, 100) : null,
+                    fullObj: incomingOffer
+                });
                 updateStatus("❌ Error processing offer: " + err.message);
                 callActive = false;
                 showAcceptMode();
@@ -359,7 +370,10 @@
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                     },
                     body: JSON.stringify({
-                        answer: answer,
+                        answer: {
+                            type: answer.type,
+                            sdp: answer.sdp
+                        },
                         receiverId: incomingCallerId
                     })
                 });
@@ -423,7 +437,10 @@
 
             console.log("📞 ============ OFFER RECEIVED ============");
             console.log("📞 Caller ID:", data.callerId, "| My ID:", userId);
-            console.log("📞 Offer data received:", data);
+            console.log("📞 Offer structure:", {
+                type: data.offer?.type,
+                sdp: data.offer?.sdp ? data.offer.sdp.substring(0, 50) + '...' : null
+            });
 
             // Store the offer
             incomingOffer = data.offer;
@@ -445,6 +462,10 @@
         channel.bind('CallAnswer', async (data) => {
 
             console.log("✅ ANSWER RECEIVED");
+            console.log("✅ Answer structure:", {
+                type: data.answer?.type,
+                sdp: data.answer?.sdp ? data.answer.sdp.substring(0, 50) + '...' : null
+            });
             updateStatus("Answer received, connecting...");
 
             if (connectionTimeout) {
@@ -459,11 +480,18 @@
 
             try {
                 await peerConnection.setRemoteDescription(
-                    new RTCSessionDescription(data.answer)
+                    new RTCSessionDescription({
+                        type: data.answer.type,
+                        sdp: data.answer.sdp
+                    })
                 );
                 console.log("✅ Remote description set");
             } catch (err) {
                 console.error("❌ Error setting answer description:", err);
+                console.error("❌ Answer structure was:", {
+                    type: data.answer?.type,
+                    sdp: data.answer?.sdp ? data.answer.sdp.substring(0, 100) : null
+                });
                 updateStatus("❌ Error setting answer: " + err.message);
                 return;
             }
