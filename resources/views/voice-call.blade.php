@@ -28,6 +28,24 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        #debugPanel {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: #0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 400px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 9999;
+            display: none;
+        }
+        .debug-visible #debugPanel {
+            display: block;
+        }
     </style>
 </head>
 
@@ -59,7 +77,11 @@
             <button id="endBtn" onclick="endCall()" class="bg-red-500 px-6 py-3 rounded-full text-lg hover:bg-red-600 transition">
                 ❌ End
             </button>
+            <button onclick="toggleDebug()" class="bg-gray-600 px-4 py-3 rounded-full text-lg hover:bg-gray-700 transition">🐛 Debug</button>
         </div>
+
+        <!-- Debug Panel -->
+        <div id="debugPanel"></div>
     </div>
 
     <script>
@@ -73,6 +95,27 @@
             const otherUserId = {{ $user->id }};
             const otherUserName = "{{ $user->name }}";
             
+            // ==================== DEBUG LOGGING ====================
+            const debugLogs = [];
+            function debug(...args) {
+                const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
+                console.log("[DEBUG]", ...args);
+                debugLogs.unshift({ time: new Date().toLocaleTimeString(), message });
+                updateDebugPanel();
+            }
+            window.toggleDebug = function() {
+                document.body.classList.toggle('debug-visible');
+                updateDebugPanel();
+            };
+            function updateDebugPanel() {
+                const panel = document.getElementById('debugPanel');
+                if (panel) {
+                    panel.innerHTML = debugLogs.slice(0, 20).map(log => 
+                        `<div>${log.time}: ${log.message}</div>`
+                    ).join('');
+                }
+            }
+
             // ==================== STATE ====================
             let localStream = null;
             let peerConnection = null;
@@ -94,18 +137,16 @@
                         const callData = JSON.parse(pendingCall);
                         const age = Date.now() - callData.timestamp;
                         
-                        console.log(`Found pending call, age: ${age}ms`);
+                        debug(`Found pending call, age: ${age}ms`);
                         
-                        if (age < 15000) { // 15 seconds
-                            console.log("Using pending call data");
+                        if (age < 15000) {
+                            debug("Using pending call data");
                             incomingOffer = callData.offer;
                             incomingCallerId = callData.callerId;
                             incomingCallerName = callData.callerName;
                             
-                            // Clear it
                             sessionStorage.removeItem('pendingCall');
                             
-                            // Show accept button
                             showAcceptMode();
                             document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
                             updateStatus("Incoming call - Click Accept");
@@ -116,17 +157,17 @@
                         }
                     }
                 } catch (e) {
-                    console.error("Error checking pending call:", e);
+                    debug("Error checking pending call:", e);
                 }
                 return false;
             }
 
             // ==================== LISTEN FOR POST MESSAGES ====================
             window.addEventListener('message', function(event) {
-                console.log("📨 Received message:", event.data.type);
+                debug("📨 Received message:", event.data.type);
                 
                 if (event.data.type === 'incoming-offer') {
-                    console.log("📞 Received offer via postMessage");
+                    debug("📞 Received offer via postMessage");
                     incomingOffer = event.data.offer;
                     incomingCallerId = event.data.callerId;
                     incomingCallerName = event.data.callerName;
@@ -136,26 +177,26 @@
                 }
                 
                 if (event.data.type === 'ice-candidate') {
-                    console.log("❄️ Received ICE candidate via postMessage");
+                    debug("❄️ Received ICE candidate via postMessage");
                     if (!peerConnection) {
                         pendingCandidates.push(event.data.candidate);
                     } else if (!isRemoteSet) {
                         pendingCandidates.push(event.data.candidate);
                     } else {
                         peerConnection.addIceCandidate(new RTCIceCandidate(event.data.candidate))
-                            .catch(err => console.error("Error adding ICE:", err));
+                            .catch(err => debug("Error adding ICE:", err));
                     }
                 }
                 
                 if (event.data.type === 'call-answer') {
-                    console.log("✅ Received answer via postMessage");
+                    debug("✅ Received answer via postMessage");
                     handleAnswer(event.data.answer);
                 }
             });
 
             // ==================== UI FUNCTIONS ====================
             function updateStatus(message) {
-                console.log("STATUS:", message);
+                debug("STATUS:", message);
                 document.getElementById("callStatus").innerHTML = message;
             }
 
@@ -177,7 +218,7 @@
 
             // ==================== WEBRTC ====================
             function createPeer() {
-                console.log("Creating peer connection");
+                debug("Creating peer connection");
                 updateStatus("Setting up connection...");
 
                 pendingCandidates = [];
@@ -198,16 +239,22 @@
                 });
 
                 peerConnection.onconnectionstatechange = () => {
-                    console.log("Connection state:", peerConnection.connectionState);
+                    debug("Connection state:", peerConnection.connectionState);
                     updateStatus(`Connection: ${peerConnection.connectionState}`);
                     if (peerConnection.connectionState === 'connected') {
                         updateStatus("✅ Call connected!");
+                    } else if (peerConnection.connectionState === 'failed') {
+                        updateStatus("❌ Connection failed - check TURN server");
                     }
+                };
+
+                peerConnection.oniceconnectionstatechange = () => {
+                    debug("ICE state:", peerConnection.iceConnectionState);
                 };
 
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
-                        console.log("Sending ICE candidate");
+                        debug("Sending ICE candidate");
                         fetch('/send-ice', {
                             method: 'POST',
                             headers: {
@@ -219,12 +266,12 @@
                                 senderId: userId,
                                 receiverId: incomingCallerId ?? otherUserId
                             })
-                        }).catch(err => console.error("Error sending ICE:", err));
+                        }).catch(err => debug("Error sending ICE:", err));
                     }
                 };
 
                 peerConnection.ontrack = (event) => {
-                    console.log("Remote audio received");
+                    debug("Remote audio received");
                     updateStatus("Audio connected - Call active");
 
                     let audio = document.getElementById("remoteAudio");
@@ -240,7 +287,7 @@
 
             // ==================== CALL FUNCTIONS ====================
             window.startCall = async function() {
-                console.log("Starting call...");
+                debug("Starting call...");
                 
                 if (callActive) return;
                 callActive = true;
@@ -249,9 +296,9 @@
 
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    console.log("Microphone access granted");
+                    debug("Microphone access granted");
                 } catch (err) {
-                    console.error("Microphone error:", err);
+                    debug("Microphone error:", err);
                     alert("Microphone access is required for calls");
                     updateStatus("❌ Microphone access denied");
                     callActive = false;
@@ -282,32 +329,38 @@
 
                     if (!response.ok) throw new Error('Failed to send offer');
 
-                    console.log("Offer sent successfully");
+                    debug("Offer sent successfully");
                     updateStatus("Call initiated - waiting for answer...");
 
                     connectionTimeout = setTimeout(() => {
                         if (!callActive) return;
-                        console.log("No answer received - timeout");
+                        debug("No answer received - timeout");
                         updateStatus("❌ No answer - user may be unavailable");
                         endCall();
                     }, 30000);
 
                 } catch (err) {
-                    console.error("Error:", err);
+                    debug("Error:", err);
                     updateStatus("❌ Failed to start call");
                     endCall();
                 }
             };
 
             window.acceptCall = async function() {
-                console.log("Accepting call...");
+                debug("========== ACCEPT CALL CLICKED ==========");
+                debug("incomingOffer:", incomingOffer ? "present" : "null");
+                debug("incomingCallerId:", incomingCallerId);
                 
                 if (!incomingOffer || !incomingCallerId) {
+                    debug("❌ No incoming call to accept");
                     alert("No incoming call to accept");
                     return;
                 }
 
-                if (callActive) return;
+                if (callActive) {
+                    debug("Call already active");
+                    return;
+                }
 
                 callActive = true;
                 hideAllButtons();
@@ -315,9 +368,9 @@
 
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    console.log("Microphone access granted");
+                    debug("✅ Microphone access granted");
                 } catch (err) {
-                    console.error("Microphone error:", err);
+                    debug("❌ Microphone error:", err);
                     alert("Microphone access is required for calls");
                     updateStatus("❌ Microphone access denied");
                     callActive = false;
@@ -329,31 +382,38 @@
                 localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
                 try {
-                    console.log("Setting remote description...");
+                    debug("Setting remote description...");
                     await peerConnection.setRemoteDescription(
                         new RTCSessionDescription({
                             type: incomingOffer.type,
                             sdp: incomingOffer.sdp
                         })
                     );
-                    console.log("Remote description set");
+                    debug("✅ Remote description set");
 
+                    debug("Creating answer...");
                     const answer = await peerConnection.createAnswer();
+                    debug("Answer created:", answer.type);
+                    
+                    debug("Setting local description...");
                     await peerConnection.setLocalDescription(answer);
-                    console.log("Answer created");
+                    debug("✅ Local description set");
 
                     isRemoteSet = true;
                     
+                    debug("Adding buffered ICE candidates:", pendingCandidates.length);
                     for (const candidate of pendingCandidates) {
                         try {
                             await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                            debug("Added buffered ICE candidate");
                         } catch (err) {
-                            console.error("Error adding ICE:", err);
+                            debug("Error adding ICE:", err);
                         }
                     }
                     pendingCandidates = [];
 
                     updateStatus("Sending answer...");
+                    debug("Sending answer to /send-answer, receiverId:", incomingCallerId);
                     
                     const response = await fetch('/send-answer', {
                         method: 'POST',
@@ -367,20 +427,26 @@
                         })
                     });
 
-                    if (!response.ok) throw new Error('Failed to send answer');
+                    debug("Fetch response status:", response.status);
+                    
+                    if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error(`Failed to send answer: ${response.status} ${text}`);
+                    }
 
-                    console.log("Answer sent successfully");
+                    const result = await response.json();
+                    debug("✅ Answer sent successfully:", result);
                     updateStatus("Call connected!");
 
                 } catch (err) {
-                    console.error("Error accepting call:", err);
+                    debug("❌ Error accepting call:", err);
                     updateStatus("❌ Failed to connect call");
                     endCall();
                 }
             };
 
             async function handleAnswer(answer) {
-                console.log("Handling answer");
+                debug("Handling answer");
                 
                 if (connectionTimeout) {
                     clearTimeout(connectionTimeout);
@@ -388,7 +454,7 @@
                 }
 
                 if (!peerConnection) {
-                    console.log("No peer connection");
+                    debug("No peer connection");
                     return;
                 }
 
@@ -399,7 +465,7 @@
                             sdp: answer.sdp
                         })
                     );
-                    console.log("Remote description set from answer");
+                    debug("✅ Remote description set from answer");
                     
                     isRemoteSet = true;
                     
@@ -407,7 +473,7 @@
                         try {
                             await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
                         } catch (err) {
-                            console.error("Error adding ICE:", err);
+                            debug("Error adding ICE:", err);
                         }
                     }
                     pendingCandidates = [];
@@ -415,13 +481,13 @@
                     updateStatus("Call connected!");
                     
                 } catch (err) {
-                    console.error("Error setting answer:", err);
+                    debug("❌ Error setting answer:", err);
                     updateStatus("❌ Connection failed");
                 }
             }
 
             window.endCall = function() {
-                console.log("Ending call");
+                debug("Ending call");
                 
                 if (connectionTimeout) clearTimeout(connectionTimeout);
                 
@@ -458,7 +524,7 @@
 
             // ==================== PUSHER ====================
             function initPusher() {
-                console.log("Initializing Pusher...");
+                debug("Initializing Pusher...");
                 
                 Pusher.logToConsole = true;
                 
@@ -468,10 +534,10 @@
                 });
 
                 pusher.connection.bind('connected', () => {
-                    console.log("Pusher connected");
+                    debug("Pusher connected");
                     
                     const isCaller = new URLSearchParams(window.location.search).has('mode=caller');
-                    console.log("Mode:", isCaller ? "CALLER" : "RECEIVER");
+                    debug("Mode:", isCaller ? "CALLER" : "RECEIVER");
                     
                     const hasPending = checkPendingCall();
                     
@@ -484,11 +550,19 @@
                     }
                 });
 
+                pusher.connection.bind('error', (error) => {
+                    debug("Pusher error:", error);
+                });
+
                 const channelName = 'voice-call.' + userId;
                 channel = pusher.subscribe(channelName);
 
+                channel.bind('subscription_succeeded', () => {
+                    debug("Subscribed to channel:", channelName);
+                });
+
                 channel.bind('CallOffer', (data) => {
-                    console.log("📞 Call offer received in voice window");
+                    debug("📞 Call offer received in voice window");
                     // Only handle if this is receiver window (no mode=caller)
                     if (!new URLSearchParams(window.location.search).has('mode=caller')) {
                         incomingOffer = data.offer;
@@ -501,29 +575,35 @@
                 });
 
                 channel.bind('CallAnswer', async (data) => {
-                    console.log("Call answer received");
+                    debug("Call answer received");
                     if (new URLSearchParams(window.location.search).has('mode=caller')) {
                         await handleAnswer(data.answer);
                     }
                 });
 
                 channel.bind('IceCandidate', (data) => {
-                    console.log("ICE candidate received");
+                    debug("ICE candidate received");
                     if (!peerConnection) {
                         pendingCandidates.push(data.candidate);
                     } else if (!isRemoteSet) {
                         pendingCandidates.push(data.candidate);
                     } else {
                         peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate))
-                            .catch(err => console.error("Error adding ICE:", err));
+                            .catch(err => debug("Error adding ICE:", err));
                     }
                 });
             }
 
             // ==================== INIT ====================
             document.addEventListener("DOMContentLoaded", function() {
-                console.log("Voice call page loaded");
-                console.log("User ID:", userId, "Other User ID:", otherUserId);
+                debug("Voice call page loaded");
+                debug("User ID:", userId, "Other User ID:", otherUserId);
+                debug("URL params:", window.location.search);
+                
+                // Check if CSRF token exists
+                const token = document.querySelector('meta[name="csrf-token"]')?.content;
+                debug("CSRF token present:", !!token);
+                
                 initPusher();
             });
 
