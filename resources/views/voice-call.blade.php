@@ -138,7 +138,7 @@
                 document.getElementById("startBtn").classList.add("hidden");
                 document.getElementById("acceptBtn").classList.add("hidden");
 
-                updateStatus("Requesting microphone access...";
+                updateStatus("Requesting microphone access...");
 
                 console.log("🚀 START BUTTON CLICKED");
 
@@ -162,7 +162,7 @@
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
 
-                updateStatus("Sending offer to recipient...";
+                updateStatus("Sending offer to recipient...");
 
                 try {
                     const response = await fetch('/send-offer', {
