@@ -11,95 +11,98 @@
     <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
     <script>
-        console.log("✅ JS LOADED");
+        document.addEventListener("DOMContentLoaded", function () {
+            console.log("✅ JS LOADED");
 
-        const userId = {{ auth()->id() }};
-        const otherUserId = {{ $user->id }};
+            const userId = {{ auth()->id() }};
+            const otherUserId = {{ $user->id }};
 
-        let localStream;
-        let peerConnection;
-        let incomingOffer = null;
-        let incomingCallerId = null;
+            let localStream;
+            let peerConnection;
+            let incomingOffer = null;
+            let incomingCallerId = null;
 
-        let pendingCandidates = [];
-        let isRemoteSet = false;
-        let callActive = false;
-        // ✅ PUSHER INIT
-        const pusher = new Pusher("0c08d7f3f0fa0c883f22", {
-            cluster: "ap2",
-            forceTLS: true
-        });
-
-        const channel = pusher.subscribe('voice-call.' + userId);
-
-        // ✅ CREATE PEER
-        function createPeer() {
-
-            console.log("🧠 Creating Peer");
-
-            pendingCandidates = [];
-            isRemoteSet = false;
-
-            peerConnection = new RTCPeerConnection({
-                iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" },
-                    {
-                        urls: [
-                            "turn:pm.inovace.in:3478?transport=udp",
-                            "turn:pm.inovace.in:3478?transport=tcp"
-                        ],
-                        username: "webrtcuser",
-                        credential: "strongpassword123"
-                    }
-                ]
+            let pendingCandidates = [];
+            let isRemoteSet = false;
+            let callActive = false;
+            // ✅ PUSHER INIT
+            const pusher = new Pusher("0c08d7f3f0fa0c883f22", {
+                cluster: "ap2",
+                forceTLS: true
             });
-            // iceServers: [
-            //   { urls: "stun:stun.l.google.com:19302" },
-            // {
-            //     urls: "turn:pm.inovace.in:3478",
-            //     username: "webrtcuser",
-            //     credential: "strongpassword123"
-            // }
-            //    ]
-            // });
 
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
+            const channel = pusher.subscribe('voice-call.' + userId);
 
-                    console.log("📡 Sending ICE");
+            // ✅ CREATE PEER
+            function createPeer() {
 
-                    fetch('/send-ice', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                        },
-                        body: JSON.stringify({
-                            candidate: event.candidate,
-                            senderId: userId,
-                            receiverId: incomingCallerId ?? otherUserId
-                        })
-                    }).catch(err => {
-                        console.error("❌ Error sending ICE candidate:", err);
-                    });
-                }
-            };
+                console.log("🧠 Creating Peer");
 
-            peerConnection.ontrack = (event) => {
+                pendingCandidates = [];
+                isRemoteSet = false;
 
-                console.log("🔊 AUDIO RECEIVED");
+                peerConnection = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: "stun:stun.l.google.com:19302" },
+                        {
+                            urls: [
+                                "turn:pm.inovace.in:3478?transport=udp",
+                                "turn:pm.inovace.in:3478?transport=tcp"
+                            ],
+                            username: "webrtcuser",
+                            credential: "strongpassword123"
+                        }
+                    ]
+                });
+                // iceServers: [
+                //   { urls: "stun:stun.l.google.com:19302" },
+                // {
+                //     urls: "turn:pm.inovace.in:3478",
+                //     username: "webrtcuser",
+                //     credential: "strongpassword123"
+                // }
+                //    ]
+                // });
 
-                let audio = document.getElementById("remoteAudio");
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
 
-                if (!audio) {
-                    audio = document.createElement("audio");
-                    audio.id = "remoteAudio";
-                    audio.autoplay = true;
-                    document.body.appendChild(audio);
-                }
+                        console.log("📡 Sending ICE");
 
-                audio.srcObject = event.streams[0];
-            };
+                        fetch('/send-ice', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                            },
+                            body: JSON.stringify({
+                                candidate: event.candidate,
+                                senderId: userId,
+                                receiverId: incomingCallerId ?? otherUserId
+                            })
+                        }).catch(err => {
+                            console.error("❌ Error sending ICE candidate:", err);
+                        });
+                    }
+                };
+
+                peerConnection.ontrack = (event) => {
+
+                    console.log("🔊 AUDIO RECEIVED");
+
+                    let audio = document.getElementById("remoteAudio");
+
+                    if (!audio) {
+                        audio = document.createElement("audio");
+                        audio.id = "remoteAudio";
+                        audio.autoplay = true;
+                        document.body.appendChild(audio);
+                    }
+
+                    audio.srcObject = event.streams[0];
+                };
+
+            }
 
             // ✅ START CALL (CALLER)
             async function startCall() {
@@ -349,6 +352,11 @@
 
                 window.close();
             }
+
+            window.startCall = startCall;
+            window.acceptCall = acceptCall;
+            window.endCall = endCall;
+        });
     </script>
 
 </head>
