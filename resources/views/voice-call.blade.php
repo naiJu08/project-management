@@ -315,6 +315,13 @@
                 return;
             }
 
+            // ✅ CHECK IF CALLER ID IS SET
+            if (!incomingCallerId) {
+                console.error("❌ Cannot accept call - caller ID not set");
+                updateStatus("❌ Caller information missing");
+                return;
+            }
+
             if (!incomingOffer.type || !incomingOffer.sdp) {
                 console.error("❌ Offer incomplete:", incomingOffer);
                 updateStatus("❌ Offer data is incomplete");
@@ -402,13 +409,19 @@
                         receiverId: incomingCallerId
                     })
                 });
+                
+                console.log("📤 Send answer response status:", response.status);
+                console.log("📤 Sending answer to caller:", incomingCallerId);
+                
                 if (!response.ok) {
                     throw new Error('Failed to send answer: ' + response.statusText);
                 }
                 console.log("✅ Answer sent successfully");
+                console.log("✅ Answer sent to receiverId:", incomingCallerId);
                 updateStatus("Answer sent, establishing connection...");
             } catch (err) {
                 console.error('❌ Error sending answer:', err);
+                console.error('❌ Failed with receiverId:', incomingCallerId);
                 updateStatus("❌ Failed to send answer: " + err.message);
                 callActive = false;
                 showAcceptMode();
