@@ -135,6 +135,14 @@ Route::post('/api/test-broadcast', function (Request $request) {
 
 Route::post('/send-answer', function (Request $request) {
 
+    // Log that we received something
+    \Log::info('INCOMING REQUEST: /send-answer endpoint hit', [
+        'timestamp' => now(),
+        'method' => $request->method(),
+        'has_body' => $request->getContent() !== '',
+        'body_length' => strlen($request->getContent())
+    ]);
+
     $answer = $request->answer;
     
     // Ensure answer is an array/object with type and sdp
@@ -146,7 +154,8 @@ Route::post('/send-answer', function (Request $request) {
         'answer_type' => $answer['type'] ?? 'MISSING',
         'has_sdp' => !empty($answer['sdp']),
         'sdp_length' => strlen($answer['sdp'] ?? ''),
-        'receiverId' => $request->receiverId
+        'receiverId' => $request->receiverId,
+        'authenticated_user' => auth()->id()
     ]);
 
     broadcast(new CallAnswer(
@@ -154,6 +163,11 @@ Route::post('/send-answer', function (Request $request) {
         auth()->id(),
         $request->receiverId
     ))->toOthers();
+
+    \Log::info('CallAnswer broadcast sent successfully', [
+        'to_user' => $request->receiverId,
+        'from_user' => auth()->id()
+    ]);
 
     return response()->json(['status' => 'answer sent']);
 });

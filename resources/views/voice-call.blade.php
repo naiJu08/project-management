@@ -353,28 +353,39 @@
         }
 
         async function acceptCall() {
+            try {
+            console.log("✅ [BUTTON CLICKED] ACCEPT CALL BUTTON CLICKED!");
+            console.log("✅ [ENTRY] Entering acceptCall() function");
+            console.log("✅ [STATE] callActive:", callActive);
+            console.log("✅ [STATE] incomingOffer:", incomingOffer ? "SET ✅" : "NULL ❌");
+            console.log("✅ [STATE] incomingCallerId:", incomingCallerId ? "SET ✅" : "NULL ❌");
 
-            if (callActive) return;
+            if (callActive) {
+                console.error("❌ [GUARD] Call already active, returning");
+                return;
+            }
             
             // ✅ CHECK IF OFFER EXISTS
             if (!incomingOffer) {
-                console.error("❌ Cannot accept call - no offer received yet");
+                console.error("❌ [GUARD] Cannot accept call - no offer received yet");
                 updateStatus("❌ Waiting for call offer... please wait");
                 return;
             }
 
             // ✅ CHECK IF CALLER ID IS SET
             if (!incomingCallerId) {
-                console.error("❌ Cannot accept call - caller ID not set");
+                console.error("❌ [GUARD] Cannot accept call - caller ID not set");
                 updateStatus("❌ Caller information missing");
                 return;
             }
 
             if (!incomingOffer.type || !incomingOffer.sdp) {
-                console.error("❌ Offer incomplete:", incomingOffer);
+                console.error("❌ [GUARD] Offer incomplete:", incomingOffer);
                 updateStatus("❌ Offer data is incomplete");
                 return;
             }
+
+            console.log("✅ [PASSED] All guards passed, proceeding with accept...");
 
             callActive = true;
 
@@ -382,12 +393,15 @@
 
             updateStatus("Requesting microphone access...");
 
-            console.log("✅ ACCEPT CLICKED");
+            console.log("✅ [MIC REQUEST] Requesting microphone permission...");
 
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.log("✅ [MIC SUCCESS] Microphone accessed successfully");
+                console.log("✅ [MIC TRACKS] Audio tracks:", localStream.getAudioTracks().length);
                 updateStatus("Microphone accessed, creating answer...");
             } catch (err) {
+                console.error("❌ [MIC ERROR] Microphone error:", err);
                 alert("Mic blocked");
                 updateStatus("❌ Microphone access denied");
                 callActive = false;
@@ -395,13 +409,19 @@
                 return;
             }
 
+            console.log("✅ [PEER CREATE] Creating peer connection...");
             createPeer();
+            console.log("✅ [PEER CREATED] Peer connection created successfully");
 
+            console.log("✅ [ADD TRACK] Adding local audio track to peer...");
             localStream.getTracks().forEach(track => {
+                console.log("  - Adding track:", track.kind, track.id);
                 peerConnection.addTrack(track, localStream);
             });
+            console.log("✅ [TRACK ADDED] Tracks added successfully");
 
             try {
+                console.log("✅ [SET REMOTE DESC] Setting remote description from offer...");
                 console.log("🔄 About to set remote description with:", {
                     type: incomingOffer.type,
                     sdp: incomingOffer.sdp ? incomingOffer.sdp.substring(0, 100) : 'NO SDP'
@@ -413,10 +433,11 @@
                         sdp: incomingOffer.sdp
                     })
                 );
+                console.log("✅ [REMOTE SET] Remote description set successfully");
                 updateStatus("Processing offer, creating answer...");
             } catch (err) {
-                console.error("❌ Error setting remote description:", err);
-                console.error("❌ incomingOffer structure:", {
+                console.error("❌ [REMOTE ERROR] Error setting remote description:", err);
+                console.error("❌ [DEBUG] incomingOffer structure:", {
                     type: incomingOffer?.type,
                     sdp: incomingOffer?.sdp ? incomingOffer.sdp.substring(0, 100) : null,
                     fullObj: incomingOffer
@@ -427,20 +448,37 @@
                 return;
             }
 
+            console.log("✅ [CREATE ANSWER] Creating answer from offer...");
             const answer = await peerConnection.createAnswer();
+            console.log("✅ [ANSWER CREATED] Answer created:", {
+                type: answer.type,
+                sdp: answer.sdp ? answer.sdp.substring(0, 100) : null
+            });
+
+            console.log("✅ [SET LOCAL DESC] Setting local description with answer...");
             await peerConnection.setLocalDescription(answer);
+            console.log("✅ [LOCAL SET] Local description set successfully");
 
             isRemoteSet = true;
 
+            console.log("✅ [ADD ICE] Adding pending ICE candidates...");
             pendingCandidates.forEach(c => {
                 peerConnection.addIceCandidate(new RTCIceCandidate(c)).catch(err => {
                     console.error("❌ Error adding ICE candidate:", err);
                 });
             });
+            console.log("✅ [ICE ADDED] Pending ICE processed, count:", pendingCandidates.length);
 
             pendingCandidates = [];
 
             updateStatus("Sending answer...");
+
+            console.log("✅ [SEND ANSWER] About to send answer to backend...");
+            console.log("✅ [SEND ANSWER] Answer details:", {
+                type: answer.type,
+                sdp: answer.sdp ? answer.sdp.substring(0, 100) + '...' : 'MISSING',
+                receiverId: incomingCallerId
+            });
 
             try {
                 const response = await fetch('/send-answer', {
@@ -458,22 +496,27 @@
                     })
                 });
                 
-                console.log("📤 Send answer response status:", response.status);
-                console.log("📤 Sending answer to caller:", incomingCallerId);
+                console.log("📤 [RESPONSE] Send answer response status:", response.status);
+                console.log("📤 [RESPONSE] Sending answer to caller:", incomingCallerId);
                 
                 if (!response.ok) {
                     throw new Error('Failed to send answer: ' + response.statusText);
                 }
-                console.log("✅ Answer sent successfully");
-                console.log("✅ Answer sent to receiverId:", incomingCallerId);
+                console.log("✅ [SUCCESS] Answer sent successfully");
+                console.log("✅ [SUCCESS] Answer sent to receiverId:", incomingCallerId);
                 updateStatus("Answer sent, establishing connection...");
             } catch (err) {
-                console.error('❌ Error sending answer:', err);
-                console.error('❌ Failed with receiverId:', incomingCallerId);
+                console.error('❌ [SEND ERROR] Error sending answer:', err);
+                console.error('❌ [DEBUG] Failed with receiverId:', incomingCallerId);
                 updateStatus("❌ Failed to send answer: " + err.message);
                 callActive = false;
                 showAcceptMode();
                 throw err;
+            }
+            } catch (outerErr) {
+                console.error('❌ [CRITICAL ERROR] Unexpected error in acceptCall:', outerErr);
+                console.error('❌ Stack:', outerErr.stack);
+                alert("ERROR: " + outerErr.message);
             }
         }
         // ✅ RECEIVE OFFER (RECEIVER)
@@ -717,6 +760,49 @@
         window.acceptCall = acceptCall;
         window.endCall = endCall;
 
+        // ✅ CRITICAL FIX: Bind button click handlers AFTER function definition
+        console.log("🔗 Binding button click handlers...");
+        
+        const startBtn = document.getElementById("startBtn");
+        const acceptBtn = document.getElementById("acceptBtn");
+        const endBtn = document.getElementById("endBtn");
+        
+        if (startBtn) {
+            startBtn.addEventListener("click", function(e) {
+                console.log("🖱️ START BUTTON CLICKED - Calling startCall()");
+                startCall().catch(err => console.error("❌ startCall error:", err));
+            });
+            console.log("✅ Start button click handler bound");
+        } else {
+            console.warn("⚠️ Start button element not found");
+        }
+        
+        if (acceptBtn) {
+            acceptBtn.addEventListener("click", function(e) {
+                console.log("🖱️ ACCEPT BUTTON CLICKED - Calling acceptCall()");
+                acceptCall().catch(err => console.error("❌ acceptCall error:", err));
+            });
+            console.log("✅ Accept button click handler bound");
+        } else {
+            console.warn("⚠️ Accept button element not found");
+        }
+        
+        if (endBtn) {
+            endBtn.addEventListener("click", function(e) {
+                console.log("🖱️ END BUTTON CLICKED - Calling endCall()");
+                endCall();
+            });
+            console.log("✅ End button click handler bound");
+        } else {
+            console.warn("⚠️ End button element not found");
+        }
+
+        // 🧪 SIMPLE TEST: Verify accept button is callable
+        window.testAcceptClick = function() {
+            console.log("🧪 TEST: Accept button click test fired!");
+            return true;
+        };
+
         // ✅ TEST BROADCAST FUNCTION
         window.testBroadcast = async function() {
             console.log("🧪 Testing broadcast system...");
@@ -767,17 +853,17 @@
         <div class="flex gap-6 justify-center mt-8">
 
             <!-- ✅ START CALL -->
-            <button id="startBtn" onclick="startCall()" class="bg-green-500 px-6 py-3 rounded-full text-lg">
+            <button id="startBtn" class="bg-green-500 px-6 py-3 rounded-full text-lg">
                 📞 Start Call
             </button>
 
             <!-- END -->
-            <button onclick="endCall()" class="bg-red-500 px-6 py-3 rounded-full text-lg">
+            <button id="endBtn" class="bg-red-500 px-6 py-3 rounded-full text-lg">
                 ❌
             </button>
 
             <!-- ✅ ACCEPT CALL -->
-            <button id="acceptBtn" onclick="acceptCall()" class="bg-green-600 px-6 py-3 rounded-full text-lg">
+            <button id="acceptBtn" class="bg-green-600 px-6 py-3 rounded-full text-lg">
                 ✅ Accept Call
             </button>
 
