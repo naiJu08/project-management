@@ -116,6 +116,23 @@
                 }
             }
 
+            // ==================== SDP CLEANER (FIX FOR PARSING ERRORS) ====================
+            function cleanSDP(sdp) {
+                if (!sdp || typeof sdp !== 'string') return sdp;
+                
+                // Replace escaped newlines (common when SDP travels through JSON)
+                let cleaned = sdp.replace(/\\r\\n/g, '\r\n')
+                                 .replace(/\\n/g, '\n')
+                                 .replace(/\\r/g, '\r');
+                
+                // Split into lines, trim whitespace, remove empty lines
+                let lines = cleaned.split(/\r?\n/);
+                lines = lines.map(line => line.trim()).filter(line => line.length > 0);
+                
+                // Rejoin with proper CRLF line endings
+                return lines.join('\r\n');
+            }
+
             // ==================== STATE ====================
             let localStream = null;
             let peerConnection = null;
@@ -141,6 +158,10 @@
                         
                         if (age < 15000) {
                             debug("Using pending call data");
+                            // Clean SDP in the pending offer
+                            if (callData.offer && callData.offer.sdp) {
+                                callData.offer.sdp = cleanSDP(callData.offer.sdp);
+                            }
                             incomingOffer = callData.offer;
                             incomingCallerId = callData.callerId;
                             incomingCallerName = callData.callerName;
@@ -168,6 +189,10 @@
                 
                 if (event.data.type === 'incoming-offer') {
                     debug("📞 Received offer via postMessage");
+                    // Clean SDP immediately
+                    if (event.data.offer && event.data.offer.sdp) {
+                        event.data.offer.sdp = cleanSDP(event.data.offer.sdp);
+                    }
                     incomingOffer = event.data.offer;
                     incomingCallerId = event.data.callerId;
                     incomingCallerName = event.data.callerName;
@@ -360,7 +385,7 @@
                         console.log("Full offer:", incomingOffer);
                         // Log first 200 chars of SDP to check for corruption
                         if (incomingOffer.sdp) {
-                            console.log("SDP preview:", incomingOffer.sdp.substring(0, 200));
+                            console.log("Original SDP preview:", incomingOffer.sdp.substring(0, 200));
                         }
                     }
 
@@ -368,6 +393,14 @@
                         debug("❌ No incoming call to accept");
                         alert("No incoming call to accept");
                         return;
+                    }
+
+                    // ***** CRITICAL FIX: Clean the SDP before using it *****
+                    if (incomingOffer.sdp) {
+                        debug("Original SDP length:", incomingOffer.sdp.length);
+                        incomingOffer.sdp = cleanSDP(incomingOffer.sdp);
+                        debug("Cleaned SDP length:", incomingOffer.sdp.length);
+                        console.log("Cleaned SDP preview:", incomingOffer.sdp.substring(0, 200));
                     }
 
                     if (callActive) {
@@ -398,14 +431,9 @@
                     createPeer();
                     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-                    // IMPORTANT FIX: Pass the offer object directly, don't wrap it again
-                    debug("Setting remote description with direct object...");
+                    // IMPORTANT FIX: Pass the cleaned offer object
+                    debug("Setting remote description with cleaned object...");
                     try {
-                        // Ensure the SDP is a clean string
-                        if (typeof incomingOffer.sdp === 'string') {
-                            // Trim any extra whitespace
-                            incomingOffer.sdp = incomingOffer.sdp.trim();
-                        }
                         await peerConnection.setRemoteDescription(incomingOffer);
                         debug("✅ Remote description set");
                     } catch (sdpErr) {
@@ -416,7 +444,7 @@
                             debug("Attempting fallback: create new RTCSessionDescription");
                             const cleanOffer = new RTCSessionDescription({
                                 type: incomingOffer.type,
-                                sdp: incomingOffer.sdp.trim()
+                                sdp: incomingOffer.sdp // already cleaned
                             });
                             await peerConnection.setRemoteDescription(cleanOffer);
                             debug("✅ Remote description set with fallback");
@@ -493,6 +521,11 @@
                 if (!peerConnection) {
                     debug("No peer connection");
                     return;
+                }
+
+                // Clean answer SDP just in case
+                if (answer.sdp) {
+                    answer.sdp = cleanSDP(answer.sdp);
                 }
 
                 try {
@@ -602,6 +635,10 @@
                     debug("📞 Call offer received in voice window");
                     // Only handle if this is receiver window (no mode=caller)
                     if (!new URLSearchParams(window.location.search).has('mode=caller')) {
+                        // Clean SDP in the received offer
+                        if (data.offer && data.offer.sdp) {
+                            data.offer.sdp = cleanSDP(data.offer.sdp);
+                        }
                         incomingOffer = data.offer;
                         incomingCallerId = data.callerId;
                         incomingCallerName = data.callerName;
@@ -614,6 +651,10 @@
                 channel.bind('CallAnswer', async (data) => {
                     debug("Call answer received");
                     if (new URLSearchParams(window.location.search).has('mode=caller')) {
+                        // Clean answer SDP
+                        if (data.answer && data.answer.sdp) {
+                            data.answer.sdp = cleanSDP(data.answer.sdp);
+                        }
                         await handleAnswer(data.answer);
                     }
                 });
