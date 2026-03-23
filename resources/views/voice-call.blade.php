@@ -107,7 +107,7 @@
                 }
             }
 
-            // ==================== SDP CLEANER (with newline restoration) ====================
+            // ==================== SDP CLEANER ====================
             function cleanSDP(sdp) {
                 if (!sdp || typeof sdp !== 'string') return sdp;
 
@@ -122,86 +122,64 @@
                         .replace(/\\\\/g, '\\');
                 } while (prev !== cleaned);
 
-                // 2. If the string has no newlines at all, insert them before each SDP line
+                // 2. If no newlines, insert before each line that starts with a letter and '='
                 if (!cleaned.includes('\n') && !cleaned.includes('\r')) {
-                    // Insert a newline before each pattern that starts a line:
-                    // v=, s=, t=, a=, m=, c=, i=, u=, e=, k=, b=, z=, etc.
-                    // Also handle "a=ssrc:" and "a=msid:" and others.
-                    // Use a regex to match the start of a line: (^|)(?=[a-z]=)
-                    // But careful not to insert at the very beginning.
                     cleaned = cleaned.replace(/([a-z]=)/g, '\r\n$1');
-                    // Remove any leading newline
                     cleaned = cleaned.replace(/^\r\n/, '');
                 }
 
                 // 3. Normalize line endings to CRLF
                 cleaned = cleaned.replace(/\r?\n/g, '\r\n');
 
-                // 4. Split into lines, trim each
-                let lines = cleaned.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+                // 4. Split into lines, but don't trim excessively (keep internal spaces)
+                let lines = cleaned.split(/\r?\n/).filter(line => line.trim().length > 0);
 
                 // 5. Repair each line
-                lines = lines.map(line => repairSDPLine(line));
+                lines = lines.map(line => repairSDPLine(line.trim()));
 
-                // 6. Rejoin with CRLF
-                return lines.join('\r\n');
+                // 6. Rejoin with CRLF and ensure a trailing CRLF
+                return lines.join('\r\n') + '\r\n';
             }
 
             function repairSDPLine(line) {
-                // Fix typo: a=src: -> a=ssrc:
+                // Fix a=src: -> a=ssrc:
                 if (line.startsWith('a=src:')) {
                     line = 'a=ssrc:' + line.substring(6);
                 }
 
-                // Ensure a=ssrc line has colon after "ssrc"
+                // Ensure a=ssrc has colon after "ssrc"
                 if (line.startsWith('a=ssrc') && !line.startsWith('a=ssrc:')) {
                     line = line.replace(/^a=ssrc/, 'a=ssrc:');
                 }
 
-                // Process a=ssrc lines to fix msid formatting
+                // Repair a=ssrc lines (msid format)
                 if (line.startsWith('a=ssrc:')) {
-                    // Expected: a=ssrc:<ssrc> msid:<msid> <appdata>
-                    // We'll extract SSRC and everything after that
+                    // Extract ssrc and rest
                     let match = line.match(/^a=ssrc:(\d+)\s*(.*)$/);
                     if (match) {
                         let ssrc = match[1];
                         let rest = match[2].trim();
 
-                        // Ensure rest contains "msid:" and two UUIDs
+                        // Find msid part
                         let msidMatch = rest.match(/msid:([a-f0-9-]+)(?:\s+)?([a-f0-9-]+)?/i);
                         if (msidMatch) {
                             let msid1 = msidMatch[1];
                             let msid2 = msidMatch[2];
-                            // If msid2 is missing, check if the rest after msid1 contains another UUID (concatenated)
                             if (!msid2) {
+                                // Look for a second UUID in the remainder
                                 let remainder = rest.replace(/msid:[a-f0-9-]+/i, '');
-                                let secondUuidMatch = remainder.match(/([a-f0-9-]{36})/);
-                                if (secondUuidMatch) {
-                                    msid2 = secondUuidMatch[1];
-                                } else {
-                                    msid2 = msid1; // fallback
-                                }
+                                let secondUuid = remainder.match(/([a-f0-9-]{36})/);
+                                if (secondUuid) msid2 = secondUuid[1];
+                                else msid2 = msid1;
                             }
-                            // Reconstruct the line with proper spacing
+                            // Rebuild line with exactly one space between tokens
                             return `a=ssrc:${ssrc} msid:${msid1} ${msid2}`;
                         }
+                        // If no msid, just return the line (shouldn't happen)
+                        return line;
                     }
                 }
                 return line;
-            }
-
-            // Extreme fallback: drop lines that don't match SDP patterns
-            function forceRepairSDP(sdp) {
-                let lines = sdp.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-                let validLines = [];
-                for (let line of lines) {
-                    if (/^[vosiucbkt]=\S/.test(line) || /^[ma]=\S/.test(line) || /^a=\S/.test(line)) {
-                        validLines.push(repairSDPLine(line));
-                    } else {
-                        console.warn("Dropping invalid SDP line:", line);
-                    }
-                }
-                return validLines.join('\r\n');
             }
 
             // ==================== STATE ====================
@@ -470,51 +448,28 @@
                     createPeer();
                     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-                    // Set remote description with fallbacks
+                    // Set remote description (use RTCSessionDescription directly)
                     debug("Setting remote description...");
                     let remoteSet = false;
                     let lastError = null;
 
                     try {
-                        await peerConnection.setRemoteDescription(incomingOffer);
-                        debug("✅ Remote description set (direct)");
+                        // Always wrap in RTCSessionDescription to ensure proper parsing
+                        const offerDesc = new RTCSessionDescription({
+                            type: incomingOffer.type,
+                            sdp: incomingOffer.sdp
+                        });
+                        await peerConnection.setRemoteDescription(offerDesc);
+                        debug("✅ Remote description set successfully");
                         remoteSet = true;
-                    } catch (sdpErr) {
-                        lastError = sdpErr;
-                        debug("❌ Direct setRemoteDescription failed:", sdpErr.message);
-                        console.error("Direct SDP error:", sdpErr);
-                        try {
-                            debug("Attempting fallback with new RTCSessionDescription...");
-                            const cleanOffer = new RTCSessionDescription({
-                                type: incomingOffer.type,
-                                sdp: incomingOffer.sdp
-                            });
-                            await peerConnection.setRemoteDescription(cleanOffer);
-                            debug("✅ Remote description set via RTCSessionDescription");
-                            remoteSet = true;
-                        } catch (fallbackErr) {
-                            debug("❌ RTCSessionDescription fallback failed:", fallbackErr.message);
-                            lastError = fallbackErr;
-                            try {
-                                debug("Attempting extreme repair (drop invalid lines)...");
-                                const repairedSDP = forceRepairSDP(incomingOffer.sdp);
-                                console.log("Repaired SDP preview:", repairedSDP.substring(0, 500));
-                                const extremeOffer = new RTCSessionDescription({
-                                    type: incomingOffer.type,
-                                    sdp: repairedSDP
-                                });
-                                await peerConnection.setRemoteDescription(extremeOffer);
-                                debug("✅ Remote description set after extreme repair");
-                                remoteSet = true;
-                            } catch (finalErr) {
-                                debug("❌ Extreme repair also failed:", finalErr);
-                                lastError = finalErr;
-                            }
-                        }
+                    } catch (err) {
+                        lastError = err;
+                        debug("❌ setRemoteDescription failed:", err.message);
+                        console.error("SDP error:", err);
                     }
 
                     if (!remoteSet) {
-                        throw new Error(`All attempts to set remote description failed. Last error: ${lastError?.message}`);
+                        throw new Error(`Failed to set remote description. Last error: ${lastError?.message}`);
                     }
 
                     // Create answer
