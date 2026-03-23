@@ -56,7 +56,7 @@
             border-radius: 20px;
             font-size: 12px;
             z-index: 10000;
-            display: flex;
+            display: none;
             align-items: center;
             gap: 8px;
             cursor: pointer;
@@ -76,6 +76,17 @@
         }
         #muteIcon {
             font-size: 16px;
+        }
+        #testSpeakerBtn {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            z-index: 10000;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -106,10 +117,11 @@
         <div id="debugPanel"></div>
     </div>
 
-    <div id="audioControl" style="display: none;">
+    <div id="audioControl">
         <span id="muteIcon">🔊</span>
         <div id="volumeMeter"><div id="volumeLevel"></div></div>
     </div>
+    <button id="testSpeakerBtn" onclick="testSpeaker()">🔊 Test Speaker</button>
 
     <script>
         (function() {
@@ -229,6 +241,7 @@
             let audioContext = null;
             let audioAnalyser = null;
             let animationFrame = null;
+            let remoteAudioElement = null;
 
             // ==================== CHECK PENDING CALL ====================
             function checkPendingCall() {
@@ -317,31 +330,40 @@
 
             // ==================== VOLUME METER ====================
             function initVolumeMeter(stream) {
-                if (audioContext) return;
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                audioAnalyser = audioContext.createAnalyser();
-                audioAnalyser.fftSize = 256;
-                const source = audioContext.createMediaStreamSource(stream);
-                source.connect(audioAnalyser);
-                // Resume audio context if suspended (browser policy)
-                if (audioContext.state === 'suspended') {
-                    audioContext.resume().then(() => debug("AudioContext resumed"));
+                if (audioContext) {
+                    debug("Volume meter already initialized");
+                    return;
                 }
-                const meter = document.getElementById('volumeLevel');
-                const control = document.getElementById('audioControl');
-                control.style.display = 'flex';
-                function updateMeter() {
-                    if (!audioAnalyser) return;
-                    const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
-                    audioAnalyser.getByteFrequencyData(dataArray);
-                    let sum = 0;
-                    for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                    let avg = sum / dataArray.length;
-                    let percent = (avg / 255) * 100;
-                    meter.style.width = percent + '%';
-                    animationFrame = requestAnimationFrame(updateMeter);
+                debug("Initializing volume meter...");
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    audioAnalyser = audioContext.createAnalyser();
+                    audioAnalyser.fftSize = 256;
+                    const source = audioContext.createMediaStreamSource(stream);
+                    source.connect(audioAnalyser);
+                    // Resume audio context if suspended (browser policy)
+                    if (audioContext.state === 'suspended') {
+                        audioContext.resume().then(() => debug("AudioContext resumed")).catch(e => debug("Failed to resume AudioContext:", e));
+                    }
+                    const meter = document.getElementById('volumeLevel');
+                    const control = document.getElementById('audioControl');
+                    control.style.display = 'flex';
+                    function updateMeter() {
+                        if (!audioAnalyser) return;
+                        const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+                        audioAnalyser.getByteFrequencyData(dataArray);
+                        let sum = 0;
+                        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                        let avg = sum / dataArray.length;
+                        let percent = (avg / 255) * 100;
+                        meter.style.width = percent + '%';
+                        animationFrame = requestAnimationFrame(updateMeter);
+                    }
+                    updateMeter();
+                    debug("Volume meter started");
+                } catch (err) {
+                    debug("❌ Failed to initialize volume meter:", err);
                 }
-                updateMeter();
             }
 
             function stopVolumeMeter() {
@@ -351,6 +373,27 @@
                 audioAnalyser = null;
                 document.getElementById('audioControl').style.display = 'none';
             }
+
+            // ==================== SPEAKER TEST ====================
+            window.testSpeaker = function() {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                oscillator.connect(gain);
+                gain.connect(audioCtx.destination);
+                oscillator.frequency.value = 440;
+                gain.gain.value = 0.5;
+                oscillator.start();
+                gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+                setTimeout(() => {
+                    audioCtx.close();
+                }, 500);
+                updateStatus("🔊 Test tone played – you should hear a beep");
+                setTimeout(() => {
+                    if (callActive) updateStatus("Call connected!");
+                    else updateStatus("Ready to receive calls");
+                }, 1000);
+            };
 
             // ==================== WEBRTC ====================
             function createPeer() {
@@ -404,36 +447,35 @@
                     debug("🎵 Remote audio track received");
                     updateStatus("Audio connected - Call active");
 
-                    let audio = document.getElementById("remoteAudio");
-                    if (!audio) {
-                        audio = document.createElement("audio");
-                        audio.id = "remoteAudio";
-                        audio.autoplay = true;
-                        audio.playsInline = true;
-                        audio.controls = false;
-                        audio.style.display = "none";
-                        document.body.appendChild(audio);
+                    if (!remoteAudioElement) {
+                        remoteAudioElement = document.createElement("audio");
+                        remoteAudioElement.id = "remoteAudio";
+                        remoteAudioElement.autoplay = true;
+                        remoteAudioElement.playsInline = true;
+                        remoteAudioElement.controls = false;
+                        remoteAudioElement.style.display = "none";
+                        document.body.appendChild(remoteAudioElement);
                         debug("Created hidden audio element");
                     }
-                    audio.srcObject = event.streams[0];
-                    audio.volume = 1;
-                    audio.muted = false;
-                    
-                    // Start volume meter for debugging
+                    remoteAudioElement.srcObject = event.streams[0];
+                    remoteAudioElement.volume = 1;
+                    remoteAudioElement.muted = false;
+
+                    // Start volume meter to visualize incoming audio
                     initVolumeMeter(event.streams[0]);
 
                     // Attempt to play
-                    audio.play().then(() => {
+                    remoteAudioElement.play().then(() => {
                         debug("✅ Audio playback started successfully");
-                        if (audio.paused) {
+                        if (remoteAudioElement.paused) {
                             debug("⚠️ Audio element is paused despite play() success, retrying...");
-                            audio.play().catch(e => debug("❌ Retry failed:", e));
+                            remoteAudioElement.play().catch(e => debug("❌ Retry failed:", e));
                         }
                     }).catch(e => {
                         debug("⚠️ Audio playback failed (autoplay blocked):", e.message);
                         updateStatus("🔊 Click anywhere to enable audio");
                         const enableAudio = () => {
-                            audio.play().then(() => {
+                            remoteAudioElement.play().then(() => {
                                 debug("✅ Audio started after user interaction");
                                 updateStatus("Call connected!");
                                 document.removeEventListener('click', enableAudio);
@@ -446,9 +488,10 @@
                     const control = document.getElementById('audioControl');
                     const muteIcon = document.getElementById('muteIcon');
                     control.onclick = () => {
-                        audio.muted = !audio.muted;
-                        muteIcon.textContent = audio.muted ? '🔇' : '🔊';
-                        updateStatus(audio.muted ? "Remote audio is muted" : "Remote audio is playing");
+                        if (!remoteAudioElement) return;
+                        remoteAudioElement.muted = !remoteAudioElement.muted;
+                        muteIcon.textContent = remoteAudioElement.muted ? '🔇' : '🔊';
+                        updateStatus(remoteAudioElement.muted ? "Remote audio is muted" : "Remote audio is playing");
                     };
                 };
             }
@@ -680,10 +723,10 @@
                     localStream.getTracks().forEach(track => track.stop());
                     localStream = null;
                 }
-                const audio = document.getElementById("remoteAudio");
-                if (audio) {
-                    audio.srcObject = null;
-                    audio.remove();
+                if (remoteAudioElement) {
+                    remoteAudioElement.srcObject = null;
+                    remoteAudioElement.remove();
+                    remoteAudioElement = null;
                 }
                 stopVolumeMeter();
                 pendingCandidates = [];
