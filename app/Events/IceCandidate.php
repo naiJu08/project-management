@@ -6,11 +6,10 @@ use Illuminate\Broadcasting\Channel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Broadcasting\InteractsWithSockets;
-// Remove: use Illuminate\Queue\SerializesModels;
 
 class IceCandidate implements ShouldBroadcast
 {
-    use Dispatchable, InteractsWithSockets; // Removed SerializesModels
+    use Dispatchable, InteractsWithSockets;
 
     public $candidate;
     public $senderId;

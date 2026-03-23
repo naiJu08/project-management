@@ -11,18 +11,9 @@
     <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
     <style>
-        #startBtn {
-            display: block;
-        }
-
-        #acceptBtn {
-            display: none;
-        }
-
-        #endBtn {
-            display: block;
-        }
-
+        #startBtn { display: block; }
+        #acceptBtn { display: none; }
+        #endBtn { display: block; }
         .spinner {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #3498db;
@@ -33,22 +24,15 @@
             display: inline-block;
             margin-right: 8px;
         }
-
         @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
-
         #debugPanel {
             position: fixed;
             bottom: 10px;
             left: 10px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0,0,0,0.8);
             color: #0f0;
             padding: 10px;
             border-radius: 5px;
@@ -59,7 +43,6 @@
             z-index: 9999;
             display: none;
         }
-
         .debug-visible #debugPanel {
             display: block;
         }
@@ -68,45 +51,32 @@
 
 <body class="bg-gray-900 text-white flex items-center justify-center h-screen">
     <div class="text-center w-full max-w-md px-4">
-        <!-- User Avatar -->
         <div class="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-3xl font-bold mx-auto">
             {{ strtoupper(substr($user->name, 0, 1)) }}
         </div>
-
-        <!-- Call Title -->
         <h2 id="callTitle" class="mt-4 text-xl font-semibold">
             Voice Call with {{ $user->name }}
         </h2>
-
-        <!-- Status Message -->
         <p id="callStatus" class="text-gray-400 text-sm mt-1">
             Initializing...
         </p>
-
-        <!-- Action Buttons -->
         <div class="flex gap-4 justify-center mt-8 flex-wrap">
-            <button id="startBtn" onclick="startCall()"
-                class="bg-green-500 px-6 py-3 rounded-full text-lg hover:bg-green-600 transition flex items-center gap-2">
+            <button id="startBtn" onclick="startCall()" class="bg-green-500 px-6 py-3 rounded-full text-lg hover:bg-green-600 transition flex items-center gap-2">
                 <span>📞</span> Start Call
             </button>
-            <button id="acceptBtn" onclick="acceptCall()"
-                class="bg-green-600 px-6 py-3 rounded-full text-lg hover:bg-green-700 transition flex items-center gap-2 animate-pulse">
+            <button id="acceptBtn" onclick="acceptCall()" class="bg-green-600 px-6 py-3 rounded-full text-lg hover:bg-green-700 transition flex items-center gap-2 animate-pulse">
                 <span>✅</span> Accept Call
             </button>
-            <button id="endBtn" onclick="endCall()"
-                class="bg-red-500 px-6 py-3 rounded-full text-lg hover:bg-red-600 transition">
+            <button id="endBtn" onclick="endCall()" class="bg-red-500 px-6 py-3 rounded-full text-lg hover:bg-red-600 transition">
                 ❌ End
             </button>
-            <button onclick="toggleDebug()"
-                class="bg-gray-600 px-4 py-3 rounded-full text-lg hover:bg-gray-700 transition">🐛 Debug</button>
+            <button onclick="toggleDebug()" class="bg-gray-600 px-4 py-3 rounded-full text-lg hover:bg-gray-700 transition">🐛 Debug</button>
         </div>
-
-        <!-- Debug Panel -->
         <div id="debugPanel"></div>
     </div>
 
     <script>
-        (function () {
+        (function() {
             "use strict";
 
             // ==================== CONFIG ====================
@@ -124,7 +94,7 @@
                 debugLogs.unshift({ time: new Date().toLocaleTimeString(), message });
                 updateDebugPanel();
             }
-            window.toggleDebug = function () {
+            window.toggleDebug = function() {
                 document.body.classList.toggle('debug-visible');
                 updateDebugPanel();
             };
@@ -137,11 +107,11 @@
                 }
             }
 
-            // ==================== ROBUST SDP CLEANER + REPAIR ====================
+            // ==================== SDP CLEANER ====================
             function cleanSDP(sdp) {
                 if (!sdp || typeof sdp !== 'string') return sdp;
 
-                // 1. Recursive decode of escaped characters
+                // Recursively decode escaped characters
                 let cleaned = sdp;
                 let prev;
                 do {
@@ -152,57 +122,46 @@
                         .replace(/\\\\/g, '\\');
                 } while (prev !== cleaned);
 
-                // 2. Normalize line endings to CRLF
+                // Normalize line endings to CRLF
                 cleaned = cleaned.replace(/\r?\n/g, '\r\n');
 
-                // 3. Split into lines, trim each
+                // Split into lines, trim each
                 let lines = cleaned.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
 
-                // 4. Repair specific lines (especially a=ssrc)
+                // Repair each line
                 lines = lines.map(line => repairSDPLine(line));
 
-                // 5. Rejoin with CRLF
                 return lines.join('\r\n');
             }
 
             function repairSDPLine(line) {
-                // Fix common a=ssrc line issues
+                // Fix typo: a=src: -> a=ssrc:
+                if (line.startsWith('a=src:')) {
+                    line = 'a=ssrc:' + line.substring(6);
+                }
+
+                // Fix a=ssrc lines (format: a=ssrc:<ssrc> msid:<msid> <appdata>)
                 if (line.startsWith('a=ssrc:')) {
-                    // Expected format: a=ssrc:<ssrc> msid:<msid> <appdata>
-                    // Sometimes there are extra spaces or missing spaces
-                    // We'll split by space and reassemble correctly
                     let parts = line.split(/\s+/);
                     if (parts.length >= 3) {
-                        // parts[0] = "a=ssrc:<ssrc>"
-                        // parts[1] = "msid:<msid>"
-                        // parts[2...] = appdata (maybe more)
                         let ssrcPart = parts[0];
                         let msidPart = parts[1];
-                        // Ensure msidPart starts with "msid:"
                         if (!msidPart.startsWith('msid:')) {
                             msidPart = 'msid:' + msidPart;
                         }
                         let appdata = parts.slice(2).join(' ');
-                        // If appdata is empty, just use ssrc and msid
-                        if (appdata) {
-                            return `${ssrcPart} ${msidPart} ${appdata}`;
-                        } else {
-                            return `${ssrcPart} ${msidPart}`;
-                        }
+                        return appdata ? `${ssrcPart} ${msidPart} ${appdata}` : `${ssrcPart} ${msidPart}`;
                     }
                 }
                 return line;
             }
 
-            // Extreme fallback: rebuild SDP from scratch keeping only valid lines
+            // Extreme fallback: drop lines that don't match SDP patterns
             function forceRepairSDP(sdp) {
                 let lines = sdp.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
                 let validLines = [];
                 for (let line of lines) {
-                    // Accept lines that match known SDP patterns
-                    if (/^[vosiucbkt]=\S/.test(line) ||          // session level lines
-                        /^[ma]=\S/.test(line) ||                  // media lines
-                        /^a=\S/.test(line)) {                     // attribute lines
+                    if (/^[vosiucbkt]=\S/.test(line) || /^[ma]=\S/.test(line) || /^a=\S/.test(line)) {
                         validLines.push(repairSDPLine(line));
                     } else {
                         console.warn("Dropping invalid SDP line:", line);
@@ -231,9 +190,7 @@
                     if (pendingCall) {
                         const callData = JSON.parse(pendingCall);
                         const age = Date.now() - callData.timestamp;
-
                         debug(`Found pending call, age: ${age}ms`);
-
                         if (age < 15000) {
                             debug("Using pending call data");
                             if (callData.offer && callData.offer.sdp) {
@@ -242,13 +199,10 @@
                             incomingOffer = callData.offer;
                             incomingCallerId = callData.callerId;
                             incomingCallerName = callData.callerName;
-
                             sessionStorage.removeItem('pendingCall');
-
                             showAcceptMode();
                             document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
                             updateStatus("Incoming call - Click Accept");
-
                             return true;
                         } else {
                             sessionStorage.removeItem('pendingCall');
@@ -261,9 +215,8 @@
             }
 
             // ==================== LISTEN FOR POST MESSAGES ====================
-            window.addEventListener('message', function (event) {
+            window.addEventListener('message', function(event) {
                 debug("📨 Received message:", event.data.type);
-
                 if (event.data.type === 'incoming-offer') {
                     debug("📞 Received offer via postMessage");
                     if (event.data.offer && event.data.offer.sdp) {
@@ -276,7 +229,6 @@
                     document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
                     updateStatus("Incoming call - Click Accept");
                 }
-
                 if (event.data.type === 'ice-candidate') {
                     debug("❄️ Received ICE candidate via postMessage");
                     if (!peerConnection) {
@@ -288,7 +240,6 @@
                             .catch(err => debug("Error adding ICE:", err));
                     }
                 }
-
                 if (event.data.type === 'call-answer') {
                     debug("✅ Received answer via postMessage");
                     handleAnswer(event.data.answer);
@@ -321,10 +272,8 @@
             function createPeer() {
                 debug("Creating peer connection");
                 updateStatus("Setting up connection...");
-
                 pendingCandidates = [];
                 isRemoteSet = false;
-
                 peerConnection = new RTCPeerConnection({
                     iceServers: [
                         { urls: "stun:stun.l.google.com:19302" },
@@ -338,7 +287,6 @@
                         }
                     ]
                 });
-
                 peerConnection.onconnectionstatechange = () => {
                     debug("Connection state:", peerConnection.connectionState);
                     updateStatus(`Connection: ${peerConnection.connectionState}`);
@@ -348,11 +296,9 @@
                         updateStatus("❌ Connection failed - check TURN server");
                     }
                 };
-
                 peerConnection.oniceconnectionstatechange = () => {
                     debug("ICE state:", peerConnection.iceConnectionState);
                 };
-
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
                         debug("Sending ICE candidate");
@@ -370,11 +316,9 @@
                         }).catch(err => debug("Error sending ICE:", err));
                     }
                 };
-
                 peerConnection.ontrack = (event) => {
                     debug("Remote audio received");
                     updateStatus("Audio connected - Call active");
-
                     let audio = document.getElementById("remoteAudio");
                     if (!audio) {
                         audio = document.createElement("audio");
@@ -387,14 +331,12 @@
             }
 
             // ==================== CALL FUNCTIONS ====================
-            window.startCall = async function () {
+            window.startCall = async function() {
                 debug("Starting call...");
-
                 if (callActive) return;
                 callActive = true;
                 hideAllButtons();
                 updateStatus('<span class="spinner"></span> Requesting microphone...');
-
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     debug("Microphone access granted");
@@ -406,16 +348,12 @@
                     showStartMode();
                     return;
                 }
-
                 createPeer();
                 localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
                 try {
                     const offer = await peerConnection.createOffer();
                     await peerConnection.setLocalDescription(offer);
-
                     updateStatus("Sending call request...");
-
                     const response = await fetch('/send-offer', {
                         method: 'POST',
                         headers: {
@@ -427,19 +365,15 @@
                             receiverId: otherUserId
                         })
                     });
-
                     if (!response.ok) throw new Error('Failed to send offer');
-
                     debug("Offer sent successfully");
                     updateStatus("Call initiated - waiting for answer...");
-
                     connectionTimeout = setTimeout(() => {
                         if (!callActive) return;
                         debug("No answer received - timeout");
                         updateStatus("❌ No answer - user may be unavailable");
                         endCall();
                     }, 30000);
-
                 } catch (err) {
                     debug("Error:", err);
                     updateStatus("❌ Failed to start call");
@@ -447,13 +381,12 @@
                 }
             };
 
-            window.acceptCall = async function () {
+            window.acceptCall = async function() {
                 try {
                     console.log("========== ACCEPT CALL CLICKED ==========");
                     debug("========== ACCEPT CALL CLICKED ==========");
                     debug("incomingOffer:", incomingOffer ? "present" : "null");
                     debug("incomingCallerId:", incomingCallerId);
-
                     if (incomingOffer) {
                         debug("Offer type:", incomingOffer.type);
                         debug("Offer has sdp:", !!incomingOffer.sdp);
@@ -462,14 +395,13 @@
                             console.log("Original SDP preview (first 500 chars):", incomingOffer.sdp.substring(0, 500));
                         }
                     }
-
                     if (!incomingOffer || !incomingCallerId) {
                         debug("❌ No incoming call to accept");
                         alert("No incoming call to accept");
                         return;
                     }
 
-                    // ----- CLEAN SDP THOROUGHLY -----
+                    // Clean SDP
                     if (incomingOffer.sdp) {
                         debug("Original SDP length:", incomingOffer.sdp.length);
                         incomingOffer.sdp = cleanSDP(incomingOffer.sdp);
@@ -488,7 +420,6 @@
                     callActive = true;
                     hideAllButtons();
                     updateStatus('<span class="spinner"></span> Accessing microphone...');
-
                     debug("Requesting microphone permission...");
                     try {
                         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -505,12 +436,11 @@
                     createPeer();
                     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-                    // ----- SET REMOTE DESCRIPTION WITH MULTIPLE FALLBACKS -----
+                    // Set remote description with fallbacks
                     debug("Setting remote description...");
                     let remoteSet = false;
                     let lastError = null;
 
-                    // Try 1: Direct
                     try {
                         await peerConnection.setRemoteDescription(incomingOffer);
                         debug("✅ Remote description set (direct)");
@@ -519,8 +449,6 @@
                         lastError = sdpErr;
                         debug("❌ Direct setRemoteDescription failed:", sdpErr.message);
                         console.error("Direct SDP error:", sdpErr);
-
-                        // Try 2: Using RTCSessionDescription constructor
                         try {
                             debug("Attempting fallback with new RTCSessionDescription...");
                             const cleanOffer = new RTCSessionDescription({
@@ -533,8 +461,6 @@
                         } catch (fallbackErr) {
                             debug("❌ RTCSessionDescription fallback failed:", fallbackErr.message);
                             lastError = fallbackErr;
-
-                            // Try 3: Extreme repair – rebuild SDP from valid lines
                             try {
                                 debug("Attempting extreme repair (drop invalid lines)...");
                                 const repairedSDP = forceRepairSDP(incomingOffer.sdp);
@@ -557,17 +483,16 @@
                         throw new Error(`All attempts to set remote description failed. Last error: ${lastError?.message}`);
                     }
 
-                    // ----- CREATE ANSWER -----
+                    // Create answer
                     debug("Creating answer...");
                     const answer = await peerConnection.createAnswer();
                     debug("Answer created:", answer.type);
-
                     await peerConnection.setLocalDescription(answer);
                     debug("✅ Local description set");
 
                     isRemoteSet = true;
 
-                    // Add any pending ICE candidates
+                    // Add pending ICE candidates
                     debug("Adding buffered ICE candidates:", pendingCandidates.length);
                     for (const candidate of pendingCandidates) {
                         try {
@@ -579,7 +504,7 @@
                     }
                     pendingCandidates = [];
 
-                    // Send answer to caller
+                    // Send answer
                     updateStatus("Sending answer...");
                     const response = await fetch('/send-answer', {
                         method: 'POST',
@@ -592,16 +517,13 @@
                             receiverId: incomingCallerId
                         })
                     });
-
                     if (!response.ok) {
                         const text = await response.text();
                         throw new Error(`Failed to send answer: ${response.status} ${text}`);
                     }
-
                     const result = await response.json();
                     debug("✅ Answer sent successfully:", result);
                     updateStatus("Call connected!");
-
                 } catch (err) {
                     debug("❌ UNCAUGHT ERROR in acceptCall:", err);
                     console.error("FULL UNCAUGHT ERROR:", err);
@@ -613,21 +535,17 @@
 
             async function handleAnswer(answer) {
                 debug("Handling answer");
-
                 if (connectionTimeout) {
                     clearTimeout(connectionTimeout);
                     connectionTimeout = null;
                 }
-
                 if (!peerConnection) {
                     debug("No peer connection");
                     return;
                 }
-
                 if (answer.sdp) {
                     answer.sdp = cleanSDP(answer.sdp);
                 }
-
                 try {
                     await peerConnection.setRemoteDescription(
                         new RTCSessionDescription({
@@ -636,9 +554,7 @@
                         })
                     );
                     debug("✅ Remote description set from answer");
-
                     isRemoteSet = true;
-
                     for (const candidate of pendingCandidates) {
                         try {
                             await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
@@ -647,101 +563,55 @@
                         }
                     }
                     pendingCandidates = [];
-
                     updateStatus("Call connected!");
-
                 } catch (err) {
                     debug("❌ Error setting answer:", err);
                     updateStatus("❌ Connection failed");
                 }
             }
 
-            window.endCall = function () {
+            window.endCall = function() {
                 debug("Ending call");
-
                 if (connectionTimeout) clearTimeout(connectionTimeout);
-
                 if (peerConnection) {
                     peerConnection.close();
                     peerConnection = null;
                 }
-
                 if (localStream) {
                     localStream.getTracks().forEach(track => track.stop());
                     localStream = null;
                 }
-
                 const audio = document.getElementById("remoteAudio");
                 if (audio) {
                     audio.srcObject = null;
                     audio.remove();
                 }
-
                 pendingCandidates = [];
                 isRemoteSet = false;
                 callActive = false;
-
                 if (incomingCallerId) {
                     document.getElementById("callTitle").textContent = "Call ended";
                     updateStatus("Call ended - close window");
                 } else {
                     showStartMode();
                 }
-
                 incomingOffer = null;
                 incomingCallerId = null;
             };
 
-            // Add this function before cleanSDP
-            function manualSDPRepair(sdp) {
-                // Split into lines
-                let lines = sdp.split(/\r?\n/);
-                let repaired = [];
-
-                for (let line of lines) {
-                    line = line.trim();
-                    if (!line) continue;
-
-                    // Fix a=ssrc lines that might have been corrupted
-                    if (line.startsWith('a=ssrc:')) {
-                        // Remove any escaped characters
-                        line = line.replace(/\\r/g, '').replace(/\\n/g, '');
-
-                        // Ensure proper format: a=ssrc:12345 msid:uuid1 uuid2
-                        let match = line.match(/a=ssrc:(\d+)(?:\s+msid:)?([a-f0-9-]+)(?:\s+)?([a-f0-9-]+)?/i);
-                        if (match) {
-                            let ssrc = match[1];
-                            let msid1 = match[2];
-                            let msid2 = match[3] || msid1; // If only one UUID, duplicate it
-                            line = a = ssrc:${ ssrc } msid:${ msid1 } ${ msid2 };
-                        }
-                    }
-
-                    repaired.push(line);
-                }
-
-                return repaired.join('\r\n');
-            }
-
             // ==================== PUSHER ====================
             function initPusher() {
                 debug("Initializing Pusher...");
-
                 Pusher.logToConsole = true;
-
                 pusher = new Pusher(PUSHER_APP_KEY, {
                     cluster: PUSHER_CLUSTER,
                     forceTLS: true
                 });
-
                 pusher.connection.bind('connected', () => {
                     debug("Pusher connected");
-
                     const isCaller = new URLSearchParams(window.location.search).has('mode=caller');
                     debug("Mode:", isCaller ? "CALLER" : "RECEIVER");
-
                     const hasPending = checkPendingCall();
-
                     if (isCaller) {
                         showStartMode();
                         updateStatus("Ready to start call");
@@ -750,18 +620,14 @@
                         updateStatus("Ready to receive calls");
                     }
                 });
-
                 pusher.connection.bind('error', (error) => {
                     debug("Pusher error:", error);
                 });
-
                 const channelName = 'voice-call.' + userId;
                 channel = pusher.subscribe(channelName);
-
                 channel.bind('subscription_succeeded', () => {
                     debug("Subscribed to channel:", channelName);
                 });
-
                 channel.bind('CallOffer', (data) => {
                     debug("📞 Call offer received in voice window");
                     if (!new URLSearchParams(window.location.search).has('mode=caller')) {
@@ -776,7 +642,6 @@
                         updateStatus("Incoming call - Click Accept");
                     }
                 });
-
                 channel.bind('CallAnswer', async (data) => {
                     debug("Call answer received");
                     if (new URLSearchParams(window.location.search).has('mode=caller')) {
@@ -786,7 +651,6 @@
                         await handleAnswer(data.answer);
                     }
                 });
-
                 channel.bind('IceCandidate', (data) => {
                     debug("ICE candidate received");
                     if (!peerConnection) {
@@ -801,19 +665,15 @@
             }
 
             // ==================== INIT ====================
-            document.addEventListener("DOMContentLoaded", function () {
+            document.addEventListener("DOMContentLoaded", function() {
                 debug("Voice call page loaded");
                 debug("User ID:", userId, "Other User ID:", otherUserId);
                 debug("URL params:", window.location.search);
-
                 const token = document.querySelector('meta[name="csrf-token"]')?.content;
                 debug("CSRF token present:", !!token);
-
                 initPusher();
             });
-
         })();
     </script>
 </body>
-
 </html>

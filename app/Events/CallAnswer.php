@@ -6,11 +6,11 @@ use Illuminate\Broadcasting\Channel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Broadcasting\InteractsWithSockets;
-// Remove: use Illuminate\Queue\SerializesModels;
+use Illuminate\Queue\SerializesModels;
 
 class CallAnswer implements ShouldBroadcast
 {
-    use Dispatchable, InteractsWithSockets; // Removed SerializesModels
+    use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $answer;
     public $callerId;

@@ -65,13 +65,9 @@ Route::get('/voice-call/{id}', function ($id) {
 })->middleware(['auth'])->name('voice-call');
 
 Route::post('/send-offer', function (Request $request) {
-    // Don't decode if it's already an array
     $offer = $request->offer;
-    
-    // Only decode if it's a string (but it shouldn't be)
-    if (is_string($offer)) {
+    if (is_string($offer))
         $offer = json_decode($offer, true);
-    }
 
     $callerId = auth()->id();
     $callerName = auth()->user()->name;
