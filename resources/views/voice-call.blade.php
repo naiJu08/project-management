@@ -135,13 +135,22 @@
             }
 
             function repairSDPLine(line) {
-                // Fix typo: a=src: -> a=ssrc:
+                // Fix common typo: a=src: -> a=ssrc:
                 if (line.startsWith('a=src:')) {
                     line = 'a=ssrc:' + line.substring(6);
                 }
 
-                // Fix a=ssrc lines (format: a=ssrc:<ssrc> msid:<msid> <appdata>)
-                if (line.startsWith('a=ssrc:')) {
+                // ---- FIX MISSING SPACES / COLONS IN a=ssrc lines ----
+                if (line.startsWith('a=ssrc')) {
+                    // Try to extract SSRC and MSID using regex (handles both with and without spaces)
+                    let match = line.match(/^a=ssrc:?(\d+)\s*msid:?([a-f0-9-]+)(?:\s+)?([a-f0-9-]+)?/i);
+                    if (match) {
+                        let ssrc = match[1];
+                        let msid1 = match[2];
+                        let msid2 = match[3] || msid1;
+                        return `a=ssrc:${ssrc} msid:${msid1} ${msid2}`;
+                    }
+                    // Fallback: if no match, split by spaces (original logic)
                     let parts = line.split(/\s+/);
                     if (parts.length >= 3) {
                         let ssrcPart = parts[0];
