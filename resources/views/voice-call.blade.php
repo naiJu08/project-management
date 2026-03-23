@@ -46,8 +46,8 @@
         .debug-visible #debugPanel {
             display: block;
         }
-        /* Audio control panel */
-        #audioControl {
+        /* Audio control panels */
+        .audioPanel {
             position: fixed;
             bottom: 10px;
             right: 10px;
@@ -56,28 +56,33 @@
             border-radius: 20px;
             font-size: 12px;
             z-index: 10000;
-            display: none;
+            display: flex;
             align-items: center;
             gap: 8px;
             cursor: pointer;
         }
-        #volumeMeter {
+        .localPanel {
+            right: auto;
+            left: 10px;
+            bottom: 50px;
+        }
+        .volumeMeter {
             width: 50px;
             height: 4px;
             background: #333;
             border-radius: 2px;
             overflow: hidden;
         }
-        #volumeLevel {
+        .volumeLevel {
             width: 0%;
             height: 100%;
             background: #0f0;
             transition: width 0.1s;
         }
-        #muteIcon {
-            font-size: 16px;
-        }
-        #testSpeakerBtn, #checkAudioBtn {
+        .remotePanel .volumeLevel { background: #0f0; }
+        .localPanel .volumeLevel { background: #ff9800; }
+        .muteIcon { font-size: 16px; }
+        button.testMic {
             position: fixed;
             bottom: 10px;
             left: 10px;
@@ -87,9 +92,6 @@
             font-size: 12px;
             z-index: 10000;
             cursor: pointer;
-        }
-        #checkAudioBtn {
-            left: 120px;
         }
         #remoteAudio {
             position: fixed;
@@ -130,12 +132,20 @@
         <div id="debugPanel"></div>
     </div>
 
-    <div id="audioControl">
-        <span id="muteIcon">🔊</span>
-        <div id="volumeMeter"><div id="volumeLevel"></div></div>
+    <!-- Remote audio control (bottom‑right) -->
+    <div id="remotePanel" class="audioPanel remotePanel" style="display: none;">
+        <span id="remoteMuteIcon" class="muteIcon">🔊</span>
+        <div class="volumeMeter"><div id="remoteVolumeLevel" class="volumeLevel"></div></div>
     </div>
-    <button id="testSpeakerBtn" onclick="testSpeaker()">🔊 Test Speaker</button>
-    <button id="checkAudioBtn" onclick="checkAudioState()">🔍 Audio Info</button>
+
+    <!-- Local audio control (bottom‑left) – only visible after mic is granted -->
+    <div id="localPanel" class="audioPanel localPanel" style="display: none;">
+        <span id="localMicIcon" class="muteIcon">🎤</span>
+        <div class="volumeMeter"><div id="localVolumeLevel" class="volumeLevel"></div></div>
+    </div>
+
+    <button id="testMicBtn" class="testMic" style="display: none;" onclick="testMicrophone()">🎤 Test Mic</button>
+
     <audio id="remoteAudio" controls autoplay style="display: none;"></audio>
 
     <script>
@@ -174,7 +184,6 @@
             function cleanSDP(sdp) {
                 if (!sdp || typeof sdp !== 'string') return sdp;
 
-                // Recursively decode escaped characters
                 let cleaned = sdp;
                 let prev;
                 do {
@@ -185,44 +194,27 @@
                         .replace(/\\\\/g, '\\');
                 } while (prev !== cleaned);
 
-                // If no newlines, insert before each line that starts with a letter and '='
                 if (!cleaned.includes('\n') && !cleaned.includes('\r')) {
                     cleaned = cleaned.replace(/([a-z]=)/g, '\r\n$1');
                     cleaned = cleaned.replace(/^\r\n/, '');
                 }
 
-                // Normalize line endings to CRLF
                 cleaned = cleaned.replace(/\r?\n/g, '\r\n');
-
-                // Split into lines, filter empty
                 let lines = cleaned.split(/\r?\n/).filter(line => line.trim().length > 0);
-
-                // Repair each line
                 lines = lines.map(line => repairSDPLine(line.trim()));
-
-                // Rejoin with CRLF and ensure a trailing CRLF
                 return lines.join('\r\n') + '\r\n';
             }
 
             function repairSDPLine(line) {
-                // Fix a=src: -> a=ssrc:
-                if (line.startsWith('a=src:')) {
-                    line = 'a=ssrc:' + line.substring(6);
-                }
-
-                // Ensure a=ssrc has colon after "ssrc"
+                if (line.startsWith('a=src:')) line = 'a=ssrc:' + line.substring(6);
                 if (line.startsWith('a=ssrc') && !line.startsWith('a=ssrc:')) {
                     line = line.replace(/^a=ssrc/, 'a=ssrc:');
                 }
-
-                // Repair a=ssrc lines (msid format)
                 if (line.startsWith('a=ssrc:')) {
                     let match = line.match(/^a=ssrc:(\d+)\s*(.*)$/);
                     if (match) {
                         let ssrc = match[1];
                         let rest = match[2].trim();
-
-                        // Find msid part
                         let msidMatch = rest.match(/msid:([a-f0-9-]+)(?:\s+)?([a-f0-9-]+)?/i);
                         if (msidMatch) {
                             let msid1 = msidMatch[1];
@@ -253,10 +245,113 @@
             let connectionTimeout = null;
             let pusher = null;
             let channel = null;
-            let audioContext = null;
-            let audioAnalyser = null;
-            let animationFrame = null;
             let remoteAudioElement = null;
+            let localAudioContext = null;
+            let localAnalyser = null;
+            let localAnimation = null;
+            let remoteAudioContext = null;
+            let remoteAnalyser = null;
+            let remoteAnimation = null;
+
+            // ==================== VOLUME METERS ====================
+            function startLocalVolumeMeter(stream) {
+                if (localAudioContext) return;
+                try {
+                    localAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    localAnalyser = localAudioContext.createAnalyser();
+                    localAnalyser.fftSize = 256;
+                    const source = localAudioContext.createMediaStreamSource(stream);
+                    source.connect(localAnalyser);
+                    if (localAudioContext.state === 'suspended') {
+                        localAudioContext.resume().catch(e => debug("Failed to resume local AudioContext:", e));
+                    }
+                    const meter = document.getElementById('localVolumeLevel');
+                    const panel = document.getElementById('localPanel');
+                    panel.style.display = 'flex';
+                    function update() {
+                        if (!localAnalyser) return;
+                        const data = new Uint8Array(localAnalyser.frequencyBinCount);
+                        localAnalyser.getByteFrequencyData(data);
+                        let sum = 0;
+                        for (let i = 0; i < data.length; i++) sum += data[i];
+                        let avg = sum / data.length;
+                        let percent = (avg / 255) * 100;
+                        meter.style.width = percent + '%';
+                        localAnimation = requestAnimationFrame(update);
+                    }
+                    update();
+                    debug("Local volume meter started");
+                } catch (e) {
+                    debug("❌ Failed to start local volume meter:", e);
+                }
+            }
+
+            function startRemoteVolumeMeter(stream) {
+                if (remoteAudioContext) return;
+                try {
+                    remoteAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    remoteAnalyser = remoteAudioContext.createAnalyser();
+                    remoteAnalyser.fftSize = 256;
+                    const source = remoteAudioContext.createMediaStreamSource(stream);
+                    source.connect(remoteAnalyser);
+                    if (remoteAudioContext.state === 'suspended') {
+                        remoteAudioContext.resume().catch(e => debug("Failed to resume remote AudioContext:", e));
+                    }
+                    const meter = document.getElementById('remoteVolumeLevel');
+                    const panel = document.getElementById('remotePanel');
+                    panel.style.display = 'flex';
+                    function update() {
+                        if (!remoteAnalyser) return;
+                        const data = new Uint8Array(remoteAnalyser.frequencyBinCount);
+                        remoteAnalyser.getByteFrequencyData(data);
+                        let sum = 0;
+                        for (let i = 0; i < data.length; i++) sum += data[i];
+                        let avg = sum / data.length;
+                        let percent = (avg / 255) * 100;
+                        meter.style.width = percent + '%';
+                        remoteAnimation = requestAnimationFrame(update);
+                    }
+                    update();
+                    debug("Remote volume meter started");
+                } catch (e) {
+                    debug("❌ Failed to start remote volume meter:", e);
+                }
+            }
+
+            function stopVolumeMeters() {
+                if (localAnimation) cancelAnimationFrame(localAnimation);
+                if (remoteAnimation) cancelAnimationFrame(remoteAnimation);
+                if (localAudioContext) localAudioContext.close();
+                if (remoteAudioContext) remoteAudioContext.close();
+                localAudioContext = null;
+                remoteAudioContext = null;
+                localAnalyser = null;
+                remoteAnalyser = null;
+                document.getElementById('localPanel').style.display = 'none';
+                document.getElementById('remotePanel').style.display = 'none';
+            }
+
+            // ==================== TEST MICROPHONE ====================
+            window.testMicrophone = function() {
+                if (!localStream) {
+                    alert("No microphone stream available. Please start/accept a call first.");
+                    return;
+                }
+                const testCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const source = testCtx.createMediaStreamSource(localStream);
+                const gain = testCtx.createGain();
+                source.connect(gain);
+                gain.connect(testCtx.destination);
+                gain.gain.value = 1;
+                testCtx.resume().then(() => {
+                    debug("Local microphone test started – you should hear your own voice");
+                    updateStatus("🔊 Listening to your microphone – you should hear yourself");
+                    setTimeout(() => {
+                        testCtx.close();
+                        updateStatus(callActive ? "Call connected!" : "Ready");
+                    }, 3000);
+                }).catch(e => debug("Test mic failed:", e));
+            };
 
             // ==================== CHECK PENDING CALL ====================
             function checkPendingCall() {
@@ -343,92 +438,6 @@
                 document.getElementById("acceptBtn").style.display = "none";
             }
 
-            // ==================== VOLUME METER ====================
-            function initVolumeMeter(stream) {
-                if (audioContext) {
-                    debug("Volume meter already initialized");
-                    return;
-                }
-                debug("Initializing volume meter...");
-                try {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    audioAnalyser = audioContext.createAnalyser();
-                    audioAnalyser.fftSize = 256;
-                    const source = audioContext.createMediaStreamSource(stream);
-                    source.connect(audioAnalyser);
-                    if (audioContext.state === 'suspended') {
-                        audioContext.resume().then(() => debug("AudioContext resumed")).catch(e => debug("Failed to resume AudioContext:", e));
-                    }
-                    const meter = document.getElementById('volumeLevel');
-                    const control = document.getElementById('audioControl');
-                    control.style.display = 'flex';
-                    function updateMeter() {
-                        if (!audioAnalyser) return;
-                        const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
-                        audioAnalyser.getByteFrequencyData(dataArray);
-                        let sum = 0;
-                        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                        let avg = sum / dataArray.length;
-                        let percent = (avg / 255) * 100;
-                        meter.style.width = percent + '%';
-                        animationFrame = requestAnimationFrame(updateMeter);
-                    }
-                    updateMeter();
-                    debug("Volume meter started");
-                } catch (err) {
-                    debug("❌ Failed to initialize volume meter:", err);
-                }
-            }
-
-            function stopVolumeMeter() {
-                if (animationFrame) cancelAnimationFrame(animationFrame);
-                if (audioContext) audioContext.close();
-                audioContext = null;
-                audioAnalyser = null;
-                document.getElementById('audioControl').style.display = 'none';
-            }
-
-            // ==================== CHECK AUDIO STATE ====================
-            window.checkAudioState = function() {
-                if (!remoteAudioElement) {
-                    alert("No audio element found");
-                    return;
-                }
-                const state = {
-                    paused: remoteAudioElement.paused,
-                    muted: remoteAudioElement.muted,
-                    volume: remoteAudioElement.volume,
-                    srcObject: !!remoteAudioElement.srcObject,
-                    readyState: remoteAudioElement.readyState,
-                    currentTime: remoteAudioElement.currentTime,
-                    duration: remoteAudioElement.duration,
-                    error: remoteAudioElement.error ? remoteAudioElement.error.message : null
-                };
-                console.log("Audio element state:", state);
-                alert(JSON.stringify(state, null, 2));
-            };
-
-            // ==================== SPEAKER TEST ====================
-            window.testSpeaker = function() {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                oscillator.connect(gain);
-                gain.connect(audioCtx.destination);
-                oscillator.frequency.value = 440;
-                gain.gain.value = 0.5;
-                oscillator.start();
-                gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
-                setTimeout(() => {
-                    audioCtx.close();
-                }, 500);
-                updateStatus("🔊 Test tone played – you should hear a beep");
-                setTimeout(() => {
-                    if (callActive) updateStatus("Call connected!");
-                    else updateStatus("Ready to receive calls");
-                }, 1000);
-            };
-
             // ==================== WEBRTC ====================
             function createPeer() {
                 debug("Creating peer connection");
@@ -486,32 +495,24 @@
                     remoteAudioElement.controls = true;
                     remoteAudioElement.autoplay = true;
                     remoteAudioElement.playsInline = true;
-
-                    // Attach the stream
+                    remoteAudioElement.muted = false;
+                    remoteAudioElement.volume = 1;
                     remoteAudioElement.srcObject = event.streams[0];
 
-                    // Wait until the audio element is ready to play
+                    // Start remote volume meter
+                    startRemoteVolumeMeter(event.streams[0]);
+
                     const handleCanPlay = () => {
                         remoteAudioElement.removeEventListener('canplay', handleCanPlay);
                         remoteAudioElement.removeEventListener('loadedmetadata', handleCanPlay);
-                        // Force unmute and full volume
-                        remoteAudioElement.muted = false;
-                        remoteAudioElement.volume = 1;
-
-                        // Play and reapply settings if needed
                         remoteAudioElement.play().then(() => {
-                            debug("✅ Audio element play() succeeded");
+                            debug("✅ Remote audio play succeeded");
                             if (remoteAudioElement.muted || remoteAudioElement.volume === 0) {
-                                debug("⚠️ Element muted/volume zero after play, reapplying...");
                                 remoteAudioElement.muted = false;
                                 remoteAudioElement.volume = 1;
                             }
-                            if (remoteAudioElement.paused) {
-                                debug("⚠️ Element paused after play, retrying...");
-                                remoteAudioElement.play().catch(e => debug("❌ Retry failed:", e));
-                            }
                         }).catch(e => {
-                            debug("⚠️ play() failed (autoplay blocked):", e.message);
+                            debug("⚠️ Remote audio play failed:", e.message);
                             updateStatus("🔊 Click anywhere to enable audio");
                             const enableAudio = () => {
                                 remoteAudioElement.play().then(() => {
@@ -524,17 +525,13 @@
                         });
                     };
 
-                    // Wait for metadata or canplay before playing
                     remoteAudioElement.addEventListener('loadedmetadata', handleCanPlay, { once: true });
                     remoteAudioElement.addEventListener('canplay', handleCanPlay, { once: true });
 
-                    // Start volume meter to visualize incoming audio
-                    initVolumeMeter(event.streams[0]);
-
                     // Mute/unmute control
-                    const control = document.getElementById('audioControl');
-                    const muteIcon = document.getElementById('muteIcon');
-                    control.onclick = () => {
+                    const remotePanel = document.getElementById('remotePanel');
+                    const muteIcon = document.getElementById('remoteMuteIcon');
+                    remotePanel.onclick = () => {
                         if (remoteAudioElement) {
                             remoteAudioElement.muted = !remoteAudioElement.muted;
                             muteIcon.textContent = remoteAudioElement.muted ? '🔇' : '🔊';
@@ -554,6 +551,9 @@
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     debug("Microphone access granted");
+                    // Show local meter and test button
+                    startLocalVolumeMeter(localStream);
+                    document.getElementById('testMicBtn').style.display = 'block';
                 } catch (err) {
                     debug("Microphone error:", err);
                     alert("Microphone access is required for calls");
@@ -615,7 +615,6 @@
                         return;
                     }
 
-                    // Clean SDP
                     if (incomingOffer.sdp) {
                         debug("Original SDP length:", incomingOffer.sdp.length);
                         incomingOffer.sdp = cleanSDP(incomingOffer.sdp);
@@ -638,6 +637,8 @@
                     try {
                         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                         debug("✅ Microphone access granted");
+                        startLocalVolumeMeter(localStream);
+                        document.getElementById('testMicBtn').style.display = 'block';
                     } catch (micErr) {
                         debug("❌ Microphone error:", micErr);
                         alert("Microphone access is required for calls. Please check permissions.");
@@ -650,7 +651,6 @@
                     createPeer();
                     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-                    // Set remote description
                     debug("Setting remote description...");
                     let remoteSet = false;
                     let lastError = null;
@@ -673,7 +673,6 @@
                         throw new Error(`Failed to set remote description. Last error: ${lastError?.message}`);
                     }
 
-                    // Create answer
                     debug("Creating answer...");
                     const answer = await peerConnection.createAnswer();
                     debug("Answer created:", answer.type);
@@ -682,7 +681,6 @@
 
                     isRemoteSet = true;
 
-                    // Add pending ICE candidates
                     debug("Adding buffered ICE candidates:", pendingCandidates.length);
                     for (const candidate of pendingCandidates) {
                         try {
@@ -694,7 +692,6 @@
                     }
                     pendingCandidates = [];
 
-                    // Send answer
                     updateStatus("Sending answer...");
                     const response = await fetch('/send-answer', {
                         method: 'POST',
@@ -775,10 +772,11 @@
                     remoteAudioElement.srcObject = null;
                     remoteAudioElement.style.display = "none";
                 }
-                stopVolumeMeter();
+                stopVolumeMeters();
                 pendingCandidates = [];
                 isRemoteSet = false;
                 callActive = false;
+                document.getElementById('testMicBtn').style.display = 'none';
                 if (incomingCallerId) {
                     document.getElementById("callTitle").textContent = "Call ended";
                     updateStatus("Call ended - close window");
