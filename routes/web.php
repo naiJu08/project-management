@@ -65,9 +65,13 @@ Route::get('/voice-call/{id}', function ($id) {
 })->middleware(['auth'])->name('voice-call');
 
 Route::post('/send-offer', function (Request $request) {
+    // Don't decode if it's already an array
     $offer = $request->offer;
-    if (is_string($offer))
+    
+    // Only decode if it's a string (but it shouldn't be)
+    if (is_string($offer)) {
         $offer = json_decode($offer, true);
+    }
 
     $callerId = auth()->id();
     $callerName = auth()->user()->name;
@@ -75,7 +79,7 @@ Route::post('/send-offer', function (Request $request) {
 
     \Log::info('📞 Sending call offer', ['from' => $callerId, 'to' => $receiverId]);
 
-    broadcast(new \App\Events\CallOffer($offer, $callerId, $callerName, $receiverId))->toOthers();
+    broadcast(new CallOffer($offer, $callerId, $callerName, $receiverId))->toOthers();
     return response()->json(['status' => 'offer sent']);
 })->middleware(['auth']);
 
@@ -89,7 +93,7 @@ Route::post('/send-answer', function (Request $request) {
 
     \Log::info('📞 Sending call answer', ['from' => $answererId, 'to' => $receiverId]);
 
-    broadcast(new \App\Events\CallAnswer($answer, $answererId, $receiverId))->toOthers();
+    broadcast(new CallAnswer($answer, $answererId, $receiverId))->toOthers();
     return response()->json(['status' => 'answer sent']);
 })->middleware(['auth']);
 
@@ -97,7 +101,7 @@ Route::post('/send-ice', function (Request $request) {
     $senderId = auth()->id();
     $receiverId = $request->receiverId;
 
-    broadcast(new \App\Events\IceCandidate($request->candidate, $senderId, $receiverId))->toOthers();
+    broadcast(new IceCandidate($request->candidate, $senderId, $receiverId))->toOthers();
     return response()->json(['status' => 'ice sent']);
 })->middleware(['auth']);
 
