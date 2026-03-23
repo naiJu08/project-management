@@ -14,6 +14,7 @@
         #startBtn { display: block; }
         #acceptBtn { display: none; }
         #endBtn { display: block; }
+
         .spinner {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #3498db;
@@ -24,10 +25,12 @@
             display: inline-block;
             margin-right: 8px;
         }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
         #debugPanel {
             position: fixed;
             bottom: 10px;
@@ -43,9 +46,11 @@
             z-index: 9999;
             display: none;
         }
+
         .debug-visible #debugPanel {
             display: block;
         }
+
         .audioPanel {
             position: fixed;
             bottom: 10px;
@@ -60,11 +65,13 @@
             gap: 8px;
             cursor: pointer;
         }
+
         .localPanel {
             right: auto;
             left: 10px;
             bottom: 50px;
         }
+
         .volumeMeter {
             width: 50px;
             height: 4px;
@@ -72,14 +79,18 @@
             border-radius: 2px;
             overflow: hidden;
         }
+
         .volumeLevel {
             width: 0%;
             height: 100%;
             transition: width 0.1s;
         }
+
         .remotePanel .volumeLevel { background: #0f0; }
         .localPanel .volumeLevel { background: #ff9800; }
+
         .muteIcon { font-size: 16px; }
+
         .actionButtons {
             position: fixed;
             bottom: 10px;
@@ -88,6 +99,7 @@
             gap: 8px;
             z-index: 10000;
         }
+
         .actionButtons button {
             background: rgba(0,0,0,0.7);
             padding: 5px 10px;
@@ -97,6 +109,7 @@
             border: none;
             color: white;
         }
+
         #remoteAudio {
             position: fixed;
             bottom: 50px;
@@ -115,37 +128,48 @@
         <div class="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-3xl font-bold mx-auto">
             {{ strtoupper(substr($user->name, 0, 1)) }}
         </div>
+
         <h2 id="callTitle" class="mt-4 text-xl font-semibold">
             Voice Call with {{ $user->name }}
         </h2>
+
         <p id="callStatus" class="text-gray-400 text-sm mt-1">
             Initializing...
         </p>
+
         <div class="flex gap-4 justify-center mt-8 flex-wrap">
             <button id="startBtn" onclick="startCall()" class="bg-green-500 px-6 py-3 rounded-full text-lg hover:bg-green-600 transition flex items-center gap-2">
                 <span>📞</span> Start Call
             </button>
+
             <button id="acceptBtn" onclick="acceptCall()" class="bg-green-600 px-6 py-3 rounded-full text-lg hover:bg-green-700 transition flex items-center gap-2 animate-pulse">
                 <span>✅</span> Accept Call
             </button>
+
             <button id="endBtn" onclick="endCall()" class="bg-red-500 px-6 py-3 rounded-full text-lg hover:bg-red-600 transition">
                 ❌ End
             </button>
-            <button onclick="toggleDebug()" class="bg-gray-600 px-4 py-3 rounded-full text-lg hover:bg-gray-700 transition">🐛 Debug</button>
+
+            <button onclick="toggleDebug()" class="bg-gray-600 px-4 py-3 rounded-full text-lg hover:bg-gray-700 transition">
+                🐛 Debug
+            </button>
         </div>
+
         <div id="debugPanel"></div>
     </div>
 
-    <!-- Remote audio control (bottom‑right) -->
     <div id="remotePanel" class="audioPanel remotePanel" style="display: none;">
         <span id="remoteMuteIcon" class="muteIcon">🔊</span>
-        <div class="volumeMeter"><div id="remoteVolumeLevel" class="volumeLevel"></div></div>
+        <div class="volumeMeter">
+            <div id="remoteVolumeLevel" class="volumeLevel"></div>
+        </div>
     </div>
 
-    <!-- Local audio control (bottom‑left) – only visible after mic is granted -->
     <div id="localPanel" class="audioPanel localPanel" style="display: none;">
         <span id="localMicIcon" class="muteIcon">🎤</span>
-        <div class="volumeMeter"><div id="localVolumeLevel" class="volumeLevel"></div></div>
+        <div class="volumeMeter">
+            <div id="localVolumeLevel" class="volumeLevel"></div>
+        </div>
     </div>
 
     <div class="actionButtons">
@@ -153,7 +177,7 @@
         <button id="playRemoteBtn" style="display: none;" onclick="playRemoteAudio()">🔊 Play Remote</button>
     </div>
 
-    <audio id="remoteAudio" controls autoplay style="display: none;"></audio>
+    <audio id="remoteAudio" controls autoplay playsinline style="display: none;"></audio>
 
     <script>
         (function() {
@@ -168,16 +192,19 @@
 
             // ==================== DEBUG LOGGING ====================
             const debugLogs = [];
+
             function debug(...args) {
                 const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
                 console.log("[DEBUG]", ...args);
                 debugLogs.unshift({ time: new Date().toLocaleTimeString(), message });
                 updateDebugPanel();
             }
+
             window.toggleDebug = function() {
                 document.body.classList.toggle('debug-visible');
                 updateDebugPanel();
             };
+
             function updateDebugPanel() {
                 const panel = document.getElementById('debugPanel');
                 if (panel) {
@@ -193,6 +220,7 @@
 
                 let cleaned = sdp;
                 let prev;
+
                 do {
                     prev = cleaned;
                     cleaned = cleaned.replace(/\\r\\n/g, '\r\n')
@@ -209,39 +237,48 @@
                 cleaned = cleaned.replace(/\r?\n/g, '\r\n');
                 let lines = cleaned.split(/\r?\n/).filter(line => line.trim().length > 0);
                 lines = lines.map(line => repairSDPLine(line.trim()));
+
                 return lines.join('\r\n') + '\r\n';
             }
 
             function repairSDPLine(line) {
                 if (line.startsWith('a=src:')) line = 'a=ssrc:' + line.substring(6);
+
                 if (line.startsWith('a=ssrc') && !line.startsWith('a=ssrc:')) {
                     line = line.replace(/^a=ssrc/, 'a=ssrc:');
                 }
+
                 if (line.startsWith('a=ssrc:')) {
                     let match = line.match(/^a=ssrc:(\d+)\s*(.*)$/);
                     if (match) {
                         let ssrc = match[1];
                         let rest = match[2].trim();
                         let msidMatch = rest.match(/msid:([a-f0-9-]+)(?:\s+)?([a-f0-9-]+)?/i);
+
                         if (msidMatch) {
                             let msid1 = msidMatch[1];
                             let msid2 = msidMatch[2];
+
                             if (!msid2) {
                                 let remainder = rest.replace(/msid:[a-f0-9-]+/i, '');
                                 let secondUuid = remainder.match(/([a-f0-9-]{36})/);
                                 if (secondUuid) msid2 = secondUuid[1];
                                 else msid2 = msid1;
                             }
+
                             return `a=ssrc:${ssrc} msid:${msid1} ${msid2}`;
                         }
+
                         return line;
                     }
                 }
+
                 return line;
             }
 
             // ==================== STATE ====================
             let localStream = null;
+            let remoteStream = null;
             let peerConnection = null;
             let incomingOffer = null;
             let incomingCallerId = null;
@@ -253,41 +290,51 @@
             let pusher = null;
             let channel = null;
             let remoteAudioElement = null;
+
             let localAudioContext = null;
             let localAnalyser = null;
             let localAnimation = null;
-            let remoteVolumeCtx = null;          // Only for the green meter, not playback
+
+            let remoteVolumeCtx = null;
             let remoteAnalyser = null;
             let remoteAnimation = null;
-            let playbackAudioContext = null;     // For actual playback (resumed on accept)
-            let playbackGain = null;              // Volume control for playback
 
             // ==================== VOLUME METERS ====================
             function startLocalVolumeMeter(stream) {
                 if (localAudioContext) return;
+
                 try {
                     localAudioContext = new (window.AudioContext || window.webkitAudioContext)();
                     localAnalyser = localAudioContext.createAnalyser();
                     localAnalyser.fftSize = 256;
+
                     const source = localAudioContext.createMediaStreamSource(stream);
                     source.connect(localAnalyser);
+
                     if (localAudioContext.state === 'suspended') {
                         localAudioContext.resume().catch(e => debug("Failed to resume local AudioContext:", e));
                     }
+
                     const meter = document.getElementById('localVolumeLevel');
                     const panel = document.getElementById('localPanel');
                     panel.style.display = 'flex';
+
                     function update() {
                         if (!localAnalyser) return;
+
                         const data = new Uint8Array(localAnalyser.frequencyBinCount);
                         localAnalyser.getByteFrequencyData(data);
+
                         let sum = 0;
                         for (let i = 0; i < data.length; i++) sum += data[i];
+
                         let avg = sum / data.length;
                         let percent = (avg / 255) * 100;
                         meter.style.width = percent + '%';
+
                         localAnimation = requestAnimationFrame(update);
                     }
+
                     update();
                     debug("Local volume meter started");
                 } catch (e) {
@@ -295,32 +342,41 @@
                 }
             }
 
-            // This meter is only for visualization – it does not play sound
             function startRemoteVolumeMeter(stream) {
                 if (remoteVolumeCtx) return;
+
                 try {
                     remoteVolumeCtx = new (window.AudioContext || window.webkitAudioContext)();
                     remoteAnalyser = remoteVolumeCtx.createAnalyser();
                     remoteAnalyser.fftSize = 256;
+
                     const source = remoteVolumeCtx.createMediaStreamSource(stream);
                     source.connect(remoteAnalyser);
+
                     if (remoteVolumeCtx.state === 'suspended') {
                         remoteVolumeCtx.resume().catch(e => debug("Failed to resume remote volume meter:", e));
                     }
+
                     const meter = document.getElementById('remoteVolumeLevel');
                     const panel = document.getElementById('remotePanel');
                     panel.style.display = 'flex';
+
                     function update() {
                         if (!remoteAnalyser) return;
+
                         const data = new Uint8Array(remoteAnalyser.frequencyBinCount);
                         remoteAnalyser.getByteFrequencyData(data);
+
                         let sum = 0;
                         for (let i = 0; i < data.length; i++) sum += data[i];
+
                         let avg = sum / data.length;
                         let percent = (avg / 255) * 100;
                         meter.style.width = percent + '%';
+
                         remoteAnimation = requestAnimationFrame(update);
                     }
+
                     update();
                     debug("Remote volume meter started");
                 } catch (e) {
@@ -331,14 +387,21 @@
             function stopVolumeMeters() {
                 if (localAnimation) cancelAnimationFrame(localAnimation);
                 if (remoteAnimation) cancelAnimationFrame(remoteAnimation);
+
                 if (localAudioContext) localAudioContext.close();
                 if (remoteVolumeCtx) remoteVolumeCtx.close();
+
                 localAudioContext = null;
                 remoteVolumeCtx = null;
                 localAnalyser = null;
                 remoteAnalyser = null;
+                localAnimation = null;
+                remoteAnimation = null;
+
                 document.getElementById('localPanel').style.display = 'none';
                 document.getElementById('remotePanel').style.display = 'none';
+                document.getElementById('localVolumeLevel').style.width = '0%';
+                document.getElementById('remoteVolumeLevel').style.width = '0%';
             }
 
             // ==================== TEST MICROPHONE ====================
@@ -347,15 +410,19 @@
                     alert("No microphone stream available. Please start/accept a call first.");
                     return;
                 }
+
                 const testCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const source = testCtx.createMediaStreamSource(localStream);
                 const gain = testCtx.createGain();
+
                 source.connect(gain);
                 gain.connect(testCtx.destination);
                 gain.gain.value = 1;
+
                 testCtx.resume().then(() => {
-                    debug("Local microphone test started – you should hear your own voice");
-                    updateStatus("🔊 Listening to your microphone – you should hear yourself");
+                    debug("Local microphone test started - you should hear your own voice");
+                    updateStatus("🔊 Listening to your microphone - you should hear yourself");
+
                     setTimeout(() => {
                         testCtx.close();
                         updateStatus(callActive ? "Call connected!" : "Ready");
@@ -364,42 +431,51 @@
             };
 
             // ==================== PLAY REMOTE AUDIO ====================
-            window.playRemoteAudio = function() {
-                if (!remoteAudioElement) {
-                    alert("No remote audio element found.");
+            window.playRemoteAudio = async function() {
+                if (!remoteAudioElement || !remoteAudioElement.srcObject) {
+                    alert("No remote audio available.");
                     return;
                 }
-                remoteAudioElement.muted = false;
-                remoteAudioElement.volume = 1;
-                remoteAudioElement.play().then(() => {
+
+                try {
+                    remoteAudioElement.muted = false;
+                    remoteAudioElement.volume = 1;
+                    await remoteAudioElement.play();
                     debug("✅ Remote audio forced to play");
-                    updateStatus("🔊 Remote audio forced – should now play");
-                }).catch(e => {
+                    updateStatus("🔊 Remote audio now playing");
+                } catch (e) {
                     debug("❌ Force play failed:", e);
                     alert("Could not play remote audio: " + e.message);
-                });
+                }
             };
 
             // ==================== CHECK PENDING CALL ====================
             function checkPendingCall() {
                 try {
                     const pendingCall = sessionStorage.getItem('pendingCall');
+
                     if (pendingCall) {
                         const callData = JSON.parse(pendingCall);
                         const age = Date.now() - callData.timestamp;
                         debug(`Found pending call, age: ${age}ms`);
+
                         if (age < 15000) {
                             debug("Using pending call data");
+
                             if (callData.offer && callData.offer.sdp) {
                                 callData.offer.sdp = cleanSDP(callData.offer.sdp);
                             }
+
                             incomingOffer = callData.offer;
                             incomingCallerId = callData.callerId;
                             incomingCallerName = callData.callerName;
+
                             sessionStorage.removeItem('pendingCall');
+
                             showAcceptMode();
                             document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
                             updateStatus("Incoming call - Click Accept");
+
                             return true;
                         } else {
                             sessionStorage.removeItem('pendingCall');
@@ -408,26 +484,33 @@
                 } catch (e) {
                     debug("Error checking pending call:", e);
                 }
+
                 return false;
             }
 
             // ==================== LISTEN FOR POST MESSAGES ====================
             window.addEventListener('message', function(event) {
                 debug("📨 Received message:", event.data.type);
+
                 if (event.data.type === 'incoming-offer') {
                     debug("📞 Received offer via postMessage");
+
                     if (event.data.offer && event.data.offer.sdp) {
                         event.data.offer.sdp = cleanSDP(event.data.offer.sdp);
                     }
+
                     incomingOffer = event.data.offer;
                     incomingCallerId = event.data.callerId;
                     incomingCallerName = event.data.callerName;
+
                     showAcceptMode();
                     document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
                     updateStatus("Incoming call - Click Accept");
                 }
+
                 if (event.data.type === 'ice-candidate') {
                     debug("❄️ Received ICE candidate via postMessage");
+
                     if (!peerConnection) {
                         pendingCandidates.push(event.data.candidate);
                     } else if (!isRemoteSet) {
@@ -437,6 +520,7 @@
                             .catch(err => debug("Error adding ICE:", err));
                     }
                 }
+
                 if (event.data.type === 'call-answer') {
                     debug("✅ Received answer via postMessage");
                     handleAnswer(event.data.answer);
@@ -469,8 +553,11 @@
             function createPeer() {
                 debug("Creating peer connection");
                 updateStatus("Setting up connection...");
+
                 pendingCandidates = [];
                 isRemoteSet = false;
+                remoteStream = new MediaStream();
+
                 peerConnection = new RTCPeerConnection({
                     iceServers: [
                         { urls: "stun:stun.l.google.com:19302" },
@@ -484,21 +571,26 @@
                         }
                     ]
                 });
+
                 peerConnection.onconnectionstatechange = () => {
                     debug("Connection state:", peerConnection.connectionState);
                     updateStatus(`Connection: ${peerConnection.connectionState}`);
+
                     if (peerConnection.connectionState === 'connected') {
                         updateStatus("✅ Call connected!");
                     } else if (peerConnection.connectionState === 'failed') {
                         updateStatus("❌ Connection failed - check TURN server");
                     }
                 };
+
                 peerConnection.oniceconnectionstatechange = () => {
                     debug("ICE state:", peerConnection.iceConnectionState);
                 };
+
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
                         debug("Sending ICE candidate");
+
                         fetch('/send-ice', {
                             method: 'POST',
                             headers: {
@@ -513,61 +605,46 @@
                         }).catch(err => debug("Error sending ICE:", err));
                     }
                 };
-                peerConnection.ontrack = (event) => {
-                    debug("🎵 Remote audio track received");
-                    updateStatus("Audio connected - Call active");
 
-                    // --- PLAYBACK via the pre‑created AudioContext (user gesture) ---
-                    if (playbackAudioContext) {
-                        try {
-                            // Disconnect previous gain if any
-                            if (playbackGain) playbackGain.disconnect();
-                            const source = playbackAudioContext.createMediaStreamSource(event.streams[0]);
-                            playbackGain = playbackAudioContext.createGain();
-                            playbackGain.gain.value = 1;
-                            source.connect(playbackGain);
-                            playbackGain.connect(playbackAudioContext.destination);
-                            debug("✅ Remote stream connected to playback AudioContext");
-                            // Ensure the AudioContext is running (it should be, but double‑check)
-                            if (playbackAudioContext.state !== 'running') {
-                                playbackAudioContext.resume().then(() => debug("Playback AudioContext resumed")).catch(e => debug("Resume failed:", e));
-                            }
-                        } catch (e) {
-                            debug("❌ Failed to connect to playback AudioContext:", e);
-                        }
-                    } else {
-                        debug("⚠️ No playback AudioContext created; falling back to <audio> element");
+                peerConnection.ontrack = async (event) => {
+                    debug("🎵 Remote audio track received", event.track.kind);
+
+                    if (event.track.kind !== 'audio') return;
+
+                    if (!remoteStream) {
+                        remoteStream = new MediaStream();
                     }
 
-                    // --- FALLBACK: <audio> element for manual control and additional debugging ---
+                    remoteStream.addTrack(event.track);
+
                     remoteAudioElement = document.getElementById("remoteAudio");
-                    remoteAudioElement.style.display = "block";
-                    remoteAudioElement.controls = true;
+                    remoteAudioElement.srcObject = remoteStream;
                     remoteAudioElement.autoplay = true;
                     remoteAudioElement.playsInline = true;
                     remoteAudioElement.muted = false;
                     remoteAudioElement.volume = 1;
-                    remoteAudioElement.srcObject = event.streams[0];
+                    remoteAudioElement.style.display = "block";
 
-                    // Start remote volume meter (independent, for visualization)
-                    startRemoteVolumeMeter(event.streams[0]);
+                    startRemoteVolumeMeter(remoteStream);
 
-                    // Show the "Play Remote" button in case the AudioContext fails
-                    document.getElementById('playRemoteBtn').style.display = 'block';
+                    try {
+                        await remoteAudioElement.play();
+                        debug("✅ Remote audio element playing");
+                        updateStatus("✅ Remote audio is playing");
+                    } catch (err) {
+                        debug("❌ remoteAudio.play() failed:", err);
+                        updateStatus("⚠️ Remote audio received, click Play Remote");
+                        document.getElementById('playRemoteBtn').style.display = 'block';
+                    }
 
-                    // Mute/unmute control (controls both the AudioContext gain and the element)
                     const remotePanel = document.getElementById('remotePanel');
                     const muteIcon = document.getElementById('remoteMuteIcon');
+
+                    remotePanel.style.display = 'flex';
                     remotePanel.onclick = () => {
-                        if (playbackGain) {
-                            playbackGain.gain.value = playbackGain.gain.value === 1 ? 0 : 1;
-                            muteIcon.textContent = playbackGain.gain.value === 0 ? '🔇' : '🔊';
-                            updateStatus(playbackGain.gain.value === 0 ? "Remote audio is muted" : "Remote audio is playing");
-                        } else if (remoteAudioElement) {
-                            remoteAudioElement.muted = !remoteAudioElement.muted;
-                            muteIcon.textContent = remoteAudioElement.muted ? '🔇' : '🔊';
-                            updateStatus(remoteAudioElement.muted ? "Remote audio is muted" : "Remote audio is playing");
-                        }
+                        remoteAudioElement.muted = !remoteAudioElement.muted;
+                        muteIcon.textContent = remoteAudioElement.muted ? '🔇' : '🔊';
+                        updateStatus(remoteAudioElement.muted ? "Remote audio is muted" : "Remote audio is playing");
                     };
                 };
             }
@@ -575,13 +652,17 @@
             // ==================== CALL FUNCTIONS ====================
             window.startCall = async function() {
                 debug("Starting call...");
+
                 if (callActive) return;
+
                 callActive = true;
                 hideAllButtons();
                 updateStatus('<span class="spinner"></span> Requesting microphone...');
+
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     debug("Microphone access granted");
+
                     startLocalVolumeMeter(localStream);
                     document.getElementById('testMicBtn').style.display = 'block';
                 } catch (err) {
@@ -592,12 +673,30 @@
                     showStartMode();
                     return;
                 }
+
                 createPeer();
+
+                localStream.getAudioTracks().forEach(track => {
+                    track.enabled = true;
+                });
+
                 localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+                localStream.getAudioTracks().forEach(track => {
+                    debug("Local audio track added:", {
+                        enabled: track.enabled,
+                        muted: track.muted,
+                        readyState: track.readyState,
+                        label: track.label
+                    });
+                });
+
                 try {
                     const offer = await peerConnection.createOffer();
                     await peerConnection.setLocalDescription(offer);
+
                     updateStatus("Sending call request...");
+
                     const response = await fetch('/send-offer', {
                         method: 'POST',
                         headers: {
@@ -609,15 +708,19 @@
                             receiverId: otherUserId
                         })
                     });
+
                     if (!response.ok) throw new Error('Failed to send offer');
+
                     debug("Offer sent successfully");
                     updateStatus("Call initiated - waiting for answer...");
+
                     connectionTimeout = setTimeout(() => {
                         if (!callActive) return;
                         debug("No answer received - timeout");
                         updateStatus("❌ No answer - user may be unavailable");
                         endCall();
                     }, 30000);
+
                 } catch (err) {
                     debug("Error:", err);
                     updateStatus("❌ Failed to start call");
@@ -631,14 +734,17 @@
                     debug("========== ACCEPT CALL CLICKED ==========");
                     debug("incomingOffer:", incomingOffer ? "present" : "null");
                     debug("incomingCallerId:", incomingCallerId);
+
                     if (incomingOffer) {
                         debug("Offer type:", incomingOffer.type);
                         debug("Offer has sdp:", !!incomingOffer.sdp);
                         console.log("Full offer:", incomingOffer);
+
                         if (incomingOffer.sdp) {
                             console.log("Original SDP preview (first 500 chars):", incomingOffer.sdp.substring(0, 500));
                         }
                     }
+
                     if (!incomingOffer || !incomingCallerId) {
                         debug("❌ No incoming call to accept");
                         alert("No incoming call to accept");
@@ -664,9 +770,11 @@
                     hideAllButtons();
                     updateStatus('<span class="spinner"></span> Accessing microphone...');
                     debug("Requesting microphone permission...");
+
                     try {
                         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                         debug("✅ Microphone access granted");
+
                         startLocalVolumeMeter(localStream);
                         document.getElementById('testMicBtn').style.display = 'block';
                     } catch (micErr) {
@@ -678,19 +786,25 @@
                         return;
                     }
 
-                    // --- Create the AudioContext for playback and resume it immediately (user gesture) ---
-                    if (!playbackAudioContext) {
-                        playbackAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-                        // Resume now while the user gesture is active
-                        playbackAudioContext.resume().then(() => {
-                            debug("✅ Playback AudioContext resumed (user gesture)");
-                        }).catch(e => debug("❌ Failed to resume playback AudioContext:", e));
-                    }
-
                     createPeer();
+
+                    localStream.getAudioTracks().forEach(track => {
+                        track.enabled = true;
+                    });
+
                     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
+                    localStream.getAudioTracks().forEach(track => {
+                        debug("Local audio track added:", {
+                            enabled: track.enabled,
+                            muted: track.muted,
+                            readyState: track.readyState,
+                            label: track.label
+                        });
+                    });
+
                     debug("Setting remote description...");
+
                     let remoteSet = false;
                     let lastError = null;
 
@@ -699,6 +813,7 @@
                             type: incomingOffer.type,
                             sdp: incomingOffer.sdp
                         });
+
                         await peerConnection.setRemoteDescription(offerDesc);
                         debug("✅ Remote description set successfully");
                         remoteSet = true;
@@ -715,6 +830,7 @@
                     debug("Creating answer...");
                     const answer = await peerConnection.createAnswer();
                     debug("Answer created:", answer.type);
+
                     await peerConnection.setLocalDescription(answer);
                     debug("✅ Local description set");
 
@@ -729,9 +845,11 @@
                             debug("Error adding ICE:", err);
                         }
                     }
+
                     pendingCandidates = [];
 
                     updateStatus("Sending answer...");
+
                     const response = await fetch('/send-answer', {
                         method: 'POST',
                         headers: {
@@ -743,13 +861,16 @@
                             receiverId: incomingCallerId
                         })
                     });
+
                     if (!response.ok) {
                         const text = await response.text();
                         throw new Error(`Failed to send answer: ${response.status} ${text}`);
                     }
+
                     const result = await response.json();
                     debug("✅ Answer sent successfully:", result);
                     updateStatus("Call connected!");
+
                 } catch (err) {
                     debug("❌ UNCAUGHT ERROR in acceptCall:", err);
                     console.error("FULL UNCAUGHT ERROR:", err);
@@ -761,17 +882,21 @@
 
             async function handleAnswer(answer) {
                 debug("Handling answer");
+
                 if (connectionTimeout) {
                     clearTimeout(connectionTimeout);
                     connectionTimeout = null;
                 }
+
                 if (!peerConnection) {
                     debug("No peer connection");
                     return;
                 }
+
                 if (answer.sdp) {
                     answer.sdp = cleanSDP(answer.sdp);
                 }
+
                 try {
                     await peerConnection.setRemoteDescription(
                         new RTCSessionDescription({
@@ -779,8 +904,10 @@
                             sdp: answer.sdp
                         })
                     );
+
                     debug("✅ Remote description set from answer");
                     isRemoteSet = true;
+
                     for (const candidate of pendingCandidates) {
                         try {
                             await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
@@ -788,6 +915,7 @@
                             debug("Error adding ICE:", err);
                         }
                     }
+
                     pendingCandidates = [];
                     updateStatus("Call connected!");
                 } catch (err) {
@@ -798,56 +926,70 @@
 
             window.endCall = function() {
                 debug("Ending call");
+
                 if (connectionTimeout) clearTimeout(connectionTimeout);
+
                 if (peerConnection) {
                     peerConnection.close();
                     peerConnection = null;
                 }
+
                 if (localStream) {
                     localStream.getTracks().forEach(track => track.stop());
                     localStream = null;
                 }
+
+                if (remoteStream) {
+                    remoteStream.getTracks().forEach(track => track.stop());
+                    remoteStream = null;
+                }
+
                 if (remoteAudioElement) {
+                    remoteAudioElement.pause();
                     remoteAudioElement.srcObject = null;
                     remoteAudioElement.style.display = "none";
+                    remoteAudioElement = null;
                 }
-                if (playbackGain) {
-                    playbackGain.disconnect();
-                    playbackGain = null;
-                }
-                if (playbackAudioContext) {
-                    playbackAudioContext.close();
-                    playbackAudioContext = null;
-                }
+
                 stopVolumeMeters();
+
                 pendingCandidates = [];
                 isRemoteSet = false;
                 callActive = false;
+
                 document.getElementById('testMicBtn').style.display = 'none';
                 document.getElementById('playRemoteBtn').style.display = 'none';
+
                 if (incomingCallerId) {
                     document.getElementById("callTitle").textContent = "Call ended";
                     updateStatus("Call ended - close window");
                 } else {
                     showStartMode();
                 }
+
                 incomingOffer = null;
                 incomingCallerId = null;
+                incomingCallerName = null;
             };
 
             // ==================== PUSHER ====================
             function initPusher() {
                 debug("Initializing Pusher...");
                 Pusher.logToConsole = true;
+
                 pusher = new Pusher(PUSHER_APP_KEY, {
                     cluster: PUSHER_CLUSTER,
                     forceTLS: true
                 });
+
                 pusher.connection.bind('connected', () => {
                     debug("Pusher connected");
+
                     const isCaller = new URLSearchParams(window.location.search).has('mode=caller');
                     debug("Mode:", isCaller ? "CALLER" : "RECEIVER");
+
                     const hasPending = checkPendingCall();
+
                     if (isCaller) {
                         showStartMode();
                         updateStatus("Ready to start call");
@@ -856,39 +998,51 @@
                         updateStatus("Ready to receive calls");
                     }
                 });
+
                 pusher.connection.bind('error', (error) => {
                     debug("Pusher error:", error);
                 });
+
                 const channelName = 'voice-call.' + userId;
                 channel = pusher.subscribe(channelName);
+
                 channel.bind('subscription_succeeded', () => {
                     debug("Subscribed to channel:", channelName);
                 });
+
                 channel.bind('CallOffer', (data) => {
                     debug("📞 Call offer received in voice window");
+
                     if (!new URLSearchParams(window.location.search).has('mode=caller')) {
                         if (data.offer && data.offer.sdp) {
                             data.offer.sdp = cleanSDP(data.offer.sdp);
                         }
+
                         incomingOffer = data.offer;
                         incomingCallerId = data.callerId;
                         incomingCallerName = data.callerName;
+
                         showAcceptMode();
                         document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
                         updateStatus("Incoming call - Click Accept");
                     }
                 });
+
                 channel.bind('CallAnswer', async (data) => {
                     debug("Call answer received");
+
                     if (new URLSearchParams(window.location.search).has('mode=caller')) {
                         if (data.answer && data.answer.sdp) {
                             data.answer.sdp = cleanSDP(data.answer.sdp);
                         }
+
                         await handleAnswer(data.answer);
                     }
                 });
+
                 channel.bind('IceCandidate', (data) => {
                     debug("ICE candidate received");
+
                     if (!peerConnection) {
                         pendingCandidates.push(data.candidate);
                     } else if (!isRemoteSet) {
@@ -905,10 +1059,13 @@
                 debug("Voice call page loaded");
                 debug("User ID:", userId, "Other User ID:", otherUserId);
                 debug("URL params:", window.location.search);
+
                 const token = document.querySelector('meta[name="csrf-token"]')?.content;
                 debug("CSRF token present:", !!token);
+
                 initPusher();
             });
+
         })();
     </script>
 </body>
