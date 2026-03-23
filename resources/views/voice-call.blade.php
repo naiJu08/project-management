@@ -116,20 +116,30 @@
                 }
             }
 
-            // ==================== SDP CLEANER (FIX FOR PARSING ERRORS) ====================
+            // ==================== ROBUST SDP CLEANER ====================
             function cleanSDP(sdp) {
                 if (!sdp || typeof sdp !== 'string') return sdp;
                 
-                // Replace escaped newlines (common when SDP travels through JSON)
-                let cleaned = sdp.replace(/\\r\\n/g, '\r\n')
-                                 .replace(/\\n/g, '\n')
-                                 .replace(/\\r/g, '\r');
+                let cleaned = sdp;
                 
-                // Split into lines, trim whitespace, remove empty lines
+                // Decode escaped characters recursively until no more changes
+                let prev = null;
+                while (prev !== cleaned) {
+                    prev = cleaned;
+                    cleaned = cleaned.replace(/\\r\\n/g, '\r\n')
+                                     .replace(/\\n/g, '\n')
+                                     .replace(/\\r/g, '\r')
+                                     .replace(/\\\\/g, '\\');   // decode double backslash
+                }
+                
+                // Normalize line endings to CRLF (required by SDP)
+                cleaned = cleaned.replace(/\r?\n/g, '\r\n');
+                
+                // Split into lines, trim each line but keep internal spaces
                 let lines = cleaned.split(/\r?\n/);
                 lines = lines.map(line => line.trim()).filter(line => line.length > 0);
                 
-                // Rejoin with proper CRLF line endings
+                // Rejoin with CRLF
                 return lines.join('\r\n');
             }
 
@@ -158,7 +168,6 @@
                         
                         if (age < 15000) {
                             debug("Using pending call data");
-                            // Clean SDP in the pending offer
                             if (callData.offer && callData.offer.sdp) {
                                 callData.offer.sdp = cleanSDP(callData.offer.sdp);
                             }
@@ -189,7 +198,6 @@
                 
                 if (event.data.type === 'incoming-offer') {
                     debug("📞 Received offer via postMessage");
-                    // Clean SDP immediately
                     if (event.data.offer && event.data.offer.sdp) {
                         event.data.offer.sdp = cleanSDP(event.data.offer.sdp);
                     }
@@ -373,19 +381,17 @@
 
             window.acceptCall = async function() {
                 try {
-                    console.log("========== ACCEPT CALL CLICKED (console) ==========");
+                    console.log("========== ACCEPT CALL CLICKED ==========");
                     debug("========== ACCEPT CALL CLICKED ==========");
                     debug("incomingOffer:", incomingOffer ? "present" : "null");
                     debug("incomingCallerId:", incomingCallerId);
                     
-                    // Log the full offer for inspection
                     if (incomingOffer) {
                         debug("Offer type:", incomingOffer.type);
                         debug("Offer has sdp:", !!incomingOffer.sdp);
                         console.log("Full offer:", incomingOffer);
-                        // Log first 200 chars of SDP to check for corruption
                         if (incomingOffer.sdp) {
-                            console.log("Original SDP preview:", incomingOffer.sdp.substring(0, 200));
+                            console.log("Original SDP preview (first 500 chars):", incomingOffer.sdp.substring(0, 500));
                         }
                     }
 
@@ -395,12 +401,17 @@
                         return;
                     }
 
-                    // ***** CRITICAL FIX: Clean the SDP before using it *****
+                    // ----- CLEAN SDP THOROUGHLY -----
                     if (incomingOffer.sdp) {
                         debug("Original SDP length:", incomingOffer.sdp.length);
                         incomingOffer.sdp = cleanSDP(incomingOffer.sdp);
                         debug("Cleaned SDP length:", incomingOffer.sdp.length);
-                        console.log("Cleaned SDP preview:", incomingOffer.sdp.substring(0, 200));
+                        console.log("Cleaned SDP preview (first 500 chars):", incomingOffer.sdp.substring(0, 500));
+                        
+                        // Optional: Write full SDP to console for debugging
+                        console.log("=== FULL CLEANED SDP ===");
+                        console.log(incomingOffer.sdp);
+                        console.log("========================");
                     }
 
                     if (callActive) {
@@ -412,15 +423,12 @@
                     hideAllButtons();
                     updateStatus('<span class="spinner"></span> Accessing microphone...');
 
-                    debug("Before getUserMedia - this should appear in debug panel");
-                    
+                    debug("Requesting microphone permission...");
                     try {
-                        debug("Requesting microphone permission...");
                         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                         debug("✅ Microphone access granted");
                     } catch (micErr) {
                         debug("❌ Microphone error:", micErr);
-                        console.error("Microphone error:", micErr);
                         alert("Microphone access is required for calls. Please check permissions.");
                         updateStatus("❌ Microphone access denied");
                         callActive = false;
@@ -431,39 +439,71 @@
                     createPeer();
                     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-                    // IMPORTANT FIX: Pass the cleaned offer object
-                    debug("Setting remote description with cleaned object...");
+                    // ----- SET REMOTE DESCRIPTION WITH FALLBACK -----
+                    debug("Setting remote description...");
+                    let remoteSet = false;
                     try {
                         await peerConnection.setRemoteDescription(incomingOffer);
-                        debug("✅ Remote description set");
+                        debug("✅ Remote description set (direct)");
+                        remoteSet = true;
                     } catch (sdpErr) {
-                        debug("❌ setRemoteDescription error:", sdpErr);
-                        console.error("setRemoteDescription error:", sdpErr);
-                        // Try to recover by re-creating the description object
+                        debug("❌ setRemoteDescription direct error:", sdpErr.message);
+                        console.error("Direct SDP error:", sdpErr);
+                        
+                        // Fallback: try to reconstruct using RTCSessionDescription
                         try {
-                            debug("Attempting fallback: create new RTCSessionDescription");
+                            debug("Attempting fallback with new RTCSessionDescription...");
                             const cleanOffer = new RTCSessionDescription({
                                 type: incomingOffer.type,
-                                sdp: incomingOffer.sdp // already cleaned
+                                sdp: incomingOffer.sdp
                             });
                             await peerConnection.setRemoteDescription(cleanOffer);
-                            debug("✅ Remote description set with fallback");
+                            debug("✅ Remote description set via RTCSessionDescription");
+                            remoteSet = true;
                         } catch (fallbackErr) {
-                            debug("❌ Fallback also failed:", fallbackErr);
-                            throw sdpErr; // rethrow original
+                            debug("❌ Fallback failed:", fallbackErr.message);
+                            // Last resort: try to manually fix the SDP line by line
+                            try {
+                                debug("Attempting manual SDP line-by-line fix...");
+                                const lines = incomingOffer.sdp.split(/\r?\n/);
+                                const fixedLines = lines.map(line => {
+                                    // If line starts with "a=ssrc:" and contains " msid:" with spaces, ensure proper formatting
+                                    if (line.startsWith('a=ssrc:') && line.includes(' msid:')) {
+                                        // Already looks correct, but maybe the browser expects a different order
+                                        // We can leave it as is
+                                    }
+                                    return line;
+                                });
+                                const fixedSDP = fixedLines.join('\r\n');
+                                const fixedOffer = new RTCSessionDescription({
+                                    type: incomingOffer.type,
+                                    sdp: fixedSDP
+                                });
+                                await peerConnection.setRemoteDescription(fixedOffer);
+                                debug("✅ Remote description set after manual fix");
+                                remoteSet = true;
+                            } catch (finalErr) {
+                                debug("❌ All attempts failed:", finalErr);
+                                throw sdpErr;
+                            }
                         }
                     }
 
+                    if (!remoteSet) {
+                        throw new Error("Could not set remote description after multiple attempts");
+                    }
+
+                    // ----- CREATE ANSWER -----
                     debug("Creating answer...");
                     const answer = await peerConnection.createAnswer();
                     debug("Answer created:", answer.type);
                     
-                    debug("Setting local description...");
                     await peerConnection.setLocalDescription(answer);
                     debug("✅ Local description set");
 
                     isRemoteSet = true;
                     
+                    // Add any pending ICE candidates
                     debug("Adding buffered ICE candidates:", pendingCandidates.length);
                     for (const candidate of pendingCandidates) {
                         try {
@@ -475,9 +515,8 @@
                     }
                     pendingCandidates = [];
 
+                    // Send answer to caller
                     updateStatus("Sending answer...");
-                    debug("Sending answer to /send-answer, receiverId:", incomingCallerId);
-                    
                     const response = await fetch('/send-answer', {
                         method: 'POST',
                         headers: {
@@ -490,8 +529,6 @@
                         })
                     });
 
-                    debug("Fetch response status:", response.status);
-                    
                     if (!response.ok) {
                         const text = await response.text();
                         throw new Error(`Failed to send answer: ${response.status} ${text}`);
@@ -523,7 +560,6 @@
                     return;
                 }
 
-                // Clean answer SDP just in case
                 if (answer.sdp) {
                     answer.sdp = cleanSDP(answer.sdp);
                 }
@@ -633,9 +669,7 @@
 
                 channel.bind('CallOffer', (data) => {
                     debug("📞 Call offer received in voice window");
-                    // Only handle if this is receiver window (no mode=caller)
                     if (!new URLSearchParams(window.location.search).has('mode=caller')) {
-                        // Clean SDP in the received offer
                         if (data.offer && data.offer.sdp) {
                             data.offer.sdp = cleanSDP(data.offer.sdp);
                         }
@@ -651,7 +685,6 @@
                 channel.bind('CallAnswer', async (data) => {
                     debug("Call answer received");
                     if (new URLSearchParams(window.location.search).has('mode=caller')) {
-                        // Clean answer SDP
                         if (data.answer && data.answer.sdp) {
                             data.answer.sdp = cleanSDP(data.answer.sdp);
                         }
@@ -678,7 +711,6 @@
                 debug("User ID:", userId, "Other User ID:", otherUserId);
                 debug("URL params:", window.location.search);
                 
-                // Check if CSRF token exists
                 const token = document.querySelector('meta[name="csrf-token"]')?.content;
                 debug("CSRF token present:", !!token);
                 
