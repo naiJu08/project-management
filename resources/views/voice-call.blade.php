@@ -46,19 +46,36 @@
         .debug-visible #debugPanel {
             display: block;
         }
-        /* Small visible audio element (for some browsers) */
-        #remoteAudio {
+        /* Audio control panel */
+        #audioControl {
             position: fixed;
             bottom: 10px;
             right: 10px;
-            width: 30px;
-            height: 30px;
-            opacity: 0.3;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
             z-index: 10000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
             cursor: pointer;
         }
-        #remoteAudio:hover {
-            opacity: 1;
+        #volumeMeter {
+            width: 50px;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        #volumeLevel {
+            width: 0%;
+            height: 100%;
+            background: #0f0;
+            transition: width 0.1s;
+        }
+        #muteIcon {
+            font-size: 16px;
         }
     </style>
 </head>
@@ -87,6 +104,11 @@
             <button onclick="toggleDebug()" class="bg-gray-600 px-4 py-3 rounded-full text-lg hover:bg-gray-700 transition">🐛 Debug</button>
         </div>
         <div id="debugPanel"></div>
+    </div>
+
+    <div id="audioControl" style="display: none;">
+        <span id="muteIcon">🔊</span>
+        <div id="volumeMeter"><div id="volumeLevel"></div></div>
     </div>
 
     <script>
@@ -204,6 +226,9 @@
             let connectionTimeout = null;
             let pusher = null;
             let channel = null;
+            let audioContext = null;
+            let audioAnalyser = null;
+            let animationFrame = null;
 
             // ==================== CHECK PENDING CALL ====================
             function checkPendingCall() {
@@ -290,6 +315,43 @@
                 document.getElementById("acceptBtn").style.display = "none";
             }
 
+            // ==================== VOLUME METER ====================
+            function initVolumeMeter(stream) {
+                if (audioContext) return;
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioAnalyser = audioContext.createAnalyser();
+                audioAnalyser.fftSize = 256;
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(audioAnalyser);
+                // Resume audio context if suspended (browser policy)
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().then(() => debug("AudioContext resumed"));
+                }
+                const meter = document.getElementById('volumeLevel');
+                const control = document.getElementById('audioControl');
+                control.style.display = 'flex';
+                function updateMeter() {
+                    if (!audioAnalyser) return;
+                    const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+                    audioAnalyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                    let avg = sum / dataArray.length;
+                    let percent = (avg / 255) * 100;
+                    meter.style.width = percent + '%';
+                    animationFrame = requestAnimationFrame(updateMeter);
+                }
+                updateMeter();
+            }
+
+            function stopVolumeMeter() {
+                if (animationFrame) cancelAnimationFrame(animationFrame);
+                if (audioContext) audioContext.close();
+                audioContext = null;
+                audioAnalyser = null;
+                document.getElementById('audioControl').style.display = 'none';
+            }
+
             // ==================== WEBRTC ====================
             function createPeer() {
                 debug("Creating peer connection");
@@ -348,40 +410,27 @@
                         audio.id = "remoteAudio";
                         audio.autoplay = true;
                         audio.playsInline = true;
-                        audio.controls = false; // we hide it, but make it visible small
-                        // Make it visible but tiny so browsers don't mute it
-                        audio.style.position = "fixed";
-                        audio.style.bottom = "10px";
-                        audio.style.right = "10px";
-                        audio.style.width = "30px";
-                        audio.style.height = "30px";
-                        audio.style.opacity = "0.3";
-                        audio.style.zIndex = "10000";
-                        audio.style.cursor = "pointer";
-                        audio.title = "Remote audio (click to unmute/volume)";
-                        audio.onclick = () => {
-                            audio.muted = !audio.muted;
-                            debug(`Audio muted: ${audio.muted}`);
-                            updateStatus(audio.muted ? "Remote audio is muted" : "Remote audio is playing");
-                        };
+                        audio.controls = false;
+                        audio.style.display = "none";
                         document.body.appendChild(audio);
-                        debug("Created audio element (visible small)");
+                        debug("Created hidden audio element");
                     }
                     audio.srcObject = event.streams[0];
-                    // Ensure volume is up and not muted
                     audio.volume = 1;
                     audio.muted = false;
-                    // Play with explicit handling
+                    
+                    // Start volume meter for debugging
+                    initVolumeMeter(event.streams[0]);
+
+                    // Attempt to play
                     audio.play().then(() => {
                         debug("✅ Audio playback started successfully");
-                        // Double-check that it's actually playing
                         if (audio.paused) {
                             debug("⚠️ Audio element is paused despite play() success, retrying...");
                             audio.play().catch(e => debug("❌ Retry failed:", e));
                         }
                     }).catch(e => {
                         debug("⚠️ Audio playback failed (autoplay blocked):", e.message);
-                        // Show a user‑friendly button to enable audio
                         updateStatus("🔊 Click anywhere to enable audio");
                         const enableAudio = () => {
                             audio.play().then(() => {
@@ -392,6 +441,15 @@
                         };
                         document.addEventListener('click', enableAudio);
                     });
+
+                    // Mute/unmute control
+                    const control = document.getElementById('audioControl');
+                    const muteIcon = document.getElementById('muteIcon');
+                    control.onclick = () => {
+                        audio.muted = !audio.muted;
+                        muteIcon.textContent = audio.muted ? '🔇' : '🔊';
+                        updateStatus(audio.muted ? "Remote audio is muted" : "Remote audio is playing");
+                    };
                 };
             }
 
@@ -627,6 +685,7 @@
                     audio.srcObject = null;
                     audio.remove();
                 }
+                stopVolumeMeter();
                 pendingCandidates = [];
                 isRemoteSet = false;
                 callActive = false;
