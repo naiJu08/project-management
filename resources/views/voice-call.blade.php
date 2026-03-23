@@ -11,6 +11,7 @@
     <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
     <style>
+        /* (styles unchanged – same as before) */
         #startBtn { display: block; }
         #acceptBtn { display: none; }
         #endBtn { display: block; }
@@ -46,7 +47,6 @@
         .debug-visible #debugPanel {
             display: block;
         }
-        /* Audio control panels */
         .audioPanel {
             position: fixed;
             bottom: 10px;
@@ -555,6 +555,25 @@
 
                     // Show the "Play Remote" button in case the above fails
                     document.getElementById('playRemoteBtn').style.display = 'block';
+
+                    // --- FIX: Automatically play remote audio on receiver side after short delay ---
+                    // This ensures the user gesture from the Accept button is still considered active.
+                    // The timeout gives the audio element time to be ready, then we force play.
+                    setTimeout(() => {
+                        if (remoteAudioElement && !remoteAudioElement.paused && remoteAudioElement.readyState >= 2) {
+                            debug("Remote audio already playing, no need to force");
+                            return;
+                        }
+                        debug("Attempting to force remote audio play (receiver side)");
+                        remoteAudioElement.muted = false;
+                        remoteAudioElement.volume = 1;
+                        remoteAudioElement.play().then(() => {
+                            debug("✅ Force play succeeded on receiver side");
+                        }).catch(e => {
+                            debug("⚠️ Force play still blocked:", e.message);
+                        });
+                    }, 1000);
+                    // -----------------------------------------------------------------------
 
                     // Mute/unmute control
                     const remotePanel = document.getElementById('remotePanel');
