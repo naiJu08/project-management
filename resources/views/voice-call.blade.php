@@ -77,7 +77,7 @@
         #muteIcon {
             font-size: 16px;
         }
-        #testSpeakerBtn, #checkAudioBtn {
+        #testSpeakerBtn, #checkAudioBtn, #forceUnmuteBtn {
             position: fixed;
             bottom: 10px;
             left: 10px;
@@ -90,6 +90,9 @@
         }
         #checkAudioBtn {
             left: 120px;
+        }
+        #forceUnmuteBtn {
+            left: 230px;
         }
         #remoteAudio {
             position: fixed;
@@ -136,6 +139,7 @@
     </div>
     <button id="testSpeakerBtn" onclick="testSpeaker()">🔊 Test Speaker</button>
     <button id="checkAudioBtn" onclick="checkAudioState()">🔍 Check Audio</button>
+    <button id="forceUnmuteBtn" onclick="forceUnmute()">🔊 Force Unmute</button>
     <audio id="remoteAudio" controls autoplay style="display: none;"></audio>
 
     <script>
@@ -413,6 +417,19 @@
                 fallbackAudioSource = source; // keep reference
             }
 
+            // ==================== FORCE UNMUTE ====================
+            window.forceUnmute = function() {
+                if (remoteAudioElement) {
+                    remoteAudioElement.muted = false;
+                    remoteAudioElement.volume = 1;
+                    remoteAudioElement.play().catch(e => debug("Force play failed:", e));
+                    debug("Forced unmute and volume=1");
+                    updateStatus("Forced unmute – audio should now play");
+                } else {
+                    debug("No audio element found");
+                }
+            };
+
             // ==================== CHECK AUDIO STATE ====================
             window.checkAudioState = function() {
                 if (!remoteAudioElement) {
@@ -512,8 +529,11 @@
                     remoteAudioElement.controls = true;
                     remoteAudioElement.autoplay = true;
                     remoteAudioElement.playsInline = true;
+                    
+                    // CRITICAL FIX: Force unmute and volume
                     remoteAudioElement.muted = false;
                     remoteAudioElement.volume = 1;
+                    
                     remoteAudioElement.srcObject = event.streams[0];
 
                     // Start volume meter (to visualize incoming audio)
@@ -522,6 +542,12 @@
                     // Attempt to play
                     remoteAudioElement.play().then(() => {
                         debug("✅ Audio element play() succeeded");
+                        // Double‑check that it's not muted/volume zero
+                        if (remoteAudioElement.muted || remoteAudioElement.volume === 0) {
+                            debug("⚠️ Element is muted or volume zero after play, forcing unmute...");
+                            remoteAudioElement.muted = false;
+                            remoteAudioElement.volume = 1;
+                        }
                         if (remoteAudioElement.paused) {
                             debug("⚠️ Audio element is paused despite play() success, retrying...");
                             remoteAudioElement.play().catch(e => debug("❌ Retry failed:", e));
