@@ -77,7 +77,7 @@
         #muteIcon {
             font-size: 16px;
         }
-        #testSpeakerBtn {
+        #testSpeakerBtn, #checkAudioBtn {
             position: fixed;
             bottom: 10px;
             left: 10px;
@@ -87,6 +87,19 @@
             font-size: 12px;
             z-index: 10000;
             cursor: pointer;
+        }
+        #checkAudioBtn {
+            left: 120px;
+        }
+        #remoteAudio {
+            position: fixed;
+            bottom: 50px;
+            right: 10px;
+            width: 200px;
+            height: 40px;
+            z-index: 10000;
+            background: #222;
+            border-radius: 5px;
         }
     </style>
 </head>
@@ -122,6 +135,8 @@
         <div id="volumeMeter"><div id="volumeLevel"></div></div>
     </div>
     <button id="testSpeakerBtn" onclick="testSpeaker()">🔊 Test Speaker</button>
+    <button id="checkAudioBtn" onclick="checkAudioState()">🔍 Check Audio</button>
+    <audio id="remoteAudio" controls autoplay style="display: none;"></audio>
 
     <script>
         (function() {
@@ -242,6 +257,7 @@
             let audioAnalyser = null;
             let animationFrame = null;
             let remoteAudioElement = null;
+            let fallbackAudioSource = null; // for AudioContext fallback
 
             // ==================== CHECK PENDING CALL ====================
             function checkPendingCall() {
@@ -341,7 +357,7 @@
                     audioAnalyser.fftSize = 256;
                     const source = audioContext.createMediaStreamSource(stream);
                     source.connect(audioAnalyser);
-                    // Resume audio context if suspended (browser policy)
+                    // Resume audio context if suspended
                     if (audioContext.state === 'suspended') {
                         audioContext.resume().then(() => debug("AudioContext resumed")).catch(e => debug("Failed to resume AudioContext:", e));
                     }
@@ -373,6 +389,49 @@
                 audioAnalyser = null;
                 document.getElementById('audioControl').style.display = 'none';
             }
+
+            // ==================== AUDIO FALLBACK ====================
+            function playWithAudioContext(stream) {
+                if (audioContext) {
+                    // Already using AudioContext for meter, reuse it
+                    const source = audioContext.createMediaStreamSource(stream);
+                    const gain = audioContext.createGain();
+                    source.connect(gain);
+                    gain.connect(audioContext.destination);
+                    gain.gain.value = 1;
+                    debug("✅ Connected remote stream directly to AudioContext output");
+                    return;
+                }
+                // Create new AudioContext just for playback
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const source = ctx.createMediaStreamSource(stream);
+                const gain = ctx.createGain();
+                source.connect(gain);
+                gain.connect(ctx.destination);
+                gain.gain.value = 1;
+                ctx.resume().then(() => debug("AudioContext fallback started"));
+                fallbackAudioSource = source; // keep reference
+            }
+
+            // ==================== CHECK AUDIO STATE ====================
+            window.checkAudioState = function() {
+                if (!remoteAudioElement) {
+                    alert("No audio element found");
+                    return;
+                }
+                const state = {
+                    paused: remoteAudioElement.paused,
+                    muted: remoteAudioElement.muted,
+                    volume: remoteAudioElement.volume,
+                    srcObject: !!remoteAudioElement.srcObject,
+                    readyState: remoteAudioElement.readyState,
+                    currentTime: remoteAudioElement.currentTime,
+                    duration: remoteAudioElement.duration,
+                    error: remoteAudioElement.error ? remoteAudioElement.error.message : null
+                };
+                console.log("Audio element state:", state);
+                alert(JSON.stringify(state, null, 2));
+            };
 
             // ==================== SPEAKER TEST ====================
             window.testSpeaker = function() {
@@ -447,51 +506,41 @@
                     debug("🎵 Remote audio track received");
                     updateStatus("Audio connected - Call active");
 
-                    if (!remoteAudioElement) {
-                        remoteAudioElement = document.createElement("audio");
-                        remoteAudioElement.id = "remoteAudio";
-                        remoteAudioElement.autoplay = true;
-                        remoteAudioElement.playsInline = true;
-                        remoteAudioElement.controls = false;
-                        remoteAudioElement.style.display = "none";
-                        document.body.appendChild(remoteAudioElement);
-                        debug("Created hidden audio element");
-                    }
-                    remoteAudioElement.srcObject = event.streams[0];
-                    remoteAudioElement.volume = 1;
+                    // Get or create audio element
+                    remoteAudioElement = document.getElementById("remoteAudio");
+                    remoteAudioElement.style.display = "block";
+                    remoteAudioElement.controls = true;
+                    remoteAudioElement.autoplay = true;
+                    remoteAudioElement.playsInline = true;
                     remoteAudioElement.muted = false;
+                    remoteAudioElement.volume = 1;
+                    remoteAudioElement.srcObject = event.streams[0];
 
-                    // Start volume meter to visualize incoming audio
+                    // Start volume meter (to visualize incoming audio)
                     initVolumeMeter(event.streams[0]);
 
                     // Attempt to play
                     remoteAudioElement.play().then(() => {
-                        debug("✅ Audio playback started successfully");
+                        debug("✅ Audio element play() succeeded");
                         if (remoteAudioElement.paused) {
                             debug("⚠️ Audio element is paused despite play() success, retrying...");
                             remoteAudioElement.play().catch(e => debug("❌ Retry failed:", e));
                         }
                     }).catch(e => {
-                        debug("⚠️ Audio playback failed (autoplay blocked):", e.message);
-                        updateStatus("🔊 Click anywhere to enable audio");
-                        const enableAudio = () => {
-                            remoteAudioElement.play().then(() => {
-                                debug("✅ Audio started after user interaction");
-                                updateStatus("Call connected!");
-                                document.removeEventListener('click', enableAudio);
-                            }).catch(e2 => debug("❌ Still cannot play:", e2));
-                        };
-                        document.addEventListener('click', enableAudio);
+                        debug("⚠️ Audio element play() failed:", e.message);
+                        // Fallback: connect stream directly to AudioContext
+                        playWithAudioContext(event.streams[0]);
                     });
 
                     // Mute/unmute control
                     const control = document.getElementById('audioControl');
                     const muteIcon = document.getElementById('muteIcon');
                     control.onclick = () => {
-                        if (!remoteAudioElement) return;
-                        remoteAudioElement.muted = !remoteAudioElement.muted;
-                        muteIcon.textContent = remoteAudioElement.muted ? '🔇' : '🔊';
-                        updateStatus(remoteAudioElement.muted ? "Remote audio is muted" : "Remote audio is playing");
+                        if (remoteAudioElement) {
+                            remoteAudioElement.muted = !remoteAudioElement.muted;
+                            muteIcon.textContent = remoteAudioElement.muted ? '🔇' : '🔊';
+                            updateStatus(remoteAudioElement.muted ? "Remote audio is muted" : "Remote audio is playing");
+                        }
                     };
                 };
             }
@@ -725,8 +774,11 @@
                 }
                 if (remoteAudioElement) {
                     remoteAudioElement.srcObject = null;
-                    remoteAudioElement.remove();
-                    remoteAudioElement = null;
+                    remoteAudioElement.style.display = "none";
+                }
+                if (fallbackAudioSource) {
+                    fallbackAudioSource.disconnect();
+                    fallbackAudioSource = null;
                 }
                 stopVolumeMeter();
                 pendingCandidates = [];
