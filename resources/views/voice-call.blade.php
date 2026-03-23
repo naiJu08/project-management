@@ -77,7 +77,7 @@
         #muteIcon {
             font-size: 16px;
         }
-        #testSpeakerBtn, #checkAudioBtn, #forceUnmuteBtn {
+        #testSpeakerBtn, #checkAudioBtn {
             position: fixed;
             bottom: 10px;
             left: 10px;
@@ -90,9 +90,6 @@
         }
         #checkAudioBtn {
             left: 120px;
-        }
-        #forceUnmuteBtn {
-            left: 230px;
         }
         #remoteAudio {
             position: fixed;
@@ -138,8 +135,7 @@
         <div id="volumeMeter"><div id="volumeLevel"></div></div>
     </div>
     <button id="testSpeakerBtn" onclick="testSpeaker()">🔊 Test Speaker</button>
-    <button id="checkAudioBtn" onclick="checkAudioState()">🔍 Check Audio</button>
-    <button id="forceUnmuteBtn" onclick="forceUnmute()">🔊 Force Unmute</button>
+    <button id="checkAudioBtn" onclick="checkAudioState()">🔍 Audio Info</button>
     <audio id="remoteAudio" controls autoplay style="display: none;"></audio>
 
     <script>
@@ -261,7 +257,6 @@
             let audioAnalyser = null;
             let animationFrame = null;
             let remoteAudioElement = null;
-            let fallbackAudioSource = null; // for AudioContext fallback
 
             // ==================== CHECK PENDING CALL ====================
             function checkPendingCall() {
@@ -361,7 +356,6 @@
                     audioAnalyser.fftSize = 256;
                     const source = audioContext.createMediaStreamSource(stream);
                     source.connect(audioAnalyser);
-                    // Resume audio context if suspended
                     if (audioContext.state === 'suspended') {
                         audioContext.resume().then(() => debug("AudioContext resumed")).catch(e => debug("Failed to resume AudioContext:", e));
                     }
@@ -393,42 +387,6 @@
                 audioAnalyser = null;
                 document.getElementById('audioControl').style.display = 'none';
             }
-
-            // ==================== AUDIO FALLBACK ====================
-            function playWithAudioContext(stream) {
-                if (audioContext) {
-                    // Already using AudioContext for meter, reuse it
-                    const source = audioContext.createMediaStreamSource(stream);
-                    const gain = audioContext.createGain();
-                    source.connect(gain);
-                    gain.connect(audioContext.destination);
-                    gain.gain.value = 1;
-                    debug("✅ Connected remote stream directly to AudioContext output");
-                    return;
-                }
-                // Create new AudioContext just for playback
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const source = ctx.createMediaStreamSource(stream);
-                const gain = ctx.createGain();
-                source.connect(gain);
-                gain.connect(ctx.destination);
-                gain.gain.value = 1;
-                ctx.resume().then(() => debug("AudioContext fallback started"));
-                fallbackAudioSource = source; // keep reference
-            }
-
-            // ==================== FORCE UNMUTE ====================
-            window.forceUnmute = function() {
-                if (remoteAudioElement) {
-                    remoteAudioElement.muted = false;
-                    remoteAudioElement.volume = 1;
-                    remoteAudioElement.play().catch(e => debug("Force play failed:", e));
-                    debug("Forced unmute and volume=1");
-                    updateStatus("Forced unmute – audio should now play");
-                } else {
-                    debug("No audio element found");
-                }
-            };
 
             // ==================== CHECK AUDIO STATE ====================
             window.checkAudioState = function() {
@@ -523,40 +481,55 @@
                     debug("🎵 Remote audio track received");
                     updateStatus("Audio connected - Call active");
 
-                    // Get or create audio element
                     remoteAudioElement = document.getElementById("remoteAudio");
                     remoteAudioElement.style.display = "block";
                     remoteAudioElement.controls = true;
                     remoteAudioElement.autoplay = true;
                     remoteAudioElement.playsInline = true;
-                    
-                    // CRITICAL FIX: Force unmute and volume
-                    remoteAudioElement.muted = false;
-                    remoteAudioElement.volume = 1;
-                    
+
+                    // Attach the stream
                     remoteAudioElement.srcObject = event.streams[0];
 
-                    // Start volume meter (to visualize incoming audio)
-                    initVolumeMeter(event.streams[0]);
+                    // Wait until the audio element is ready to play
+                    const handleCanPlay = () => {
+                        remoteAudioElement.removeEventListener('canplay', handleCanPlay);
+                        remoteAudioElement.removeEventListener('loadedmetadata', handleCanPlay);
+                        // Force unmute and full volume
+                        remoteAudioElement.muted = false;
+                        remoteAudioElement.volume = 1;
 
-                    // Attempt to play
-                    remoteAudioElement.play().then(() => {
-                        debug("✅ Audio element play() succeeded");
-                        // Double‑check that it's not muted/volume zero
-                        if (remoteAudioElement.muted || remoteAudioElement.volume === 0) {
-                            debug("⚠️ Element is muted or volume zero after play, forcing unmute...");
-                            remoteAudioElement.muted = false;
-                            remoteAudioElement.volume = 1;
-                        }
-                        if (remoteAudioElement.paused) {
-                            debug("⚠️ Audio element is paused despite play() success, retrying...");
-                            remoteAudioElement.play().catch(e => debug("❌ Retry failed:", e));
-                        }
-                    }).catch(e => {
-                        debug("⚠️ Audio element play() failed:", e.message);
-                        // Fallback: connect stream directly to AudioContext
-                        playWithAudioContext(event.streams[0]);
-                    });
+                        // Play and reapply settings if needed
+                        remoteAudioElement.play().then(() => {
+                            debug("✅ Audio element play() succeeded");
+                            if (remoteAudioElement.muted || remoteAudioElement.volume === 0) {
+                                debug("⚠️ Element muted/volume zero after play, reapplying...");
+                                remoteAudioElement.muted = false;
+                                remoteAudioElement.volume = 1;
+                            }
+                            if (remoteAudioElement.paused) {
+                                debug("⚠️ Element paused after play, retrying...");
+                                remoteAudioElement.play().catch(e => debug("❌ Retry failed:", e));
+                            }
+                        }).catch(e => {
+                            debug("⚠️ play() failed (autoplay blocked):", e.message);
+                            updateStatus("🔊 Click anywhere to enable audio");
+                            const enableAudio = () => {
+                                remoteAudioElement.play().then(() => {
+                                    debug("✅ Audio started after user interaction");
+                                    updateStatus("Call connected!");
+                                    document.removeEventListener('click', enableAudio);
+                                }).catch(e2 => debug("❌ Still cannot play:", e2));
+                            };
+                            document.addEventListener('click', enableAudio);
+                        });
+                    };
+
+                    // Wait for metadata or canplay before playing
+                    remoteAudioElement.addEventListener('loadedmetadata', handleCanPlay, { once: true });
+                    remoteAudioElement.addEventListener('canplay', handleCanPlay, { once: true });
+
+                    // Start volume meter to visualize incoming audio
+                    initVolumeMeter(event.streams[0]);
 
                     // Mute/unmute control
                     const control = document.getElementById('audioControl');
@@ -801,10 +774,6 @@
                 if (remoteAudioElement) {
                     remoteAudioElement.srcObject = null;
                     remoteAudioElement.style.display = "none";
-                }
-                if (fallbackAudioSource) {
-                    fallbackAudioSource.disconnect();
-                    fallbackAudioSource = null;
                 }
                 stopVolumeMeter();
                 pendingCandidates = [];
