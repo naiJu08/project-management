@@ -11,6 +11,7 @@
     <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
     <style>
+        /* (styles unchanged) */
         #startBtn { display: block; }
         #acceptBtn { display: none; }
         #endBtn { display: block; }
@@ -329,16 +330,35 @@
                     }
                 };
                 peerConnection.ontrack = (event) => {
-                    debug("Remote audio received");
+                    debug("🎵 Remote audio track received");
                     updateStatus("Audio connected - Call active");
+
                     let audio = document.getElementById("remoteAudio");
                     if (!audio) {
                         audio = document.createElement("audio");
                         audio.id = "remoteAudio";
                         audio.autoplay = true;
+                        audio.playsInline = true;    // required for iOS / mobile
+                        audio.style.display = "none"; // keep hidden, we just need audio
                         document.body.appendChild(audio);
+                        debug("Created audio element");
                     }
                     audio.srcObject = event.streams[0];
+                    // Explicitly play to bypass autoplay restrictions
+                    audio.play().then(() => {
+                        debug("✅ Audio playback started successfully");
+                    }).catch(e => {
+                        debug("⚠️ Audio playback failed (autoplay blocked?):", e.message);
+                        // Try to play on user interaction (e.g., click anywhere)
+                        const playOnClick = () => {
+                            audio.play().then(() => {
+                                debug("✅ Audio started after user interaction");
+                                document.removeEventListener('click', playOnClick);
+                            }).catch(e2 => debug("❌ Still cannot play:", e2));
+                        };
+                        document.addEventListener('click', playOnClick);
+                        updateStatus("Click anywhere to enable audio");
+                    });
                 };
             }
 
