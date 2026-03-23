@@ -111,27 +111,39 @@
             function cleanSDP(sdp) {
                 if (!sdp || typeof sdp !== 'string') return sdp;
 
-                // Recursively decode escaped characters
-                let cleaned = sdp;
+                // remove control chars that break SDP parsing
+                let cleaned = sdp.replace(/[\u0000-\u001F\u007F]+/g, '');
+
+                // decode escaped newline sequences
                 let prev;
                 do {
                     prev = cleaned;
-                    cleaned = cleaned.replace(/\\r\\n/g, '\r\n')
+                    cleaned = cleaned
+                        .replace(/\\r\\n/g, '\r\n')
                         .replace(/\\n/g, '\n')
                         .replace(/\\r/g, '\r')
                         .replace(/\\\\/g, '\\');
                 } while (prev !== cleaned);
 
-                // Normalize line endings to CRLF
+                // normalize line endings
                 cleaned = cleaned.replace(/\r?\n/g, '\r\n');
 
-                // Split into lines, trim each
-                let lines = cleaned.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+                let lines = cleaned.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+                lines = lines.map(repairSDPLine).filter(line => line !== null);
 
-                // Repair each line
-                lines = lines.map(line => repairSDPLine(line));
+                cleaned = lines.join('\r\n');
 
-                return lines.join('\r\n');
+                // extra pass: remove a=ssrc lines that are invalid
+                function isValidSSRC(line) {
+                    if (!line.startsWith('a=ssrc:')) return true;
+                    // explicit msid + two items after msid
+                    return /^a=ssrc:\d+\s+msid:[^\s]+\s+[^\s]+(?:\s.*)?$/.test(line);
+                }
+
+                return cleaned
+                    .split('\r\n')
+                    .filter(line => isValidSSRC(line))
+                    .join('\r\n');
             }
 
             function repairSDPLine(line) {
@@ -428,13 +440,9 @@
 
                     // Clean SDP
                     if (incomingOffer.sdp) {
-                        debug("Original SDP length:", incomingOffer.sdp.length);
                         incomingOffer.sdp = cleanSDP(incomingOffer.sdp);
                         debug("Cleaned SDP length:", incomingOffer.sdp.length);
-                        console.log("Cleaned SDP preview (first 500 chars):", incomingOffer.sdp.substring(0, 500));
-                        console.log("=== FULL CLEANED SDP ===");
-                        console.log(incomingOffer.sdp);
-                        console.log("========================");
+                        debug("Cleaned SDP preview:", incomingOffer.sdp.substr(0, 600));
                     }
 
                     if (callActive) {
