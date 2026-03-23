@@ -116,31 +116,78 @@
                 }
             }
 
-            // ==================== ROBUST SDP CLEANER ====================
+            // ==================== ROBUST SDP CLEANER + REPAIR ====================
             function cleanSDP(sdp) {
                 if (!sdp || typeof sdp !== 'string') return sdp;
                 
+                // 1. Recursive decode of escaped characters
                 let cleaned = sdp;
-                
-                // Decode escaped characters recursively until no more changes
-                let prev = null;
-                while (prev !== cleaned) {
+                let prev;
+                do {
                     prev = cleaned;
                     cleaned = cleaned.replace(/\\r\\n/g, '\r\n')
                                      .replace(/\\n/g, '\n')
                                      .replace(/\\r/g, '\r')
-                                     .replace(/\\\\/g, '\\');   // decode double backslash
-                }
+                                     .replace(/\\\\/g, '\\');
+                } while (prev !== cleaned);
                 
-                // Normalize line endings to CRLF (required by SDP)
+                // 2. Normalize line endings to CRLF
                 cleaned = cleaned.replace(/\r?\n/g, '\r\n');
                 
-                // Split into lines, trim each line but keep internal spaces
-                let lines = cleaned.split(/\r?\n/);
-                lines = lines.map(line => line.trim()).filter(line => line.length > 0);
+                // 3. Split into lines, trim each
+                let lines = cleaned.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
                 
-                // Rejoin with CRLF
+                // 4. Repair specific lines (especially a=ssrc)
+                lines = lines.map(line => repairSDPLine(line));
+                
+                // 5. Rejoin with CRLF
                 return lines.join('\r\n');
+            }
+            
+            function repairSDPLine(line) {
+                // Fix common a=ssrc line issues
+                if (line.startsWith('a=ssrc:')) {
+                    // Expected format: a=ssrc:<ssrc> msid:<msid> <appdata>
+                    // Sometimes there are extra spaces or missing spaces
+                    // We'll split by space and reassemble correctly
+                    let parts = line.split(/\s+/);
+                    if (parts.length >= 3) {
+                        // parts[0] = "a=ssrc:<ssrc>"
+                        // parts[1] = "msid:<msid>"
+                        // parts[2...] = appdata (maybe more)
+                        let ssrcPart = parts[0];
+                        let msidPart = parts[1];
+                        // Ensure msidPart starts with "msid:"
+                        if (!msidPart.startsWith('msid:')) {
+                            msidPart = 'msid:' + msidPart;
+                        }
+                        let appdata = parts.slice(2).join(' ');
+                        // If appdata is empty, just use ssrc and msid
+                        if (appdata) {
+                            return `${ssrcPart} ${msidPart} ${appdata}`;
+                        } else {
+                            return `${ssrcPart} ${msidPart}`;
+                        }
+                    }
+                }
+                return line;
+            }
+            
+            // Extreme fallback: rebuild SDP from scratch keeping only valid lines
+            function forceRepairSDP(sdp) {
+                let lines = sdp.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+                let validLines = [];
+                for (let line of lines) {
+                    // Accept lines that match known SDP patterns
+                    if (/^[vosiucbkt]=\S/.test(line) ||          // session level lines
+                        /^[ma]=\S/.test(line) ||                  // media lines
+                        /^a=\S/.test(line)) {                     // attribute lines
+                        validLines.push(repairSDPLine(line));
+                    } else {
+                        console.warn("Dropping invalid SDP line:", line);
+                    }
+                }
+                return validLines.join('\r\n');
             }
 
             // ==================== STATE ====================
@@ -407,8 +454,6 @@
                         incomingOffer.sdp = cleanSDP(incomingOffer.sdp);
                         debug("Cleaned SDP length:", incomingOffer.sdp.length);
                         console.log("Cleaned SDP preview (first 500 chars):", incomingOffer.sdp.substring(0, 500));
-                        
-                        // Optional: Write full SDP to console for debugging
                         console.log("=== FULL CLEANED SDP ===");
                         console.log(incomingOffer.sdp);
                         console.log("========================");
@@ -439,18 +484,22 @@
                     createPeer();
                     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-                    // ----- SET REMOTE DESCRIPTION WITH FALLBACK -----
+                    // ----- SET REMOTE DESCRIPTION WITH MULTIPLE FALLBACKS -----
                     debug("Setting remote description...");
                     let remoteSet = false;
+                    let lastError = null;
+                    
+                    // Try 1: Direct
                     try {
                         await peerConnection.setRemoteDescription(incomingOffer);
                         debug("✅ Remote description set (direct)");
                         remoteSet = true;
                     } catch (sdpErr) {
-                        debug("❌ setRemoteDescription direct error:", sdpErr.message);
+                        lastError = sdpErr;
+                        debug("❌ Direct setRemoteDescription failed:", sdpErr.message);
                         console.error("Direct SDP error:", sdpErr);
                         
-                        // Fallback: try to reconstruct using RTCSessionDescription
+                        // Try 2: Using RTCSessionDescription constructor
                         try {
                             debug("Attempting fallback with new RTCSessionDescription...");
                             const cleanOffer = new RTCSessionDescription({
@@ -461,36 +510,30 @@
                             debug("✅ Remote description set via RTCSessionDescription");
                             remoteSet = true;
                         } catch (fallbackErr) {
-                            debug("❌ Fallback failed:", fallbackErr.message);
-                            // Last resort: try to manually fix the SDP line by line
+                            debug("❌ RTCSessionDescription fallback failed:", fallbackErr.message);
+                            lastError = fallbackErr;
+                            
+                            // Try 3: Extreme repair – rebuild SDP from valid lines
                             try {
-                                debug("Attempting manual SDP line-by-line fix...");
-                                const lines = incomingOffer.sdp.split(/\r?\n/);
-                                const fixedLines = lines.map(line => {
-                                    // If line starts with "a=ssrc:" and contains " msid:" with spaces, ensure proper formatting
-                                    if (line.startsWith('a=ssrc:') && line.includes(' msid:')) {
-                                        // Already looks correct, but maybe the browser expects a different order
-                                        // We can leave it as is
-                                    }
-                                    return line;
-                                });
-                                const fixedSDP = fixedLines.join('\r\n');
-                                const fixedOffer = new RTCSessionDescription({
+                                debug("Attempting extreme repair (drop invalid lines)...");
+                                const repairedSDP = forceRepairSDP(incomingOffer.sdp);
+                                console.log("Repaired SDP preview:", repairedSDP.substring(0, 500));
+                                const extremeOffer = new RTCSessionDescription({
                                     type: incomingOffer.type,
-                                    sdp: fixedSDP
+                                    sdp: repairedSDP
                                 });
-                                await peerConnection.setRemoteDescription(fixedOffer);
-                                debug("✅ Remote description set after manual fix");
+                                await peerConnection.setRemoteDescription(extremeOffer);
+                                debug("✅ Remote description set after extreme repair");
                                 remoteSet = true;
                             } catch (finalErr) {
-                                debug("❌ All attempts failed:", finalErr);
-                                throw sdpErr;
+                                debug("❌ Extreme repair also failed:", finalErr);
+                                lastError = finalErr;
                             }
                         }
                     }
 
                     if (!remoteSet) {
-                        throw new Error("Could not set remote description after multiple attempts");
+                        throw new Error(`All attempts to set remote description failed. Last error: ${lastError?.message}`);
                     }
 
                     // ----- CREATE ANSWER -----
