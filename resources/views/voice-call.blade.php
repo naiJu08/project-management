@@ -11,7 +11,6 @@
     <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
     <style>
-        /* (styles unchanged) */
         #startBtn { display: block; }
         #acceptBtn { display: none; }
         #endBtn { display: block; }
@@ -46,6 +45,20 @@
         }
         .debug-visible #debugPanel {
             display: block;
+        }
+        /* Small visible audio element (for some browsers) */
+        #remoteAudio {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            width: 30px;
+            height: 30px;
+            opacity: 0.3;
+            z-index: 10000;
+            cursor: pointer;
+        }
+        #remoteAudio:hover {
+            opacity: 1;
         }
     </style>
 </head>
@@ -112,7 +125,7 @@
             function cleanSDP(sdp) {
                 if (!sdp || typeof sdp !== 'string') return sdp;
 
-                // 1. Recursively decode escaped characters
+                // Recursively decode escaped characters
                 let cleaned = sdp;
                 let prev;
                 do {
@@ -123,22 +136,22 @@
                         .replace(/\\\\/g, '\\');
                 } while (prev !== cleaned);
 
-                // 2. If no newlines, insert before each line that starts with a letter and '='
+                // If no newlines, insert before each line that starts with a letter and '='
                 if (!cleaned.includes('\n') && !cleaned.includes('\r')) {
                     cleaned = cleaned.replace(/([a-z]=)/g, '\r\n$1');
                     cleaned = cleaned.replace(/^\r\n/, '');
                 }
 
-                // 3. Normalize line endings to CRLF
+                // Normalize line endings to CRLF
                 cleaned = cleaned.replace(/\r?\n/g, '\r\n');
 
-                // 4. Split into lines, but don't trim excessively (keep internal spaces)
+                // Split into lines, filter empty
                 let lines = cleaned.split(/\r?\n/).filter(line => line.trim().length > 0);
 
-                // 5. Repair each line
+                // Repair each line
                 lines = lines.map(line => repairSDPLine(line.trim()));
 
-                // 6. Rejoin with CRLF and ensure a trailing CRLF
+                // Rejoin with CRLF and ensure a trailing CRLF
                 return lines.join('\r\n') + '\r\n';
             }
 
@@ -155,7 +168,6 @@
 
                 // Repair a=ssrc lines (msid format)
                 if (line.startsWith('a=ssrc:')) {
-                    // Extract ssrc and rest
                     let match = line.match(/^a=ssrc:(\d+)\s*(.*)$/);
                     if (match) {
                         let ssrc = match[1];
@@ -167,16 +179,13 @@
                             let msid1 = msidMatch[1];
                             let msid2 = msidMatch[2];
                             if (!msid2) {
-                                // Look for a second UUID in the remainder
                                 let remainder = rest.replace(/msid:[a-f0-9-]+/i, '');
                                 let secondUuid = remainder.match(/([a-f0-9-]{36})/);
                                 if (secondUuid) msid2 = secondUuid[1];
                                 else msid2 = msid1;
                             }
-                            // Rebuild line with exactly one space between tokens
                             return `a=ssrc:${ssrc} msid:${msid1} ${msid2}`;
                         }
-                        // If no msid, just return the line (shouldn't happen)
                         return line;
                     }
                 }
@@ -338,26 +347,50 @@
                         audio = document.createElement("audio");
                         audio.id = "remoteAudio";
                         audio.autoplay = true;
-                        audio.playsInline = true;    // required for iOS / mobile
-                        audio.style.display = "none"; // keep hidden, we just need audio
+                        audio.playsInline = true;
+                        audio.controls = false; // we hide it, but make it visible small
+                        // Make it visible but tiny so browsers don't mute it
+                        audio.style.position = "fixed";
+                        audio.style.bottom = "10px";
+                        audio.style.right = "10px";
+                        audio.style.width = "30px";
+                        audio.style.height = "30px";
+                        audio.style.opacity = "0.3";
+                        audio.style.zIndex = "10000";
+                        audio.style.cursor = "pointer";
+                        audio.title = "Remote audio (click to unmute/volume)";
+                        audio.onclick = () => {
+                            audio.muted = !audio.muted;
+                            debug(`Audio muted: ${audio.muted}`);
+                            updateStatus(audio.muted ? "Remote audio is muted" : "Remote audio is playing");
+                        };
                         document.body.appendChild(audio);
-                        debug("Created audio element");
+                        debug("Created audio element (visible small)");
                     }
                     audio.srcObject = event.streams[0];
-                    // Explicitly play to bypass autoplay restrictions
+                    // Ensure volume is up and not muted
+                    audio.volume = 1;
+                    audio.muted = false;
+                    // Play with explicit handling
                     audio.play().then(() => {
                         debug("✅ Audio playback started successfully");
+                        // Double-check that it's actually playing
+                        if (audio.paused) {
+                            debug("⚠️ Audio element is paused despite play() success, retrying...");
+                            audio.play().catch(e => debug("❌ Retry failed:", e));
+                        }
                     }).catch(e => {
-                        debug("⚠️ Audio playback failed (autoplay blocked?):", e.message);
-                        // Try to play on user interaction (e.g., click anywhere)
-                        const playOnClick = () => {
+                        debug("⚠️ Audio playback failed (autoplay blocked):", e.message);
+                        // Show a user‑friendly button to enable audio
+                        updateStatus("🔊 Click anywhere to enable audio");
+                        const enableAudio = () => {
                             audio.play().then(() => {
                                 debug("✅ Audio started after user interaction");
-                                document.removeEventListener('click', playOnClick);
+                                updateStatus("Call connected!");
+                                document.removeEventListener('click', enableAudio);
                             }).catch(e2 => debug("❌ Still cannot play:", e2));
                         };
-                        document.addEventListener('click', playOnClick);
-                        updateStatus("Click anywhere to enable audio");
+                        document.addEventListener('click', enableAudio);
                     });
                 };
             }
@@ -468,13 +501,12 @@
                     createPeer();
                     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-                    // Set remote description (use RTCSessionDescription directly)
+                    // Set remote description
                     debug("Setting remote description...");
                     let remoteSet = false;
                     let lastError = null;
 
                     try {
-                        // Always wrap in RTCSessionDescription to ensure proper parsing
                         const offerDesc = new RTCSessionDescription({
                             type: incomingOffer.type,
                             sdp: incomingOffer.sdp
