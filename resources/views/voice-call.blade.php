@@ -76,22 +76,27 @@
         .volumeLevel {
             width: 0%;
             height: 100%;
-            background: #0f0;
             transition: width 0.1s;
         }
         .remotePanel .volumeLevel { background: #0f0; }
         .localPanel .volumeLevel { background: #ff9800; }
         .muteIcon { font-size: 16px; }
-        button.testMic {
+        .actionButtons {
             position: fixed;
             bottom: 10px;
             left: 10px;
+            display: flex;
+            gap: 8px;
+            z-index: 10000;
+        }
+        .actionButtons button {
             background: rgba(0,0,0,0.7);
             padding: 5px 10px;
             border-radius: 20px;
             font-size: 12px;
-            z-index: 10000;
             cursor: pointer;
+            border: none;
+            color: white;
         }
         #remoteAudio {
             position: fixed;
@@ -144,7 +149,10 @@
         <div class="volumeMeter"><div id="localVolumeLevel" class="volumeLevel"></div></div>
     </div>
 
-    <button id="testMicBtn" class="testMic" style="display: none;" onclick="testMicrophone()">🎤 Test Mic</button>
+    <div class="actionButtons">
+        <button id="testMicBtn" style="display: none;" onclick="testMicrophone()">🎤 Test Mic</button>
+        <button id="playRemoteBtn" style="display: none;" onclick="playRemoteAudio()">🔊 Play Remote</button>
+    </div>
 
     <audio id="remoteAudio" controls autoplay style="display: none;"></audio>
 
@@ -353,6 +361,23 @@
                 }).catch(e => debug("Test mic failed:", e));
             };
 
+            // ==================== PLAY REMOTE AUDIO ====================
+            window.playRemoteAudio = function() {
+                if (!remoteAudioElement) {
+                    alert("No remote audio element found.");
+                    return;
+                }
+                remoteAudioElement.muted = false;
+                remoteAudioElement.volume = 1;
+                remoteAudioElement.play().then(() => {
+                    debug("✅ Remote audio forced to play");
+                    updateStatus("🔊 Remote audio forced – should now play");
+                }).catch(e => {
+                    debug("❌ Force play failed:", e);
+                    alert("Could not play remote audio: " + e.message);
+                });
+            };
+
             // ==================== CHECK PENDING CALL ====================
             function checkPendingCall() {
                 try {
@@ -528,6 +553,9 @@
                     remoteAudioElement.addEventListener('loadedmetadata', handleCanPlay, { once: true });
                     remoteAudioElement.addEventListener('canplay', handleCanPlay, { once: true });
 
+                    // Show the "Play Remote" button in case the above fails
+                    document.getElementById('playRemoteBtn').style.display = 'block';
+
                     // Mute/unmute control
                     const remotePanel = document.getElementById('remotePanel');
                     const muteIcon = document.getElementById('remoteMuteIcon');
@@ -551,7 +579,6 @@
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     debug("Microphone access granted");
-                    // Show local meter and test button
                     startLocalVolumeMeter(localStream);
                     document.getElementById('testMicBtn').style.display = 'block';
                 } catch (err) {
@@ -777,6 +804,7 @@
                 isRemoteSet = false;
                 callActive = false;
                 document.getElementById('testMicBtn').style.display = 'none';
+                document.getElementById('playRemoteBtn').style.display = 'none';
                 if (incomingCallerId) {
                     document.getElementById("callTitle").textContent = "Call ended";
                     updateStatus("Call ended - close window");
