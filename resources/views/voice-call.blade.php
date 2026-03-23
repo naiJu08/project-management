@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,7 +12,7 @@
     <style>
         #startBtn { display: block; }
         #acceptBtn { display: none; }
-        #endBtn { display: block; }
+        #endBtn { display: inline-flex; }
 
         .spinner {
             border: 3px solid #f3f3f3;
@@ -35,16 +34,18 @@
             position: fixed;
             bottom: 10px;
             left: 10px;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             color: #0f0;
             padding: 10px;
             border-radius: 5px;
             font-size: 12px;
-            max-width: 400px;
-            max-height: 200px;
+            max-width: 430px;
+            max-height: 220px;
             overflow-y: auto;
             z-index: 9999;
             display: none;
+            text-align: left;
+            word-break: break-word;
         }
 
         .debug-visible #debugPanel {
@@ -55,7 +56,7 @@
             position: fixed;
             bottom: 10px;
             right: 10px;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0,0,0,0.75);
             padding: 5px 10px;
             border-radius: 20px;
             font-size: 12px;
@@ -98,10 +99,11 @@
             display: flex;
             gap: 8px;
             z-index: 10000;
+            flex-wrap: wrap;
         }
 
         .actionButtons button {
-            background: rgba(0,0,0,0.7);
+            background: rgba(0,0,0,0.75);
             padding: 5px 10px;
             border-radius: 20px;
             font-size: 12px;
@@ -114,8 +116,8 @@
             position: fixed;
             bottom: 50px;
             right: 10px;
-            width: 200px;
-            height: 40px;
+            width: 240px;
+            height: 42px;
             z-index: 10000;
             background: #222;
             border-radius: 5px;
@@ -177,10 +179,10 @@
         <button id="playRemoteBtn" style="display: none;" onclick="playRemoteAudio()">🔊 Play Remote</button>
     </div>
 
-    <audio id="remoteAudio" controls autoplay playsinline style="display: none;"></audio>
+    <audio id="remoteAudio" controls autoplay playsinline></audio>
 
     <script>
-        (function() {
+        (function () {
             "use strict";
 
             // ==================== CONFIG ====================
@@ -188,92 +190,69 @@
             const PUSHER_CLUSTER = "ap2";
             const userId = {{ auth()->id() }};
             const otherUserId = {{ $user->id }};
-            const otherUserName = "{{ $user->name }}";
+            const otherUserName = @json($user->name);
 
-            // ==================== DEBUG LOGGING ====================
+            // ==================== DEBUG ====================
             const debugLogs = [];
 
             function debug(...args) {
-                const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
+                const message = args.map(arg => {
+                    if (typeof arg === "object") {
+                        try { return JSON.stringify(arg); } catch (e) { return String(arg); }
+                    }
+                    return String(arg);
+                }).join(" ");
+
                 console.log("[DEBUG]", ...args);
-                debugLogs.unshift({ time: new Date().toLocaleTimeString(), message });
+                debugLogs.unshift({
+                    time: new Date().toLocaleTimeString(),
+                    message
+                });
                 updateDebugPanel();
             }
 
-            window.toggleDebug = function() {
-                document.body.classList.toggle('debug-visible');
+            window.toggleDebug = function () {
+                document.body.classList.toggle("debug-visible");
                 updateDebugPanel();
             };
 
             function updateDebugPanel() {
-                const panel = document.getElementById('debugPanel');
-                if (panel) {
-                    panel.innerHTML = debugLogs.slice(0, 20).map(log =>
-                        `<div>${log.time}: ${log.message}</div>`
-                    ).join('');
-                }
+                const panel = document.getElementById("debugPanel");
+                panel.innerHTML = debugLogs.slice(0, 35).map(log => `<div>${log.time}: ${log.message}</div>`).join("");
+            }
+
+            function updateStatus(message) {
+                debug("STATUS:", message);
+                document.getElementById("callStatus").innerHTML = message;
             }
 
             // ==================== SDP CLEANER ====================
             function cleanSDP(sdp) {
-                if (!sdp || typeof sdp !== 'string') return sdp;
+                if (!sdp || typeof sdp !== "string") return sdp;
 
                 let cleaned = sdp;
                 let prev;
 
                 do {
                     prev = cleaned;
-                    cleaned = cleaned.replace(/\\r\\n/g, '\r\n')
+                    cleaned = cleaned
+                        .replace(/\\r\\n/g, '\r\n')
                         .replace(/\\n/g, '\n')
                         .replace(/\\r/g, '\r')
                         .replace(/\\\\/g, '\\');
                 } while (prev !== cleaned);
 
                 if (!cleaned.includes('\n') && !cleaned.includes('\r')) {
-                    cleaned = cleaned.replace(/([a-z]=)/g, '\r\n$1');
-                    cleaned = cleaned.replace(/^\r\n/, '');
+                    cleaned = cleaned.replace(/([a-z]=)/g, '\r\n$1').replace(/^\r\n/, '');
                 }
 
                 cleaned = cleaned.replace(/\r?\n/g, '\r\n');
-                let lines = cleaned.split(/\r?\n/).filter(line => line.trim().length > 0);
-                lines = lines.map(line => repairSDPLine(line.trim()));
+                const lines = cleaned
+                    .split(/\r?\n/)
+                    .map(line => line.trim())
+                    .filter(line => line.length > 0);
 
                 return lines.join('\r\n') + '\r\n';
-            }
-
-            function repairSDPLine(line) {
-                if (line.startsWith('a=src:')) line = 'a=ssrc:' + line.substring(6);
-
-                if (line.startsWith('a=ssrc') && !line.startsWith('a=ssrc:')) {
-                    line = line.replace(/^a=ssrc/, 'a=ssrc:');
-                }
-
-                if (line.startsWith('a=ssrc:')) {
-                    let match = line.match(/^a=ssrc:(\d+)\s*(.*)$/);
-                    if (match) {
-                        let ssrc = match[1];
-                        let rest = match[2].trim();
-                        let msidMatch = rest.match(/msid:([a-f0-9-]+)(?:\s+)?([a-f0-9-]+)?/i);
-
-                        if (msidMatch) {
-                            let msid1 = msidMatch[1];
-                            let msid2 = msidMatch[2];
-
-                            if (!msid2) {
-                                let remainder = rest.replace(/msid:[a-f0-9-]+/i, '');
-                                let secondUuid = remainder.match(/([a-f0-9-]{36})/);
-                                if (secondUuid) msid2 = secondUuid[1];
-                                else msid2 = msid1;
-                            }
-
-                            return `a=ssrc:${ssrc} msid:${msid1} ${msid2}`;
-                        }
-
-                        return line;
-                    }
-                }
-
-                return line;
             }
 
             // ==================== STATE ====================
@@ -284,7 +263,7 @@
             let incomingCallerId = null;
             let incomingCallerName = null;
             let pendingCandidates = [];
-            let isRemoteSet = false;
+            let isRemoteDescriptionSet = false;
             let callActive = false;
             let connectionTimeout = null;
             let pusher = null;
@@ -295,11 +274,28 @@
             let localAnalyser = null;
             let localAnimation = null;
 
-            let remoteVolumeCtx = null;
+            let remoteAudioContext = null;
             let remoteAnalyser = null;
             let remoteAnimation = null;
 
-            // ==================== VOLUME METERS ====================
+            // ==================== UI ====================
+            function showStartMode() {
+                document.getElementById("startBtn").style.display = "inline-flex";
+                document.getElementById("acceptBtn").style.display = "none";
+                document.getElementById("callTitle").textContent = `Voice Call with ${otherUserName}`;
+            }
+
+            function showAcceptMode() {
+                document.getElementById("startBtn").style.display = "none";
+                document.getElementById("acceptBtn").style.display = "inline-flex";
+            }
+
+            function hideAllButtons() {
+                document.getElementById("startBtn").style.display = "none";
+                document.getElementById("acceptBtn").style.display = "none";
+            }
+
+            // ==================== VOLUME METER ====================
             function startLocalVolumeMeter(stream) {
                 if (localAudioContext) return;
 
@@ -311,76 +307,58 @@
                     const source = localAudioContext.createMediaStreamSource(stream);
                     source.connect(localAnalyser);
 
-                    if (localAudioContext.state === 'suspended') {
-                        localAudioContext.resume().catch(e => debug("Failed to resume local AudioContext:", e));
-                    }
-
-                    const meter = document.getElementById('localVolumeLevel');
-                    const panel = document.getElementById('localPanel');
-                    panel.style.display = 'flex';
+                    const meter = document.getElementById("localVolumeLevel");
+                    document.getElementById("localPanel").style.display = "flex";
 
                     function update() {
                         if (!localAnalyser) return;
-
                         const data = new Uint8Array(localAnalyser.frequencyBinCount);
                         localAnalyser.getByteFrequencyData(data);
 
                         let sum = 0;
                         for (let i = 0; i < data.length; i++) sum += data[i];
-
-                        let avg = sum / data.length;
-                        let percent = (avg / 255) * 100;
-                        meter.style.width = percent + '%';
+                        const avg = sum / data.length;
+                        meter.style.width = `${(avg / 255) * 100}%`;
 
                         localAnimation = requestAnimationFrame(update);
                     }
 
                     update();
-                    debug("Local volume meter started");
                 } catch (e) {
-                    debug("❌ Failed to start local volume meter:", e);
+                    debug("Local meter error:", e);
                 }
             }
 
             function startRemoteVolumeMeter(stream) {
-                if (remoteVolumeCtx) return;
+                if (remoteAudioContext) return;
 
                 try {
-                    remoteVolumeCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    remoteAnalyser = remoteVolumeCtx.createAnalyser();
+                    remoteAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    remoteAnalyser = remoteAudioContext.createAnalyser();
                     remoteAnalyser.fftSize = 256;
 
-                    const source = remoteVolumeCtx.createMediaStreamSource(stream);
+                    const source = remoteAudioContext.createMediaStreamSource(stream);
                     source.connect(remoteAnalyser);
 
-                    if (remoteVolumeCtx.state === 'suspended') {
-                        remoteVolumeCtx.resume().catch(e => debug("Failed to resume remote volume meter:", e));
-                    }
-
-                    const meter = document.getElementById('remoteVolumeLevel');
-                    const panel = document.getElementById('remotePanel');
-                    panel.style.display = 'flex';
+                    const meter = document.getElementById("remoteVolumeLevel");
+                    document.getElementById("remotePanel").style.display = "flex";
 
                     function update() {
                         if (!remoteAnalyser) return;
-
                         const data = new Uint8Array(remoteAnalyser.frequencyBinCount);
                         remoteAnalyser.getByteFrequencyData(data);
 
                         let sum = 0;
                         for (let i = 0; i < data.length; i++) sum += data[i];
-
-                        let avg = sum / data.length;
-                        let percent = (avg / 255) * 100;
-                        meter.style.width = percent + '%';
+                        const avg = sum / data.length;
+                        meter.style.width = `${(avg / 255) * 100}%`;
 
                         remoteAnimation = requestAnimationFrame(update);
                     }
 
                     update();
-                    debug("Remote volume meter started");
                 } catch (e) {
-                    debug("❌ Failed to start remote volume meter:", e);
+                    debug("Remote meter error:", e);
                 }
             }
 
@@ -388,52 +366,54 @@
                 if (localAnimation) cancelAnimationFrame(localAnimation);
                 if (remoteAnimation) cancelAnimationFrame(remoteAnimation);
 
-                if (localAudioContext) localAudioContext.close();
-                if (remoteVolumeCtx) remoteVolumeCtx.close();
+                if (localAudioContext) localAudioContext.close().catch(() => {});
+                if (remoteAudioContext) remoteAudioContext.close().catch(() => {});
 
                 localAudioContext = null;
-                remoteVolumeCtx = null;
                 localAnalyser = null;
-                remoteAnalyser = null;
                 localAnimation = null;
+
+                remoteAudioContext = null;
+                remoteAnalyser = null;
                 remoteAnimation = null;
 
-                document.getElementById('localPanel').style.display = 'none';
-                document.getElementById('remotePanel').style.display = 'none';
-                document.getElementById('localVolumeLevel').style.width = '0%';
-                document.getElementById('remoteVolumeLevel').style.width = '0%';
+                document.getElementById("localPanel").style.display = "none";
+                document.getElementById("remotePanel").style.display = "none";
+                document.getElementById("localVolumeLevel").style.width = "0%";
+                document.getElementById("remoteVolumeLevel").style.width = "0%";
             }
 
-            // ==================== TEST MICROPHONE ====================
-            window.testMicrophone = function() {
+            // ==================== AUDIO HELPERS ====================
+            window.testMicrophone = async function () {
                 if (!localStream) {
-                    alert("No microphone stream available. Please start/accept a call first.");
+                    alert("Microphone stream not available.");
                     return;
                 }
 
-                const testCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const source = testCtx.createMediaStreamSource(localStream);
-                const gain = testCtx.createGain();
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const source = ctx.createMediaStreamSource(localStream);
+                    const gain = ctx.createGain();
+                    gain.gain.value = 1;
 
-                source.connect(gain);
-                gain.connect(testCtx.destination);
-                gain.gain.value = 1;
+                    source.connect(gain);
+                    gain.connect(ctx.destination);
 
-                testCtx.resume().then(() => {
-                    debug("Local microphone test started - you should hear your own voice");
-                    updateStatus("🔊 Listening to your microphone - you should hear yourself");
+                    await ctx.resume();
+                    updateStatus("🔊 You should hear your own microphone for 3 seconds");
 
                     setTimeout(() => {
-                        testCtx.close();
-                        updateStatus(callActive ? "Call connected!" : "Ready");
+                        ctx.close().catch(() => {});
+                        updateStatus(callActive ? "Call active" : "Ready");
                     }, 3000);
-                }).catch(e => debug("Test mic failed:", e));
+                } catch (e) {
+                    debug("Mic test failed:", e);
+                }
             };
 
-            // ==================== PLAY REMOTE AUDIO ====================
-            window.playRemoteAudio = async function() {
+            window.playRemoteAudio = async function () {
                 if (!remoteAudioElement || !remoteAudioElement.srcObject) {
-                    alert("No remote audio available.");
+                    alert("No remote audio found.");
                     return;
                 }
 
@@ -441,122 +421,57 @@
                     remoteAudioElement.muted = false;
                     remoteAudioElement.volume = 1;
                     await remoteAudioElement.play();
-                    debug("✅ Remote audio forced to play");
-                    updateStatus("🔊 Remote audio now playing");
+                    document.getElementById("playRemoteBtn").style.display = "none";
+                    updateStatus("🔊 Remote audio playing");
                 } catch (e) {
-                    debug("❌ Force play failed:", e);
-                    alert("Could not play remote audio: " + e.message);
+                    debug("Manual remote play failed:", e);
+                    alert("Remote audio play failed: " + e.message);
                 }
             };
 
-            // ==================== CHECK PENDING CALL ====================
-            function checkPendingCall() {
-                try {
-                    const pendingCall = sessionStorage.getItem('pendingCall');
+            async function ensureMicrophone() {
+                if (localStream) return localStream;
 
-                    if (pendingCall) {
-                        const callData = JSON.parse(pendingCall);
-                        const age = Date.now() - callData.timestamp;
-                        debug(`Found pending call, age: ${age}ms`);
-
-                        if (age < 15000) {
-                            debug("Using pending call data");
-
-                            if (callData.offer && callData.offer.sdp) {
-                                callData.offer.sdp = cleanSDP(callData.offer.sdp);
-                            }
-
-                            incomingOffer = callData.offer;
-                            incomingCallerId = callData.callerId;
-                            incomingCallerName = callData.callerName;
-
-                            sessionStorage.removeItem('pendingCall');
-
-                            showAcceptMode();
-                            document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
-                            updateStatus("Incoming call - Click Accept");
-
-                            return true;
-                        } else {
-                            sessionStorage.removeItem('pendingCall');
-                        }
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
                     }
-                } catch (e) {
-                    debug("Error checking pending call:", e);
-                }
+                });
 
-                return false;
+                localStream.getAudioTracks().forEach(track => {
+                    track.enabled = true;
+                    debug("Local track:", {
+                        label: track.label,
+                        enabled: track.enabled,
+                        muted: track.muted,
+                        readyState: track.readyState
+                    });
+                });
+
+                startLocalVolumeMeter(localStream);
+                document.getElementById("testMicBtn").style.display = "inline-block";
+
+                return localStream;
             }
 
-            // ==================== LISTEN FOR POST MESSAGES ====================
-            window.addEventListener('message', function(event) {
-                debug("📨 Received message:", event.data.type);
-
-                if (event.data.type === 'incoming-offer') {
-                    debug("📞 Received offer via postMessage");
-
-                    if (event.data.offer && event.data.offer.sdp) {
-                        event.data.offer.sdp = cleanSDP(event.data.offer.sdp);
-                    }
-
-                    incomingOffer = event.data.offer;
-                    incomingCallerId = event.data.callerId;
-                    incomingCallerName = event.data.callerName;
-
-                    showAcceptMode();
-                    document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
-                    updateStatus("Incoming call - Click Accept");
-                }
-
-                if (event.data.type === 'ice-candidate') {
-                    debug("❄️ Received ICE candidate via postMessage");
-
-                    if (!peerConnection) {
-                        pendingCandidates.push(event.data.candidate);
-                    } else if (!isRemoteSet) {
-                        pendingCandidates.push(event.data.candidate);
-                    } else {
-                        peerConnection.addIceCandidate(new RTCIceCandidate(event.data.candidate))
-                            .catch(err => debug("Error adding ICE:", err));
-                    }
-                }
-
-                if (event.data.type === 'call-answer') {
-                    debug("✅ Received answer via postMessage");
-                    handleAnswer(event.data.answer);
-                }
-            });
-
-            // ==================== UI FUNCTIONS ====================
-            function updateStatus(message) {
-                debug("STATUS:", message);
-                document.getElementById("callStatus").innerHTML = message;
-            }
-
-            function showStartMode() {
-                document.getElementById("startBtn").style.display = "block";
-                document.getElementById("acceptBtn").style.display = "none";
-                document.getElementById("callTitle").textContent = `Call ${otherUserName}`;
-            }
-
-            function showAcceptMode() {
-                document.getElementById("startBtn").style.display = "none";
-                document.getElementById("acceptBtn").style.display = "block";
-            }
-
-            function hideAllButtons() {
-                document.getElementById("startBtn").style.display = "none";
-                document.getElementById("acceptBtn").style.display = "none";
-            }
-
-            // ==================== WEBRTC ====================
+            // ==================== PEER ====================
             function createPeer() {
                 debug("Creating peer connection");
-                updateStatus("Setting up connection...");
 
-                pendingCandidates = [];
-                isRemoteSet = false;
-                remoteStream = new MediaStream();
+                if (peerConnection) {
+                    try { peerConnection.close(); } catch (e) {}
+                    peerConnection = null;
+                }
+
+                isRemoteDescriptionSet = false;
+
+                if (!remoteStream) {
+                    remoteStream = new MediaStream();
+                } else {
+                    remoteStream.getTracks().forEach(track => remoteStream.removeTrack(track));
+                }
 
                 peerConnection = new RTCPeerConnection({
                     iceServers: [
@@ -569,53 +484,42 @@
                             username: "webrtcuser",
                             credential: "strongpassword123"
                         }
-                    ]
+                    ],
+                    iceCandidatePoolSize: 10
                 });
 
-                peerConnection.onconnectionstatechange = () => {
-                    debug("Connection state:", peerConnection.connectionState);
-                    updateStatus(`Connection: ${peerConnection.connectionState}`);
-
-                    if (peerConnection.connectionState === 'connected') {
-                        updateStatus("✅ Call connected!");
-                    } else if (peerConnection.connectionState === 'failed') {
-                        updateStatus("❌ Connection failed - check TURN server");
-                    }
-                };
-
-                peerConnection.oniceconnectionstatechange = () => {
-                    debug("ICE state:", peerConnection.iceConnectionState);
-                };
-
                 peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        debug("Sending ICE candidate");
-
-                        fetch('/send-ice', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                            },
-                            body: JSON.stringify({
-                                candidate: event.candidate,
-                                senderId: userId,
-                                receiverId: incomingCallerId ?? otherUserId
-                            })
-                        }).catch(err => debug("Error sending ICE:", err));
+                    if (!event.candidate) {
+                        debug("ICE gathering completed");
+                        return;
                     }
+
+                    const targetId = incomingCallerId || otherUserId;
+                    debug("Sending ICE candidate to:", targetId);
+
+                    fetch("/send-ice", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        body: JSON.stringify({
+                            candidate: event.candidate,
+                            senderId: userId,
+                            receiverId: targetId
+                        })
+                    }).catch(err => debug("Send ICE error:", err));
                 };
 
                 peerConnection.ontrack = async (event) => {
-                    debug("🎵 Remote audio track received", event.track.kind);
+                    debug("Remote track received:", event.track.kind);
 
-                    if (event.track.kind !== 'audio') return;
+                    if (event.track.kind !== "audio") return;
 
-                    if (!remoteStream) {
-                        remoteStream = new MediaStream();
-                    }
-
-                    remoteStream.addTrack(event.track);
+                    event.streams[0].getTracks().forEach(track => {
+                        const exists = remoteStream.getTracks().some(t => t.id === track.id);
+                        if (!exists) remoteStream.addTrack(track);
+                    });
 
                     remoteAudioElement = document.getElementById("remoteAudio");
                     remoteAudioElement.srcObject = remoteStream;
@@ -625,239 +529,246 @@
                     remoteAudioElement.volume = 1;
                     remoteAudioElement.style.display = "block";
 
+                    event.track.onmute = () => debug("Remote audio track muted");
+                    event.track.onunmute = () => debug("Remote audio track unmuted");
+                    event.track.onended = () => debug("Remote audio track ended");
+
                     startRemoteVolumeMeter(remoteStream);
 
                     try {
                         await remoteAudioElement.play();
-                        debug("✅ Remote audio element playing");
-                        updateStatus("✅ Remote audio is playing");
+                        debug("Remote audio playing successfully");
+                        updateStatus("✅ Call connected and audio playing");
+                        document.getElementById("playRemoteBtn").style.display = "none";
                     } catch (err) {
-                        debug("❌ remoteAudio.play() failed:", err);
-                        updateStatus("⚠️ Remote audio received, click Play Remote");
-                        document.getElementById('playRemoteBtn').style.display = 'block';
+                        debug("Autoplay blocked:", err);
+                        updateStatus("⚠️ Audio received. Click Play Remote");
+                        document.getElementById("playRemoteBtn").style.display = "inline-block";
                     }
 
-                    const remotePanel = document.getElementById('remotePanel');
-                    const muteIcon = document.getElementById('remoteMuteIcon');
+                    const remotePanel = document.getElementById("remotePanel");
+                    const muteIcon = document.getElementById("remoteMuteIcon");
+                    remotePanel.style.display = "flex";
 
-                    remotePanel.style.display = 'flex';
-                    remotePanel.onclick = () => {
+                    remotePanel.onclick = async () => {
                         remoteAudioElement.muted = !remoteAudioElement.muted;
-                        muteIcon.textContent = remoteAudioElement.muted ? '🔇' : '🔊';
-                        updateStatus(remoteAudioElement.muted ? "Remote audio is muted" : "Remote audio is playing");
+                        muteIcon.textContent = remoteAudioElement.muted ? "🔇" : "🔊";
+
+                        if (!remoteAudioElement.muted) {
+                            try { await remoteAudioElement.play(); } catch (e) {}
+                        }
+
+                        updateStatus(remoteAudioElement.muted ? "Remote audio muted" : "Remote audio unmuted");
                     };
+                };
+
+                peerConnection.onconnectionstatechange = () => {
+                    debug("connectionState:", peerConnection.connectionState);
+                    updateStatus(`Connection: ${peerConnection.connectionState}`);
+
+                    if (peerConnection.connectionState === "connected") {
+                        updateStatus("✅ Call connected");
+                    }
+
+                    if (
+                        peerConnection.connectionState === "failed" ||
+                        peerConnection.connectionState === "disconnected" ||
+                        peerConnection.connectionState === "closed"
+                    ) {
+                        debug("Connection ended with state:", peerConnection.connectionState);
+                    }
+                };
+
+                peerConnection.oniceconnectionstatechange = () => {
+                    debug("iceConnectionState:", peerConnection.iceConnectionState);
+
+                    if (peerConnection.iceConnectionState === "failed") {
+                        updateStatus("❌ ICE connection failed");
+                    }
+                };
+
+                peerConnection.onsignalingstatechange = () => {
+                    debug("signalingState:", peerConnection.signalingState);
+                };
+
+                peerConnection.onicegatheringstatechange = () => {
+                    debug("iceGatheringState:", peerConnection.iceGatheringState);
                 };
             }
 
-            // ==================== CALL FUNCTIONS ====================
-            window.startCall = async function() {
-                debug("Starting call...");
+            async function addLocalTracks() {
+                if (!peerConnection || !localStream) return;
 
-                if (callActive) return;
+                const senders = peerConnection.getSenders();
+                const existingTrackIds = senders
+                    .filter(sender => sender.track)
+                    .map(sender => sender.track.id);
 
-                callActive = true;
-                hideAllButtons();
-                updateStatus('<span class="spinner"></span> Requesting microphone...');
+                localStream.getTracks().forEach(track => {
+                    if (!existingTrackIds.includes(track.id)) {
+                        peerConnection.addTrack(track, localStream);
+                        debug("Added local track to peer:", track.kind, track.id);
+                    }
+                });
+            }
 
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    debug("Microphone access granted");
+            async function flushPendingCandidates() {
+                if (!peerConnection || !isRemoteDescriptionSet || pendingCandidates.length === 0) return;
 
-                    startLocalVolumeMeter(localStream);
-                    document.getElementById('testMicBtn').style.display = 'block';
-                } catch (err) {
-                    debug("Microphone error:", err);
-                    alert("Microphone access is required for calls");
-                    updateStatus("❌ Microphone access denied");
-                    callActive = false;
-                    showStartMode();
+                debug("Flushing pending ICE candidates:", pendingCandidates.length);
+
+                const candidates = [...pendingCandidates];
+                pendingCandidates = [];
+
+                for (const candidate of candidates) {
+                    try {
+                        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                        debug("Buffered ICE added successfully");
+                    } catch (err) {
+                        debug("Buffered ICE add failed:", err);
+                    }
+                }
+            }
+
+            async function handleAnswer(answer) {
+                debug("Handling answer");
+
+                if (!peerConnection) {
+                    debug("No peer connection for answer");
                     return;
                 }
 
-                createPeer();
-
-                localStream.getAudioTracks().forEach(track => {
-                    track.enabled = true;
-                });
-
-                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-                localStream.getAudioTracks().forEach(track => {
-                    debug("Local audio track added:", {
-                        enabled: track.enabled,
-                        muted: track.muted,
-                        readyState: track.readyState,
-                        label: track.label
-                    });
-                });
+                if (connectionTimeout) {
+                    clearTimeout(connectionTimeout);
+                    connectionTimeout = null;
+                }
 
                 try {
-                    const offer = await peerConnection.createOffer();
+                    if (answer?.sdp) answer.sdp = cleanSDP(answer.sdp);
+
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription({
+                        type: answer.type,
+                        sdp: answer.sdp
+                    }));
+
+                    isRemoteDescriptionSet = true;
+                    debug("Remote answer set successfully");
+
+                    await flushPendingCandidates();
+                    updateStatus("✅ Answer received, connecting...");
+                } catch (err) {
+                    debug("Handle answer error:", err);
+                    updateStatus("❌ Failed to apply answer");
+                }
+            }
+
+            // ==================== CALL ====================
+            window.startCall = async function () {
+                if (callActive) {
+                    debug("Call already active, ignoring start");
+                    return;
+                }
+
+                try {
+                    callActive = true;
+                    hideAllButtons();
+                    updateStatus('<span class="spinner"></span> Requesting microphone...');
+
+                    await ensureMicrophone();
+                    createPeer();
+                    await addLocalTracks();
+
+                    const offer = await peerConnection.createOffer({
+                        offerToReceiveAudio: true
+                    });
+
                     await peerConnection.setLocalDescription(offer);
 
                     updateStatus("Sending call request...");
 
-                    const response = await fetch('/send-offer', {
-                        method: 'POST',
+                    const response = await fetch("/send-offer", {
+                        method: "POST",
                         headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                            "Content-Type": "application/json",
+                            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content
                         },
                         body: JSON.stringify({
-                            offer: { type: offer.type, sdp: offer.sdp },
+                            offer: {
+                                type: offer.type,
+                                sdp: offer.sdp
+                            },
                             receiverId: otherUserId
                         })
                     });
 
-                    if (!response.ok) throw new Error('Failed to send offer');
+                    if (!response.ok) {
+                        throw new Error("Failed to send offer");
+                    }
 
-                    debug("Offer sent successfully");
-                    updateStatus("Call initiated - waiting for answer...");
+                    updateStatus("📞 Calling... waiting for answer");
 
                     connectionTimeout = setTimeout(() => {
                         if (!callActive) return;
-                        debug("No answer received - timeout");
-                        updateStatus("❌ No answer - user may be unavailable");
+                        debug("Call timeout reached");
+                        updateStatus("❌ No answer received");
                         endCall();
                     }, 30000);
 
                 } catch (err) {
-                    debug("Error:", err);
-                    updateStatus("❌ Failed to start call");
+                    debug("Start call error:", err);
+                    updateStatus("❌ Failed to start call: " + err.message);
                     endCall();
                 }
             };
 
-            window.acceptCall = async function() {
+            window.acceptCall = async function () {
+                if (!incomingOffer || !incomingCallerId) {
+                    alert("No incoming call to accept");
+                    return;
+                }
+
+                if (callActive) {
+                    debug("Call already active, ignoring accept");
+                    return;
+                }
+
                 try {
-                    console.log("========== ACCEPT CALL CLICKED ==========");
-                    debug("========== ACCEPT CALL CLICKED ==========");
-                    debug("incomingOffer:", incomingOffer ? "present" : "null");
-                    debug("incomingCallerId:", incomingCallerId);
-
-                    if (incomingOffer) {
-                        debug("Offer type:", incomingOffer.type);
-                        debug("Offer has sdp:", !!incomingOffer.sdp);
-                        console.log("Full offer:", incomingOffer);
-
-                        if (incomingOffer.sdp) {
-                            console.log("Original SDP preview (first 500 chars):", incomingOffer.sdp.substring(0, 500));
-                        }
-                    }
-
-                    if (!incomingOffer || !incomingCallerId) {
-                        debug("❌ No incoming call to accept");
-                        alert("No incoming call to accept");
-                        return;
-                    }
-
-                    if (incomingOffer.sdp) {
-                        debug("Original SDP length:", incomingOffer.sdp.length);
-                        incomingOffer.sdp = cleanSDP(incomingOffer.sdp);
-                        debug("Cleaned SDP length:", incomingOffer.sdp.length);
-                        console.log("Cleaned SDP preview (first 500 chars):", incomingOffer.sdp.substring(0, 500));
-                        console.log("=== FULL CLEANED SDP ===");
-                        console.log(incomingOffer.sdp);
-                        console.log("========================");
-                    }
-
-                    if (callActive) {
-                        debug("Call already active");
-                        return;
-                    }
-
                     callActive = true;
                     hideAllButtons();
                     updateStatus('<span class="spinner"></span> Accessing microphone...');
-                    debug("Requesting microphone permission...");
 
-                    try {
-                        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                        debug("✅ Microphone access granted");
-
-                        startLocalVolumeMeter(localStream);
-                        document.getElementById('testMicBtn').style.display = 'block';
-                    } catch (micErr) {
-                        debug("❌ Microphone error:", micErr);
-                        alert("Microphone access is required for calls. Please check permissions.");
-                        updateStatus("❌ Microphone access denied");
-                        callActive = false;
-                        showAcceptMode();
-                        return;
-                    }
-
+                    await ensureMicrophone();
                     createPeer();
+                    await addLocalTracks();
 
-                    localStream.getAudioTracks().forEach(track => {
-                        track.enabled = true;
-                    });
+                    const cleanedOffer = {
+                        type: incomingOffer.type,
+                        sdp: cleanSDP(incomingOffer.sdp)
+                    };
 
-                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                    debug("Setting remote offer description");
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(cleanedOffer));
+                    isRemoteDescriptionSet = true;
+                    debug("Remote offer set successfully");
 
-                    localStream.getAudioTracks().forEach(track => {
-                        debug("Local audio track added:", {
-                            enabled: track.enabled,
-                            muted: track.muted,
-                            readyState: track.readyState,
-                            label: track.label
-                        });
-                    });
+                    await flushPendingCandidates();
 
-                    debug("Setting remote description...");
-
-                    let remoteSet = false;
-                    let lastError = null;
-
-                    try {
-                        const offerDesc = new RTCSessionDescription({
-                            type: incomingOffer.type,
-                            sdp: incomingOffer.sdp
-                        });
-
-                        await peerConnection.setRemoteDescription(offerDesc);
-                        debug("✅ Remote description set successfully");
-                        remoteSet = true;
-                    } catch (err) {
-                        lastError = err;
-                        debug("❌ setRemoteDescription failed:", err.message);
-                        console.error("SDP error:", err);
-                    }
-
-                    if (!remoteSet) {
-                        throw new Error(`Failed to set remote description. Last error: ${lastError?.message}`);
-                    }
-
-                    debug("Creating answer...");
                     const answer = await peerConnection.createAnswer();
-                    debug("Answer created:", answer.type);
-
                     await peerConnection.setLocalDescription(answer);
-                    debug("✅ Local description set");
-
-                    isRemoteSet = true;
-
-                    debug("Adding buffered ICE candidates:", pendingCandidates.length);
-                    for (const candidate of pendingCandidates) {
-                        try {
-                            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                            debug("Added buffered ICE candidate");
-                        } catch (err) {
-                            debug("Error adding ICE:", err);
-                        }
-                    }
-
-                    pendingCandidates = [];
 
                     updateStatus("Sending answer...");
 
-                    const response = await fetch('/send-answer', {
-                        method: 'POST',
+                    const response = await fetch("/send-answer", {
+                        method: "POST",
                         headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                            "Content-Type": "application/json",
+                            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content
                         },
                         body: JSON.stringify({
-                            answer: { type: answer.type, sdp: answer.sdp },
+                            answer: {
+                                type: answer.type,
+                                sdp: answer.sdp
+                            },
                             receiverId: incomingCallerId
                         })
                     });
@@ -867,70 +778,34 @@
                         throw new Error(`Failed to send answer: ${response.status} ${text}`);
                     }
 
-                    const result = await response.json();
-                    debug("✅ Answer sent successfully:", result);
-                    updateStatus("Call connected!");
-
+                    updateStatus("✅ Answer sent. Connecting...");
                 } catch (err) {
-                    debug("❌ UNCAUGHT ERROR in acceptCall:", err);
-                    console.error("FULL UNCAUGHT ERROR:", err);
-                    alert("Error: " + err.message);
-                    updateStatus("❌ Error: " + err.message);
+                    debug("Accept call error:", err);
+                    alert("Accept call failed: " + err.message);
+                    updateStatus("❌ " + err.message);
                     endCall();
                 }
             };
 
-            async function handleAnswer(answer) {
-                debug("Handling answer");
+            window.endCall = function () {
+                debug("Ending call");
 
                 if (connectionTimeout) {
                     clearTimeout(connectionTimeout);
                     connectionTimeout = null;
                 }
 
-                if (!peerConnection) {
-                    debug("No peer connection");
-                    return;
-                }
-
-                if (answer.sdp) {
-                    answer.sdp = cleanSDP(answer.sdp);
-                }
-
-                try {
-                    await peerConnection.setRemoteDescription(
-                        new RTCSessionDescription({
-                            type: answer.type,
-                            sdp: answer.sdp
-                        })
-                    );
-
-                    debug("✅ Remote description set from answer");
-                    isRemoteSet = true;
-
-                    for (const candidate of pendingCandidates) {
-                        try {
-                            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                        } catch (err) {
-                            debug("Error adding ICE:", err);
-                        }
-                    }
-
-                    pendingCandidates = [];
-                    updateStatus("Call connected!");
-                } catch (err) {
-                    debug("❌ Error setting answer:", err);
-                    updateStatus("❌ Connection failed");
-                }
-            }
-
-            window.endCall = function() {
-                debug("Ending call");
-
-                if (connectionTimeout) clearTimeout(connectionTimeout);
-
                 if (peerConnection) {
-                    peerConnection.close();
+                    try {
+                        peerConnection.getSenders().forEach(sender => {
+                            if (sender.track) {
+                                try { sender.track.stop(); } catch (e) {}
+                            }
+                        });
+                        peerConnection.close();
+                    } catch (e) {
+                        debug("Peer close error:", e);
+                    }
                     peerConnection = null;
                 }
 
@@ -944,37 +819,109 @@
                     remoteStream = null;
                 }
 
+                remoteAudioElement = document.getElementById("remoteAudio");
                 if (remoteAudioElement) {
-                    remoteAudioElement.pause();
+                    try { remoteAudioElement.pause(); } catch (e) {}
                     remoteAudioElement.srcObject = null;
-                    remoteAudioElement.style.display = "none";
-                    remoteAudioElement = null;
+                    remoteAudioElement.muted = false;
+                    remoteAudioElement.volume = 1;
                 }
 
                 stopVolumeMeters();
 
                 pendingCandidates = [];
-                isRemoteSet = false;
+                isRemoteDescriptionSet = false;
                 callActive = false;
-
-                document.getElementById('testMicBtn').style.display = 'none';
-                document.getElementById('playRemoteBtn').style.display = 'none';
-
-                if (incomingCallerId) {
-                    document.getElementById("callTitle").textContent = "Call ended";
-                    updateStatus("Call ended - close window");
-                } else {
-                    showStartMode();
-                }
 
                 incomingOffer = null;
                 incomingCallerId = null;
                 incomingCallerName = null;
+
+                document.getElementById("testMicBtn").style.display = "none";
+                document.getElementById("playRemoteBtn").style.display = "none";
+
+                showStartMode();
+                updateStatus("Call ended");
             };
+
+            // ==================== PENDING CALL ====================
+            function checkPendingCall() {
+                try {
+                    const pendingCall = sessionStorage.getItem("pendingCall");
+                    if (!pendingCall) return false;
+
+                    const callData = JSON.parse(pendingCall);
+                    const age = Date.now() - callData.timestamp;
+
+                    if (age > 15000) {
+                        sessionStorage.removeItem("pendingCall");
+                        return false;
+                    }
+
+                    if (callData.offer?.sdp) {
+                        callData.offer.sdp = cleanSDP(callData.offer.sdp);
+                    }
+
+                    incomingOffer = callData.offer;
+                    incomingCallerId = callData.callerId;
+                    incomingCallerName = callData.callerName;
+
+                    sessionStorage.removeItem("pendingCall");
+
+                    showAcceptMode();
+                    document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
+                    updateStatus("Incoming call - click Accept");
+                    return true;
+                } catch (e) {
+                    debug("checkPendingCall error:", e);
+                    return false;
+                }
+            }
+
+            // ==================== POST MESSAGE ====================
+            window.addEventListener("message", async function (event) {
+                debug("PostMessage received:", event.data?.type);
+
+                if (event.data.type === "incoming-offer") {
+                    incomingOffer = event.data.offer;
+                    incomingCallerId = event.data.callerId;
+                    incomingCallerName = event.data.callerName;
+
+                    if (incomingOffer?.sdp) {
+                        incomingOffer.sdp = cleanSDP(incomingOffer.sdp);
+                    }
+
+                    showAcceptMode();
+                    document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
+                    updateStatus("Incoming call - click Accept");
+                }
+
+                if (event.data.type === "ice-candidate") {
+                    const candidate = event.data.candidate;
+                    debug("ICE candidate received via postMessage");
+
+                    if (!peerConnection || !isRemoteDescriptionSet) {
+                        pendingCandidates.push(candidate);
+                        debug("ICE buffered");
+                    } else {
+                        try {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                            debug("ICE added immediately");
+                        } catch (err) {
+                            debug("ICE add failed:", err);
+                        }
+                    }
+                }
+
+                if (event.data.type === "call-answer") {
+                    debug("Answer received via postMessage");
+                    await handleAnswer(event.data.answer);
+                }
+            });
 
             // ==================== PUSHER ====================
             function initPusher() {
-                debug("Initializing Pusher...");
+                debug("Initializing Pusher");
                 Pusher.logToConsole = true;
 
                 pusher = new Pusher(PUSHER_APP_KEY, {
@@ -982,12 +929,10 @@
                     forceTLS: true
                 });
 
-                pusher.connection.bind('connected', () => {
+                pusher.connection.bind("connected", () => {
                     debug("Pusher connected");
 
-                    const isCaller = new URLSearchParams(window.location.search).has('mode=caller');
-                    debug("Mode:", isCaller ? "CALLER" : "RECEIVER");
-
+                    const isCaller = new URLSearchParams(window.location.search).has("mode=caller");
                     const hasPending = checkPendingCall();
 
                     if (isCaller) {
@@ -999,73 +944,73 @@
                     }
                 });
 
-                pusher.connection.bind('error', (error) => {
-                    debug("Pusher error:", error);
+                pusher.connection.bind("error", (error) => {
+                    debug("Pusher connection error:", error);
                 });
 
-                const channelName = 'voice-call.' + userId;
+                const channelName = "voice-call." + userId;
                 channel = pusher.subscribe(channelName);
 
-                channel.bind('subscription_succeeded', () => {
+                channel.bind("subscription_succeeded", () => {
                     debug("Subscribed to channel:", channelName);
                 });
 
-                channel.bind('CallOffer', (data) => {
-                    debug("📞 Call offer received in voice window");
+                channel.bind("CallOffer", (data) => {
+                    debug("CallOffer received", data);
 
-                    if (!new URLSearchParams(window.location.search).has('mode=caller')) {
-                        if (data.offer && data.offer.sdp) {
-                            data.offer.sdp = cleanSDP(data.offer.sdp);
-                        }
-
+                    if (!new URLSearchParams(window.location.search).has("mode=caller")) {
                         incomingOffer = data.offer;
                         incomingCallerId = data.callerId;
                         incomingCallerName = data.callerName;
 
-                        showAcceptMode();
-                        document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
-                        updateStatus("Incoming call - Click Accept");
-                    }
-                });
-
-                channel.bind('CallAnswer', async (data) => {
-                    debug("Call answer received");
-
-                    if (new URLSearchParams(window.location.search).has('mode=caller')) {
-                        if (data.answer && data.answer.sdp) {
-                            data.answer.sdp = cleanSDP(data.answer.sdp);
+                        if (incomingOffer?.sdp) {
+                            incomingOffer.sdp = cleanSDP(incomingOffer.sdp);
                         }
 
-                        await handleAnswer(data.answer);
+                        showAcceptMode();
+                        document.getElementById("callTitle").textContent = `📞 Incoming call from ${incomingCallerName}`;
+                        updateStatus("Incoming call - click Accept");
                     }
                 });
 
-                channel.bind('IceCandidate', (data) => {
-                    debug("ICE candidate received");
+                channel.bind("CallAnswer", async (data) => {
+                    debug("CallAnswer received");
+                    if (data.answer?.sdp) {
+                        data.answer.sdp = cleanSDP(data.answer.sdp);
+                    }
+                    await handleAnswer(data.answer);
+                });
 
-                    if (!peerConnection) {
+                channel.bind("IceCandidate", async (data) => {
+                    debug("IceCandidate received");
+
+                    if (!peerConnection || !isRemoteDescriptionSet) {
                         pendingCandidates.push(data.candidate);
-                    } else if (!isRemoteSet) {
-                        pendingCandidates.push(data.candidate);
+                        debug("ICE candidate buffered");
                     } else {
-                        peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate))
-                            .catch(err => debug("Error adding ICE:", err));
+                        try {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                            debug("ICE candidate added immediately");
+                        } catch (err) {
+                            debug("Error adding ICE candidate:", err);
+                        }
                     }
                 });
             }
 
             // ==================== INIT ====================
-            document.addEventListener("DOMContentLoaded", function() {
+            document.addEventListener("DOMContentLoaded", function () {
                 debug("Voice call page loaded");
-                debug("User ID:", userId, "Other User ID:", otherUserId);
-                debug("URL params:", window.location.search);
+                debug("User:", userId, "Other:", otherUserId);
+                debug("URL:", window.location.href);
+                debug("CSRF token present:", !!document.querySelector('meta[name="csrf-token"]')?.content);
 
-                const token = document.querySelector('meta[name="csrf-token"]')?.content;
-                debug("CSRF token present:", !!token);
+                remoteAudioElement = document.getElementById("remoteAudio");
+                remoteAudioElement.muted = false;
+                remoteAudioElement.volume = 1;
 
                 initPusher();
             });
-
         })();
     </script>
 </body>
