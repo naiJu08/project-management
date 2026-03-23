@@ -256,11 +256,11 @@
             let localAudioContext = null;
             let localAnalyser = null;
             let localAnimation = null;
-            let remoteAudioContext = null;
+            let remoteVolumeCtx = null;          // Only for the green meter, not playback
             let remoteAnalyser = null;
             let remoteAnimation = null;
-            let globalAudioContext = null;       // Will be used for remote playback
-            let remoteGainNode = null;           // For volume control
+            let playbackAudioContext = null;     // For actual playback (resumed on accept)
+            let playbackGain = null;              // Volume control for playback
 
             // ==================== VOLUME METERS ====================
             function startLocalVolumeMeter(stream) {
@@ -295,16 +295,17 @@
                 }
             }
 
+            // This meter is only for visualization – it does not play sound
             function startRemoteVolumeMeter(stream) {
-                if (remoteAudioContext) return;
+                if (remoteVolumeCtx) return;
                 try {
-                    remoteAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    remoteAnalyser = remoteAudioContext.createAnalyser();
+                    remoteVolumeCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    remoteAnalyser = remoteVolumeCtx.createAnalyser();
                     remoteAnalyser.fftSize = 256;
-                    const source = remoteAudioContext.createMediaStreamSource(stream);
+                    const source = remoteVolumeCtx.createMediaStreamSource(stream);
                     source.connect(remoteAnalyser);
-                    if (remoteAudioContext.state === 'suspended') {
-                        remoteAudioContext.resume().catch(e => debug("Failed to resume remote AudioContext:", e));
+                    if (remoteVolumeCtx.state === 'suspended') {
+                        remoteVolumeCtx.resume().catch(e => debug("Failed to resume remote volume meter:", e));
                     }
                     const meter = document.getElementById('remoteVolumeLevel');
                     const panel = document.getElementById('remotePanel');
@@ -331,9 +332,9 @@
                 if (localAnimation) cancelAnimationFrame(localAnimation);
                 if (remoteAnimation) cancelAnimationFrame(remoteAnimation);
                 if (localAudioContext) localAudioContext.close();
-                if (remoteAudioContext) remoteAudioContext.close();
+                if (remoteVolumeCtx) remoteVolumeCtx.close();
                 localAudioContext = null;
-                remoteAudioContext = null;
+                remoteVolumeCtx = null;
                 localAnalyser = null;
                 remoteAnalyser = null;
                 document.getElementById('localPanel').style.display = 'none';
@@ -516,27 +517,29 @@
                     debug("🎵 Remote audio track received");
                     updateStatus("Audio connected - Call active");
 
-                    // --- PRIMARY PLAYBACK: Use the global AudioContext (resumed on Accept click) ---
-                    if (globalAudioContext) {
+                    // --- PLAYBACK via the pre‑created AudioContext (user gesture) ---
+                    if (playbackAudioContext) {
                         try {
                             // Disconnect previous gain if any
-                            if (remoteGainNode) {
-                                remoteGainNode.disconnect();
+                            if (playbackGain) playbackGain.disconnect();
+                            const source = playbackAudioContext.createMediaStreamSource(event.streams[0]);
+                            playbackGain = playbackAudioContext.createGain();
+                            playbackGain.gain.value = 1;
+                            source.connect(playbackGain);
+                            playbackGain.connect(playbackAudioContext.destination);
+                            debug("✅ Remote stream connected to playback AudioContext");
+                            // Ensure the AudioContext is running (it should be, but double‑check)
+                            if (playbackAudioContext.state !== 'running') {
+                                playbackAudioContext.resume().then(() => debug("Playback AudioContext resumed")).catch(e => debug("Resume failed:", e));
                             }
-                            const source = globalAudioContext.createMediaStreamSource(event.streams[0]);
-                            remoteGainNode = globalAudioContext.createGain();
-                            remoteGainNode.gain.value = 1;
-                            source.connect(remoteGainNode);
-                            remoteGainNode.connect(globalAudioContext.destination);
-                            debug("✅ Remote stream connected to AudioContext (should play)");
                         } catch (e) {
-                            debug("❌ Failed to connect to AudioContext:", e);
+                            debug("❌ Failed to connect to playback AudioContext:", e);
                         }
                     } else {
-                        debug("⚠️ No global AudioContext; falling back to <audio> element");
+                        debug("⚠️ No playback AudioContext created; falling back to <audio> element");
                     }
 
-                    // --- FALLBACK: Keep the <audio> element for manual control ---
+                    // --- FALLBACK: <audio> element for manual control and additional debugging ---
                     remoteAudioElement = document.getElementById("remoteAudio");
                     remoteAudioElement.style.display = "block";
                     remoteAudioElement.controls = true;
@@ -546,20 +549,20 @@
                     remoteAudioElement.volume = 1;
                     remoteAudioElement.srcObject = event.streams[0];
 
-                    // Start remote volume meter (uses its own AudioContext, independent)
+                    // Start remote volume meter (independent, for visualization)
                     startRemoteVolumeMeter(event.streams[0]);
 
-                    // Show the "Play Remote" button as fallback
+                    // Show the "Play Remote" button in case the AudioContext fails
                     document.getElementById('playRemoteBtn').style.display = 'block';
 
-                    // Mute/unmute control (controls both AudioContext gain and the element)
+                    // Mute/unmute control (controls both the AudioContext gain and the element)
                     const remotePanel = document.getElementById('remotePanel');
                     const muteIcon = document.getElementById('remoteMuteIcon');
                     remotePanel.onclick = () => {
-                        if (remoteGainNode) {
-                            remoteGainNode.gain.value = remoteGainNode.gain.value === 1 ? 0 : 1;
-                            muteIcon.textContent = remoteGainNode.gain.value === 0 ? '🔇' : '🔊';
-                            updateStatus(remoteGainNode.gain.value === 0 ? "Remote audio is muted" : "Remote audio is playing");
+                        if (playbackGain) {
+                            playbackGain.gain.value = playbackGain.gain.value === 1 ? 0 : 1;
+                            muteIcon.textContent = playbackGain.gain.value === 0 ? '🔇' : '🔊';
+                            updateStatus(playbackGain.gain.value === 0 ? "Remote audio is muted" : "Remote audio is playing");
                         } else if (remoteAudioElement) {
                             remoteAudioElement.muted = !remoteAudioElement.muted;
                             muteIcon.textContent = remoteAudioElement.muted ? '🔇' : '🔊';
@@ -675,13 +678,13 @@
                         return;
                     }
 
-                    // --- Create and resume AudioContext for remote playback (user gesture) ---
-                    if (!globalAudioContext) {
-                        globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-                        // Resume immediately while the user gesture is active
-                        globalAudioContext.resume().then(() => {
-                            debug("✅ Global AudioContext resumed (user gesture)");
-                        }).catch(e => debug("❌ Failed to resume AudioContext:", e));
+                    // --- Create the AudioContext for playback and resume it immediately (user gesture) ---
+                    if (!playbackAudioContext) {
+                        playbackAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        // Resume now while the user gesture is active
+                        playbackAudioContext.resume().then(() => {
+                            debug("✅ Playback AudioContext resumed (user gesture)");
+                        }).catch(e => debug("❌ Failed to resume playback AudioContext:", e));
                     }
 
                     createPeer();
@@ -808,13 +811,13 @@
                     remoteAudioElement.srcObject = null;
                     remoteAudioElement.style.display = "none";
                 }
-                if (remoteGainNode) {
-                    remoteGainNode.disconnect();
-                    remoteGainNode = null;
+                if (playbackGain) {
+                    playbackGain.disconnect();
+                    playbackGain = null;
                 }
-                if (globalAudioContext) {
-                    globalAudioContext.close();
-                    globalAudioContext = null;
+                if (playbackAudioContext) {
+                    playbackAudioContext.close();
+                    playbackAudioContext = null;
                 }
                 stopVolumeMeters();
                 pendingCandidates = [];
