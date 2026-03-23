@@ -11,7 +11,6 @@
     <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
     <style>
-        /* (styles unchanged – same as before) */
         #startBtn { display: block; }
         #acceptBtn { display: none; }
         #endBtn { display: block; }
@@ -260,6 +259,8 @@
             let remoteAudioContext = null;
             let remoteAnalyser = null;
             let remoteAnimation = null;
+            let globalAudioContext = null;       // Will be used for remote playback
+            let remoteGainNode = null;           // For volume control
 
             // ==================== VOLUME METERS ====================
             function startLocalVolumeMeter(stream) {
@@ -515,6 +516,27 @@
                     debug("🎵 Remote audio track received");
                     updateStatus("Audio connected - Call active");
 
+                    // --- PRIMARY PLAYBACK: Use the global AudioContext (resumed on Accept click) ---
+                    if (globalAudioContext) {
+                        try {
+                            // Disconnect previous gain if any
+                            if (remoteGainNode) {
+                                remoteGainNode.disconnect();
+                            }
+                            const source = globalAudioContext.createMediaStreamSource(event.streams[0]);
+                            remoteGainNode = globalAudioContext.createGain();
+                            remoteGainNode.gain.value = 1;
+                            source.connect(remoteGainNode);
+                            remoteGainNode.connect(globalAudioContext.destination);
+                            debug("✅ Remote stream connected to AudioContext (should play)");
+                        } catch (e) {
+                            debug("❌ Failed to connect to AudioContext:", e);
+                        }
+                    } else {
+                        debug("⚠️ No global AudioContext; falling back to <audio> element");
+                    }
+
+                    // --- FALLBACK: Keep the <audio> element for manual control ---
                     remoteAudioElement = document.getElementById("remoteAudio");
                     remoteAudioElement.style.display = "block";
                     remoteAudioElement.controls = true;
@@ -524,62 +546,21 @@
                     remoteAudioElement.volume = 1;
                     remoteAudioElement.srcObject = event.streams[0];
 
-                    // Start remote volume meter
+                    // Start remote volume meter (uses its own AudioContext, independent)
                     startRemoteVolumeMeter(event.streams[0]);
 
-                    const handleCanPlay = () => {
-                        remoteAudioElement.removeEventListener('canplay', handleCanPlay);
-                        remoteAudioElement.removeEventListener('loadedmetadata', handleCanPlay);
-                        remoteAudioElement.play().then(() => {
-                            debug("✅ Remote audio play succeeded");
-                            if (remoteAudioElement.muted || remoteAudioElement.volume === 0) {
-                                remoteAudioElement.muted = false;
-                                remoteAudioElement.volume = 1;
-                            }
-                        }).catch(e => {
-                            debug("⚠️ Remote audio play failed:", e.message);
-                            updateStatus("🔊 Click anywhere to enable audio");
-                            const enableAudio = () => {
-                                remoteAudioElement.play().then(() => {
-                                    debug("✅ Audio started after user interaction");
-                                    updateStatus("Call connected!");
-                                    document.removeEventListener('click', enableAudio);
-                                }).catch(e2 => debug("❌ Still cannot play:", e2));
-                            };
-                            document.addEventListener('click', enableAudio);
-                        });
-                    };
-
-                    remoteAudioElement.addEventListener('loadedmetadata', handleCanPlay, { once: true });
-                    remoteAudioElement.addEventListener('canplay', handleCanPlay, { once: true });
-
-                    // Show the "Play Remote" button in case the above fails
+                    // Show the "Play Remote" button as fallback
                     document.getElementById('playRemoteBtn').style.display = 'block';
 
-                    // --- FIX: Automatically play remote audio on receiver side after short delay ---
-                    // This ensures the user gesture from the Accept button is still considered active.
-                    // The timeout gives the audio element time to be ready, then we force play.
-                    setTimeout(() => {
-                        if (remoteAudioElement && !remoteAudioElement.paused && remoteAudioElement.readyState >= 2) {
-                            debug("Remote audio already playing, no need to force");
-                            return;
-                        }
-                        debug("Attempting to force remote audio play (receiver side)");
-                        remoteAudioElement.muted = false;
-                        remoteAudioElement.volume = 1;
-                        remoteAudioElement.play().then(() => {
-                            debug("✅ Force play succeeded on receiver side");
-                        }).catch(e => {
-                            debug("⚠️ Force play still blocked:", e.message);
-                        });
-                    }, 1000);
-                    // -----------------------------------------------------------------------
-
-                    // Mute/unmute control
+                    // Mute/unmute control (controls both AudioContext gain and the element)
                     const remotePanel = document.getElementById('remotePanel');
                     const muteIcon = document.getElementById('remoteMuteIcon');
                     remotePanel.onclick = () => {
-                        if (remoteAudioElement) {
+                        if (remoteGainNode) {
+                            remoteGainNode.gain.value = remoteGainNode.gain.value === 1 ? 0 : 1;
+                            muteIcon.textContent = remoteGainNode.gain.value === 0 ? '🔇' : '🔊';
+                            updateStatus(remoteGainNode.gain.value === 0 ? "Remote audio is muted" : "Remote audio is playing");
+                        } else if (remoteAudioElement) {
                             remoteAudioElement.muted = !remoteAudioElement.muted;
                             muteIcon.textContent = remoteAudioElement.muted ? '🔇' : '🔊';
                             updateStatus(remoteAudioElement.muted ? "Remote audio is muted" : "Remote audio is playing");
@@ -692,6 +673,15 @@
                         callActive = false;
                         showAcceptMode();
                         return;
+                    }
+
+                    // --- Create and resume AudioContext for remote playback (user gesture) ---
+                    if (!globalAudioContext) {
+                        globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        // Resume immediately while the user gesture is active
+                        globalAudioContext.resume().then(() => {
+                            debug("✅ Global AudioContext resumed (user gesture)");
+                        }).catch(e => debug("❌ Failed to resume AudioContext:", e));
                     }
 
                     createPeer();
@@ -817,6 +807,14 @@
                 if (remoteAudioElement) {
                     remoteAudioElement.srcObject = null;
                     remoteAudioElement.style.display = "none";
+                }
+                if (remoteGainNode) {
+                    remoteGainNode.disconnect();
+                    remoteGainNode = null;
+                }
+                if (globalAudioContext) {
+                    globalAudioContext.close();
+                    globalAudioContext = null;
                 }
                 stopVolumeMeters();
                 pendingCandidates = [];
