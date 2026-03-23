@@ -135,31 +135,47 @@
             }
 
             function repairSDPLine(line) {
-                // Fix common typo: a=src: -> a=ssrc:
+                // Step 1: Fix a=src: typo
                 if (line.startsWith('a=src:')) {
                     line = 'a=ssrc:' + line.substring(6);
                 }
 
-                // ---- FIX MISSING SPACES / COLONS IN a=ssrc lines ----
-                if (line.startsWith('a=ssrc')) {
-                    // Try to extract SSRC and MSID using regex (handles both with and without spaces)
-                    let match = line.match(/^a=ssrc:?(\d+)\s*msid:?([a-f0-9-]+)(?:\s+)?([a-f0-9-]+)?/i);
+                // Step 2: Ensure a=ssrc line has colon after "ssrc"
+                if (line.startsWith('a=ssrc') && !line.startsWith('a=ssrc:')) {
+                    // Replace "a=ssrc" with "a=ssrc:"
+                    line = line.replace(/^a=ssrc/, 'a=ssrc:');
+                }
+
+                // Step 3: Process a=ssrc lines to fix msid formatting
+                if (line.startsWith('a=ssrc:')) {
+                    // Expected: a=ssrc:<ssrc> msid:<msid> <appdata>
+                    // We'll extract SSRC and everything after that
+                    let match = line.match(/^a=ssrc:(\d+)\s*(.*)$/);
                     if (match) {
                         let ssrc = match[1];
-                        let msid1 = match[2];
-                        let msid2 = match[3] || msid1;
-                        return `a=ssrc:${ssrc} msid:${msid1} ${msid2}`;
-                    }
-                    // Fallback: if no match, split by spaces (original logic)
-                    let parts = line.split(/\s+/);
-                    if (parts.length >= 3) {
-                        let ssrcPart = parts[0];
-                        let msidPart = parts[1];
-                        if (!msidPart.startsWith('msid:')) {
-                            msidPart = 'msid:' + msidPart;
+                        let rest = match[2].trim();
+
+                        // Ensure rest contains "msid:" and two UUIDs
+                        let msidMatch = rest.match(/msid:([a-f0-9-]+)(?:\s+)?([a-f0-9-]+)?/i);
+                        if (msidMatch) {
+                            let msid1 = msidMatch[1];
+                            let msid2 = msidMatch[2];
+                            // If msid2 is missing, check if the rest after msid1 contains another UUID (concatenated)
+                            if (!msid2) {
+                                // The rest after the first UUID might contain the second UUID without space
+                                let remainder = rest.replace(/msid:[a-f0-9-]+/i, '');
+                                let secondUuidMatch = remainder.match(/([a-f0-9-]{36})/);
+                                if (secondUuidMatch) {
+                                    msid2 = secondUuidMatch[1];
+                                } else {
+                                    // Default to the same as first (not ideal, but better than error)
+                                    msid2 = msid1;
+                                }
+                            }
+                            // Reconstruct the line with proper spacing
+                            return `a=ssrc:${ssrc} msid:${msid1} ${msid2}`;
                         }
-                        let appdata = parts.slice(2).join(' ');
-                        return appdata ? `${ssrcPart} ${msidPart} ${appdata}` : `${ssrcPart} ${msidPart}`;
+                        // If no msid, just return original (but should always have msid)
                     }
                 }
                 return line;
