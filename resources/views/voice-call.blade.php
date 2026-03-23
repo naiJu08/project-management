@@ -107,58 +107,58 @@
                 }
             }
 
-            // ==================== SDP CLEANER ====================
+            // ==================== SDP CLEANER (with newline restoration) ====================
             function cleanSDP(sdp) {
                 if (!sdp || typeof sdp !== 'string') return sdp;
 
-                // remove control chars that break SDP parsing
-                let cleaned = sdp.replace(/[\u0000-\u001F\u007F]+/g, '');
-
-                // decode escaped newline sequences
+                // 1. Recursively decode escaped characters
+                let cleaned = sdp;
                 let prev;
                 do {
                     prev = cleaned;
-                    cleaned = cleaned
-                        .replace(/\\r\\n/g, '\r\n')
+                    cleaned = cleaned.replace(/\\r\\n/g, '\r\n')
                         .replace(/\\n/g, '\n')
                         .replace(/\\r/g, '\r')
                         .replace(/\\\\/g, '\\');
                 } while (prev !== cleaned);
 
-                // normalize line endings
-                cleaned = cleaned.replace(/\r?\n/g, '\r\n');
-
-                let lines = cleaned.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-                lines = lines.map(repairSDPLine).filter(line => line !== null);
-
-                cleaned = lines.join('\r\n');
-
-                // extra pass: remove a=ssrc lines that are invalid
-                function isValidSSRC(line) {
-                    if (!line.startsWith('a=ssrc:')) return true;
-                    // explicit msid + two items after msid
-                    return /^a=ssrc:\d+\s+msid:[^\s]+\s+[^\s]+(?:\s.*)?$/.test(line);
+                // 2. If the string has no newlines at all, insert them before each SDP line
+                if (!cleaned.includes('\n') && !cleaned.includes('\r')) {
+                    // Insert a newline before each pattern that starts a line:
+                    // v=, s=, t=, a=, m=, c=, i=, u=, e=, k=, b=, z=, etc.
+                    // Also handle "a=ssrc:" and "a=msid:" and others.
+                    // Use a regex to match the start of a line: (^|)(?=[a-z]=)
+                    // But careful not to insert at the very beginning.
+                    cleaned = cleaned.replace(/([a-z]=)/g, '\r\n$1');
+                    // Remove any leading newline
+                    cleaned = cleaned.replace(/^\r\n/, '');
                 }
 
-                return cleaned
-                    .split('\r\n')
-                    .filter(line => isValidSSRC(line))
-                    .join('\r\n');
+                // 3. Normalize line endings to CRLF
+                cleaned = cleaned.replace(/\r?\n/g, '\r\n');
+
+                // 4. Split into lines, trim each
+                let lines = cleaned.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+
+                // 5. Repair each line
+                lines = lines.map(line => repairSDPLine(line));
+
+                // 6. Rejoin with CRLF
+                return lines.join('\r\n');
             }
 
             function repairSDPLine(line) {
-                // Step 1: Fix a=src: typo
+                // Fix typo: a=src: -> a=ssrc:
                 if (line.startsWith('a=src:')) {
                     line = 'a=ssrc:' + line.substring(6);
                 }
 
-                // Step 2: Ensure a=ssrc line has colon after "ssrc"
+                // Ensure a=ssrc line has colon after "ssrc"
                 if (line.startsWith('a=ssrc') && !line.startsWith('a=ssrc:')) {
-                    // Replace "a=ssrc" with "a=ssrc:"
                     line = line.replace(/^a=ssrc/, 'a=ssrc:');
                 }
 
-                // Step 3: Process a=ssrc lines to fix msid formatting
+                // Process a=ssrc lines to fix msid formatting
                 if (line.startsWith('a=ssrc:')) {
                     // Expected: a=ssrc:<ssrc> msid:<msid> <appdata>
                     // We'll extract SSRC and everything after that
@@ -174,20 +174,17 @@
                             let msid2 = msidMatch[2];
                             // If msid2 is missing, check if the rest after msid1 contains another UUID (concatenated)
                             if (!msid2) {
-                                // The rest after the first UUID might contain the second UUID without space
                                 let remainder = rest.replace(/msid:[a-f0-9-]+/i, '');
                                 let secondUuidMatch = remainder.match(/([a-f0-9-]{36})/);
                                 if (secondUuidMatch) {
                                     msid2 = secondUuidMatch[1];
                                 } else {
-                                    // Default to the same as first (not ideal, but better than error)
-                                    msid2 = msid1;
+                                    msid2 = msid1; // fallback
                                 }
                             }
                             // Reconstruct the line with proper spacing
                             return `a=ssrc:${ssrc} msid:${msid1} ${msid2}`;
                         }
-                        // If no msid, just return original (but should always have msid)
                     }
                 }
                 return line;
@@ -440,9 +437,13 @@
 
                     // Clean SDP
                     if (incomingOffer.sdp) {
+                        debug("Original SDP length:", incomingOffer.sdp.length);
                         incomingOffer.sdp = cleanSDP(incomingOffer.sdp);
                         debug("Cleaned SDP length:", incomingOffer.sdp.length);
-                        debug("Cleaned SDP preview:", incomingOffer.sdp.substr(0, 600));
+                        console.log("Cleaned SDP preview (first 500 chars):", incomingOffer.sdp.substring(0, 500));
+                        console.log("=== FULL CLEANED SDP ===");
+                        console.log(incomingOffer.sdp);
+                        console.log("========================");
                     }
 
                     if (callActive) {
