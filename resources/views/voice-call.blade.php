@@ -306,7 +306,17 @@
                 { urls: "stun:stun3.l.google.com:19302" },
                 { urls: "stun:stun4.l.google.com:19302" },
 
-                // Public TURN servers that actually work
+                // Your own TURN server (now properly configured)
+                {
+                    urls: [
+                        "turn:pm.inovace.in:3478?transport=udp",
+                        "turn:pm.inovace.in:3478?transport=tcp"
+                    ],
+                    username: "webrtcuser",
+                    credential: "strongpassword123"
+                },
+
+                // Public TURN servers as backup
                 {
                     urls: [
                         "turn:openrelay.metered.ca:80",
@@ -323,15 +333,6 @@
                     ],
                     username: "anyfirewall",
                     credential: "anyfirewall"
-                },
-                // Additional backup TURN servers
-                {
-                    urls: [
-                        "turn:turn.nextcloud.com:3478",
-                        "turn:turn.nextcloud.com:3478?transport=tcp"
-                    ],
-                    username: "nextcloud",
-                    credential: "nextcloud"
                 }
             ];
 
