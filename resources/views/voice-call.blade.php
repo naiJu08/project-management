@@ -211,15 +211,17 @@
                 }
             }
 
-            // ==================== IMPROVED ICE SERVERS ====================
+            // ==================== IMPROVED ICE SERVERS (with more reliable TURN) ====================
             const iceServers = [
+                // STUN servers
                 { urls: "stun:stun.l.google.com:19302" },
                 { urls: "stun:stun1.l.google.com:19302" },
                 { urls: "stun:stun2.l.google.com:19302" },
                 { urls: "stun:stun3.l.google.com:19302" },
                 { urls: "stun:stun4.l.google.com:19302" },
                 { urls: "stun:stun.stunprotocol.org:3478" },
-                // Your TURN server (keep it, but ensure it's reachable from the internet)
+                
+                // Your own TURN server
                 {
                     urls: [
                         "turn:pm.inovace.in:3478?transport=udp",
@@ -228,7 +230,8 @@
                     username: "webrtcuser",
                     credential: "strongpassword123"
                 },
-                // Public TURN server as fallback (for testing, remove in production if needed)
+                
+                // Public TURN servers (fallback)
                 {
                     urls: [
                         "turn:openrelay.metered.ca:80",
@@ -237,6 +240,16 @@
                     ],
                     username: "openrelayproject",
                     credential: "openrelayproject"
+                },
+                {
+                    urls: "turn:turn.anyfirewall.com:3478?transport=udp",
+                    username: "anyfirewall",
+                    credential: "anyfirewall"
+                },
+                {
+                    urls: "turn:turn.nextcloud.com:3478",
+                    username: "nextcloud",
+                    credential: "nextcloud"
                 }
             ];
 
@@ -578,7 +591,10 @@
                 updateStatus("Setting up connection...");
                 pendingCandidates = [];
                 isRemoteSet = false;
-                peerConnection = new RTCPeerConnection({ iceServers: iceServers });
+                peerConnection = new RTCPeerConnection({ 
+                    iceServers: iceServers,
+                    iceCandidatePoolSize: 5   // Force earlier candidate gathering
+                });
 
                 peerConnection.onconnectionstatechange = () => {
                     debug("Connection state:", peerConnection.connectionState);
@@ -600,7 +616,14 @@
                 };
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
-                        debug("Sending ICE candidate:", event.candidate);
+                        // Log candidate type (host/srflx/relay)
+                        const candidateStr = event.candidate.candidate;
+                        let type = "unknown";
+                        if (candidateStr.includes("typ host")) type = "host";
+                        else if (candidateStr.includes("typ srflx")) type = "srflx (STUN)";
+                        else if (candidateStr.includes("typ relay")) type = "relay (TURN)";
+                        debug(`ICE candidate [${type}]:`, event.candidate);
+                        
                         fetch('/send-ice', {
                             method: 'POST',
                             headers: {
@@ -613,6 +636,8 @@
                                 receiverId: incomingCallerId ?? otherUserId
                             })
                         }).catch(err => debug("Error sending ICE:", err));
+                    } else {
+                        debug("ICE candidate gathering completed.");
                     }
                 };
                 peerConnection.ontrack = (event) => {
