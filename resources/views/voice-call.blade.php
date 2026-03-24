@@ -12,9 +12,18 @@
 
     <style>
         /* Your existing styles (unchanged) */
-        #startBtn { display: block; }
-        #acceptBtn { display: none; }
-        #endBtn { display: block; }
+        #startBtn {
+            display: block;
+        }
+
+        #acceptBtn {
+            display: none;
+        }
+
+        #endBtn {
+            display: block;
+        }
+
         .spinner {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #3498db;
@@ -25,15 +34,22 @@
             display: inline-block;
             margin-right: 8px;
         }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
+
         #debugPanel {
             position: fixed;
             bottom: 10px;
             left: 10px;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0, 0, 0, 0.8);
             color: #0f0;
             padding: 10px;
             border-radius: 5px;
@@ -44,14 +60,16 @@
             z-index: 9999;
             display: none;
         }
+
         .debug-visible #debugPanel {
             display: block;
         }
+
         .audioPanel {
             position: fixed;
             bottom: 10px;
             right: 10px;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0, 0, 0, 0.7);
             padding: 5px 10px;
             border-radius: 20px;
             font-size: 12px;
@@ -61,11 +79,13 @@
             gap: 8px;
             cursor: pointer;
         }
+
         .localPanel {
             right: auto;
             left: 10px;
             bottom: 50px;
         }
+
         .volumeMeter {
             width: 50px;
             height: 4px;
@@ -73,14 +93,25 @@
             border-radius: 2px;
             overflow: hidden;
         }
+
         .volumeLevel {
             width: 0%;
             height: 100%;
             transition: width 0.1s;
         }
-        .remotePanel .volumeLevel { background: #0f0; }
-        .localPanel .volumeLevel { background: #ff9800; }
-        .muteIcon { font-size: 16px; }
+
+        .remotePanel .volumeLevel {
+            background: #0f0;
+        }
+
+        .localPanel .volumeLevel {
+            background: #ff9800;
+        }
+
+        .muteIcon {
+            font-size: 16px;
+        }
+
         .actionButtons {
             position: fixed;
             bottom: 10px;
@@ -89,8 +120,9 @@
             gap: 8px;
             z-index: 10000;
         }
+
         .actionButtons button {
-            background: rgba(0,0,0,0.7);
+            background: rgba(0, 0, 0, 0.7);
             padding: 5px 10px;
             border-radius: 20px;
             font-size: 12px;
@@ -98,6 +130,7 @@
             border: none;
             color: white;
         }
+
         #remoteAudio {
             position: fixed;
             bottom: 50px;
@@ -108,6 +141,7 @@
             background: #222;
             border-radius: 5px;
         }
+
         #audioMessage {
             position: fixed;
             top: 10px;
@@ -121,8 +155,9 @@
             z-index: 10001;
             display: none;
             cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         }
+
         #reconnectBtn {
             display: none;
             background: #f97316;
@@ -142,19 +177,24 @@
             Initializing...
         </p>
         <div class="flex gap-4 justify-center mt-8 flex-wrap">
-            <button id="startBtn" onclick="startCall()" class="bg-green-500 px-6 py-3 rounded-full text-lg hover:bg-green-600 transition flex items-center gap-2">
+            <button id="startBtn" onclick="startCall()"
+                class="bg-green-500 px-6 py-3 rounded-full text-lg hover:bg-green-600 transition flex items-center gap-2">
                 <span>📞</span> Start Call
             </button>
-            <button id="acceptBtn" onclick="acceptCall()" class="bg-green-600 px-6 py-3 rounded-full text-lg hover:bg-green-700 transition flex items-center gap-2 animate-pulse">
+            <button id="acceptBtn" onclick="acceptCall()"
+                class="bg-green-600 px-6 py-3 rounded-full text-lg hover:bg-green-700 transition flex items-center gap-2 animate-pulse">
                 <span>✅</span> Accept Call
             </button>
-            <button id="endBtn" onclick="endCall()" class="bg-red-500 px-6 py-3 rounded-full text-lg hover:bg-red-600 transition">
+            <button id="endBtn" onclick="endCall()"
+                class="bg-red-500 px-6 py-3 rounded-full text-lg hover:bg-red-600 transition">
                 ❌ End
             </button>
-            <button id="reconnectBtn" onclick="restartIce()" class="bg-orange-500 px-6 py-3 rounded-full text-lg hover:bg-orange-600 transition">
+            <button id="reconnectBtn" onclick="restartIce()"
+                class="bg-orange-500 px-6 py-3 rounded-full text-lg hover:bg-orange-600 transition">
                 🔄 Reconnect
             </button>
-            <button onclick="toggleDebug()" class="bg-gray-600 px-4 py-3 rounded-full text-lg hover:bg-gray-700 transition">🐛 Debug</button>
+            <button onclick="toggleDebug()"
+                class="bg-gray-600 px-4 py-3 rounded-full text-lg hover:bg-gray-700 transition">🐛 Debug</button>
         </div>
         <div id="debugPanel"></div>
     </div>
@@ -162,13 +202,17 @@
     <!-- Remote audio control (bottom‑right) -->
     <div id="remotePanel" class="audioPanel remotePanel" style="display: none;">
         <span id="remoteMuteIcon" class="muteIcon">🔊</span>
-        <div class="volumeMeter"><div id="remoteVolumeLevel" class="volumeLevel"></div></div>
+        <div class="volumeMeter">
+            <div id="remoteVolumeLevel" class="volumeLevel"></div>
+        </div>
     </div>
 
     <!-- Local audio control (bottom‑left) – only visible after mic is granted -->
     <div id="localPanel" class="audioPanel localPanel" style="display: none;">
         <span id="localMicIcon" class="muteIcon">🎤</span>
-        <div class="volumeMeter"><div id="localVolumeLevel" class="volumeLevel"></div></div>
+        <div class="volumeMeter">
+            <div id="localVolumeLevel" class="volumeLevel"></div>
+        </div>
     </div>
 
     <div class="actionButtons">
@@ -180,7 +224,7 @@
     <div id="audioMessage">🔊 Click anywhere to enable audio</div>
 
     <script>
-        (function() {
+        (function () {
             "use strict";
 
             // ==================== CONFIG ====================
@@ -198,7 +242,7 @@
                 debugLogs.unshift({ time: new Date().toLocaleTimeString(), message });
                 updateDebugPanel();
             }
-            window.toggleDebug = function() {
+            window.toggleDebug = function () {
                 document.body.classList.toggle('debug-visible');
                 updateDebugPanel();
             };
@@ -211,27 +255,53 @@
                 }
             }
 
-            // ==================== IMPROVED ICE SERVERS (with more reliable TURN) ====================
+            /*   // ==================== IMPROVED ICE SERVERS (with more reliable TURN) ====================
+               const iceServers = [
+                   // STUN servers
+                   { urls: "stun:stun.l.google.com:19302" },
+                   { urls: "stun:stun1.l.google.com:19302" },
+                   { urls: "stun:stun2.l.google.com:19302" },
+                   { urls: "stun:stun3.l.google.com:19302" },
+                   { urls: "stun:stun4.l.google.com:19302" },
+                   { urls: "stun:stun.stunprotocol.org:3478" },
+                   
+                   // Your own TURN server
+                   {
+                       urls: [
+                           "turn:pm.inovace.in:3478?transport=udp",
+                           "turn:pm.inovace.in:3478?transport=tcp"
+                       ],
+                       username: "webrtcuser",
+                       credential: "strongpassword123"
+                   },
+                   
+                   // Public TURN servers (fallback)
+                   {
+                       urls: [
+                           "turn:openrelay.metered.ca:80",
+                           "turn:openrelay.metered.ca:443",
+                           "turn:openrelay.metered.ca:443?transport=tcp"
+                       ],
+                       username: "openrelayproject",
+                       credential: "openrelayproject"
+                   },
+                   {
+                       urls: "turn:turn.anyfirewall.com:3478?transport=udp",
+                       username: "anyfirewall",
+                       credential: "anyfirewall"
+                   },
+                   {
+                       urls: "turn:turn.nextcloud.com:3478",
+                       username: "nextcloud",
+                       credential: "nextcloud"
+                   }
+               ]; */
+               
             const iceServers = [
                 // STUN servers
                 { urls: "stun:stun.l.google.com:19302" },
-                { urls: "stun:stun1.l.google.com:19302" },
-                { urls: "stun:stun2.l.google.com:19302" },
-                { urls: "stun:stun3.l.google.com:19302" },
-                { urls: "stun:stun4.l.google.com:19302" },
-                { urls: "stun:stun.stunprotocol.org:3478" },
-                
-                // Your own TURN server
-                {
-                    urls: [
-                        "turn:pm.inovace.in:3478?transport=udp",
-                        "turn:pm.inovace.in:3478?transport=tcp"
-                    ],
-                    username: "webrtcuser",
-                    credential: "strongpassword123"
-                },
-                
-                // Public TURN servers (fallback)
+
+                // Public TURN servers (these should work)
                 {
                     urls: [
                         "turn:openrelay.metered.ca:80",
@@ -240,16 +310,6 @@
                     ],
                     username: "openrelayproject",
                     credential: "openrelayproject"
-                },
-                {
-                    urls: "turn:turn.anyfirewall.com:3478?transport=udp",
-                    username: "anyfirewall",
-                    credential: "anyfirewall"
-                },
-                {
-                    urls: "turn:turn.nextcloud.com:3478",
-                    username: "nextcloud",
-                    credential: "nextcloud"
                 }
             ];
 
@@ -259,9 +319,9 @@
 
                 // Normalize line breaks
                 let cleaned = sdp.replace(/\\r\\n/g, '\r\n')
-                                 .replace(/\\n/g, '\n')
-                                 .replace(/\\r/g, '\r')
-                                 .replace(/\\\\/g, '\\');
+                    .replace(/\\n/g, '\n')
+                    .replace(/\\r/g, '\r')
+                    .replace(/\\\\/g, '\\');
 
                 // Ensure each line ends with \r\n
                 cleaned = cleaned.replace(/\r?\n/g, '\r\n');
@@ -402,7 +462,7 @@
             }
 
             // ==================== TEST MICROPHONE ====================
-            window.testMicrophone = function() {
+            window.testMicrophone = function () {
                 if (!localStream) {
                     alert("No microphone stream available. Please start/accept a call first.");
                     return;
@@ -487,7 +547,7 @@
                 return false;
             }
 
-            window.forcePlayRemote = function() {
+            window.forcePlayRemote = function () {
                 if (attemptPlayRemoteAudio()) {
                     updateStatus("🔊 Force‑playing remote audio");
                     const msgDiv = document.getElementById('audioMessage');
@@ -529,7 +589,7 @@
             }
 
             // ==================== LISTEN FOR POST MESSAGES ====================
-            window.addEventListener('message', function(event) {
+            window.addEventListener('message', function (event) {
                 debug("📨 Received message:", event.data.type);
                 if (event.data.type === 'incoming-offer') {
                     debug("📞 Received offer via postMessage");
@@ -591,7 +651,7 @@
                 updateStatus("Setting up connection...");
                 pendingCandidates = [];
                 isRemoteSet = false;
-                peerConnection = new RTCPeerConnection({ 
+                peerConnection = new RTCPeerConnection({
                     iceServers: iceServers,
                     iceCandidatePoolSize: 5   // Force earlier candidate gathering
                 });
@@ -623,7 +683,7 @@
                         else if (candidateStr.includes("typ srflx")) type = "srflx (STUN)";
                         else if (candidateStr.includes("typ relay")) type = "relay (TURN)";
                         debug(`ICE candidate [${type}]:`, event.candidate);
-                        
+
                         fetch('/send-ice', {
                             method: 'POST',
                             headers: {
@@ -726,7 +786,7 @@
             window.restartIce = restartIce;
 
             // ==================== CALL FUNCTIONS ====================
-            window.startCall = async function() {
+            window.startCall = async function () {
                 debug("Starting call...");
                 if (callActive) return;
                 callActive = true;
@@ -784,7 +844,7 @@
                 }
             };
 
-            window.acceptCall = async function() {
+            window.acceptCall = async function () {
                 try {
                     debug("========== ACCEPT CALL CLICKED ==========");
                     if (!incomingOffer || !incomingCallerId) {
@@ -932,7 +992,7 @@
                 }
             }
 
-            window.endCall = function() {
+            window.endCall = function () {
                 debug("Ending call");
                 if (connectionTimeout) clearTimeout(connectionTimeout);
                 if (peerConnection) {
@@ -1040,7 +1100,7 @@
             }
 
             // ==================== INIT ====================
-            document.addEventListener("DOMContentLoaded", function() {
+            document.addEventListener("DOMContentLoaded", function () {
                 debug("Voice call page loaded");
                 debug("User ID:", userId, "Other User ID:", otherUserId);
                 debug("URL params:", window.location.search);
@@ -1051,4 +1111,5 @@
         })();
     </script>
 </body>
+
 </html>
