@@ -11,7 +11,7 @@
     <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
     <style>
-        /* Your existing styles remain unchanged */
+        /* Your existing styles (unchanged) */
         #startBtn { display: block; }
         #acceptBtn { display: none; }
         #endBtn { display: block; }
@@ -108,7 +108,6 @@
             background: #222;
             border-radius: 5px;
         }
-        /* New message for autoplay */
         #audioMessage {
             position: fixed;
             top: 10px;
@@ -123,6 +122,10 @@
             display: none;
             cursor: pointer;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        #reconnectBtn {
+            display: none;
+            background: #f97316;
         }
     </style>
 </head>
@@ -148,6 +151,9 @@
             <button id="endBtn" onclick="endCall()" class="bg-red-500 px-6 py-3 rounded-full text-lg hover:bg-red-600 transition">
                 ❌ End
             </button>
+            <button id="reconnectBtn" onclick="restartIce()" class="bg-orange-500 px-6 py-3 rounded-full text-lg hover:bg-orange-600 transition">
+                🔄 Reconnect
+            </button>
             <button onclick="toggleDebug()" class="bg-gray-600 px-4 py-3 rounded-full text-lg hover:bg-gray-700 transition">🐛 Debug</button>
         </div>
         <div id="debugPanel"></div>
@@ -171,8 +177,6 @@
     </div>
 
     <audio id="remoteAudio" controls autoplay style="display: none;"></audio>
-
-    <!-- Autoplay message -->
     <div id="audioMessage">🔊 Click anywhere to enable audio</div>
 
     <script>
@@ -207,57 +211,75 @@
                 }
             }
 
-            // ==================== SDP CLEANER ====================
+            // ==================== IMPROVED ICE SERVERS ====================
+            const iceServers = [
+                { urls: "stun:stun.l.google.com:19302" },
+                { urls: "stun:stun1.l.google.com:19302" },
+                { urls: "stun:stun2.l.google.com:19302" },
+                { urls: "stun:stun3.l.google.com:19302" },
+                { urls: "stun:stun4.l.google.com:19302" },
+                { urls: "stun:stun.stunprotocol.org:3478" },
+                // Your TURN server (keep it, but ensure it's reachable from the internet)
+                {
+                    urls: [
+                        "turn:pm.inovace.in:3478?transport=udp",
+                        "turn:pm.inovace.in:3478?transport=tcp"
+                    ],
+                    username: "webrtcuser",
+                    credential: "strongpassword123"
+                }
+                // Optional: add a public TURN server for testing (remove in production)
+                // {
+                //     urls: "turn:openrelay.metered.ca:80",
+                //     username: "openrelayproject",
+                //     credential: "openrelayproject"
+                // }
+            ];
+
+            // ==================== SDP CLEANER (improved) ====================
             function cleanSDP(sdp) {
                 if (!sdp || typeof sdp !== 'string') return sdp;
 
-                let cleaned = sdp;
-                let prev;
-                do {
-                    prev = cleaned;
-                    cleaned = cleaned.replace(/\\r\\n/g, '\r\n')
-                        .replace(/\\n/g, '\n')
-                        .replace(/\\r/g, '\r')
-                        .replace(/\\\\/g, '\\');
-                } while (prev !== cleaned);
+                // Normalize line breaks
+                let cleaned = sdp.replace(/\\r\\n/g, '\r\n')
+                                 .replace(/\\n/g, '\n')
+                                 .replace(/\\r/g, '\r')
+                                 .replace(/\\\\/g, '\\');
 
-                if (!cleaned.includes('\n') && !cleaned.includes('\r')) {
-                    cleaned = cleaned.replace(/([a-z]=)/g, '\r\n$1');
-                    cleaned = cleaned.replace(/^\r\n/, '');
-                }
-
+                // Ensure each line ends with \r\n
                 cleaned = cleaned.replace(/\r?\n/g, '\r\n');
-                let lines = cleaned.split(/\r?\n/).filter(line => line.trim().length > 0);
-                lines = lines.map(line => repairSDPLine(line.trim()));
-                return lines.join('\r\n') + '\r\n';
-            }
 
-            function repairSDPLine(line) {
-                if (line.startsWith('a=src:')) line = 'a=ssrc:' + line.substring(6);
-                if (line.startsWith('a=ssrc') && !line.startsWith('a=ssrc:')) {
-                    line = line.replace(/^a=ssrc/, 'a=ssrc:');
-                }
-                if (line.startsWith('a=ssrc:')) {
-                    let match = line.match(/^a=ssrc:(\d+)\s*(.*)$/);
-                    if (match) {
-                        let ssrc = match[1];
-                        let rest = match[2].trim();
-                        let msidMatch = rest.match(/msid:([a-f0-9-]+)(?:\s+)?([a-f0-9-]+)?/i);
-                        if (msidMatch) {
-                            let msid1 = msidMatch[1];
-                            let msid2 = msidMatch[2];
-                            if (!msid2) {
-                                let remainder = rest.replace(/msid:[a-f0-9-]+/i, '');
-                                let secondUuid = remainder.match(/([a-f0-9-]{36})/);
-                                if (secondUuid) msid2 = secondUuid[1];
-                                else msid2 = msid1;
-                            }
-                            return `a=ssrc:${ssrc} msid:${msid1} ${msid2}`;
-                        }
-                        return line;
+                // Remove any empty lines
+                let lines = cleaned.split(/\r?\n/).filter(line => line.trim().length > 0);
+                // Repair common SDP issues (only if needed)
+                lines = lines.map(line => {
+                    if (line.startsWith('a=src:')) line = 'a=ssrc:' + line.substring(6);
+                    if (line.startsWith('a=ssrc') && !line.startsWith('a=ssrc:')) {
+                        line = line.replace(/^a=ssrc/, 'a=ssrc:');
                     }
-                }
-                return line;
+                    if (line.startsWith('a=ssrc:')) {
+                        let match = line.match(/^a=ssrc:(\d+)\s*(.*)$/);
+                        if (match) {
+                            let ssrc = match[1];
+                            let rest = match[2].trim();
+                            let msidMatch = rest.match(/msid:([a-f0-9-]+)(?:\s+)?([a-f0-9-]+)?/i);
+                            if (msidMatch) {
+                                let msid1 = msidMatch[1];
+                                let msid2 = msidMatch[2];
+                                if (!msid2) {
+                                    let remainder = rest.replace(/msid:[a-f0-9-]+/i, '');
+                                    let secondUuid = remainder.match(/([a-f0-9-]{36})/);
+                                    if (secondUuid) msid2 = secondUuid[1];
+                                    else msid2 = msid1;
+                                }
+                                return `a=ssrc:${ssrc} msid:${msid1} ${msid2}`;
+                            }
+                            return line;
+                        }
+                    }
+                    return line;
+                });
+                return lines.join('\r\n') + '\r\n';
             }
 
             // ==================== STATE ====================
@@ -276,14 +298,15 @@
             let localAudioContext = null;
             let localAnalyser = null;
             let localAnimation = null;
-            let remoteVolumeCtx = null;          // Only for the green meter, not playback
+            let remoteVolumeCtx = null;
             let remoteAnalyser = null;
             let remoteAnimation = null;
-            let playbackAudioContext = null;     // For actual playback
-            let playbackGain = null;              // For volume control
-            let currentRemoteStream = null;       // Keep a reference to the remote stream
+            let playbackAudioContext = null;
+            let playbackGain = null;
+            let currentRemoteStream = null;
+            let iceRestartPending = false;
 
-            // ==================== VOLUME METERS ====================
+            // ==================== VOLUME METERS (unchanged) ====================
             function startLocalVolumeMeter(stream) {
                 if (localAudioContext) return;
                 try {
@@ -316,7 +339,6 @@
                 }
             }
 
-            // This meter is only for visualization – it does not play sound
             function startRemoteVolumeMeter(stream) {
                 if (remoteVolumeCtx) return;
                 try {
@@ -384,25 +406,22 @@
                 }).catch(e => debug("Test mic failed:", e));
             };
 
-            // ==================== IMPROVED REMOTE PLAYBACK ====================
+            // ==================== REMOTE PLAYBACK (unchanged) ====================
             function ensureRemotePlayback() {
                 if (!currentRemoteStream) {
                     debug("No remote stream available yet.");
                     return false;
                 }
-                // If no playback AudioContext, create one (will be suspended initially)
                 if (!playbackAudioContext) {
                     debug("Creating playback AudioContext on the fly");
                     playbackAudioContext = new (window.AudioContext || window.webkitAudioContext)();
                 }
-                // If already connected, just ensure it's resumed
                 if (playbackGain && playbackGain.context === playbackAudioContext) {
                     if (playbackAudioContext.state !== 'running') {
                         playbackAudioContext.resume().then(() => debug("Resumed existing AudioContext")).catch(e => debug("Resume failed:", e));
                     }
                     return true;
                 }
-                // Connect the remote stream to the AudioContext
                 try {
                     if (playbackGain) playbackGain.disconnect();
                     const source = playbackAudioContext.createMediaStreamSource(currentRemoteStream);
@@ -411,7 +430,6 @@
                     source.connect(playbackGain);
                     playbackGain.connect(playbackAudioContext.destination);
                     debug("Connected remote stream to playback AudioContext");
-                    // Resume the context (may need user interaction if not already running)
                     if (playbackAudioContext.state !== 'running') {
                         playbackAudioContext.resume().then(() => {
                             debug("Playback AudioContext resumed");
@@ -419,7 +437,6 @@
                         }).catch(e => {
                             debug("Failed to resume AudioContext automatically:", e);
                             updateStatus("🔊 Click anywhere to enable audio");
-                            // We'll rely on the global click handler later
                         });
                     }
                     return true;
@@ -429,21 +446,13 @@
                 }
             }
 
-            // Combined attempt: first AudioContext, then <audio> element
             function attemptPlayRemoteAudio() {
-                if (!currentRemoteStream) {
-                    debug("No remote stream available yet.");
-                    return false;
-                }
-
-                // 1. Try AudioContext
+                if (!currentRemoteStream) return false;
                 if (ensureRemotePlayback()) {
-                    debug("✅ AudioContext playback started successfully.");
+                    debug("✅ AudioContext playback started.");
                     updateStatus("✅ Audio is playing");
                     return true;
                 }
-
-                // 2. Fallback to <audio> element
                 if (remoteAudioElement && remoteAudioElement.srcObject) {
                     remoteAudioElement.muted = false;
                     remoteAudioElement.volume = 1;
@@ -457,16 +466,13 @@
                             debug("❌ <audio> element play() failed:", e);
                             return false;
                         });
-                } else {
-                    debug("No <audio> element or srcObject set.");
-                    return false;
                 }
+                return false;
             }
 
             window.forcePlayRemote = function() {
                 if (attemptPlayRemoteAudio()) {
                     updateStatus("🔊 Force‑playing remote audio");
-                    // Hide the autoplay message if it was visible
                     const msgDiv = document.getElementById('audioMessage');
                     if (msgDiv) msgDiv.style.display = 'none';
                 } else {
@@ -546,49 +552,47 @@
             function showStartMode() {
                 document.getElementById("startBtn").style.display = "block";
                 document.getElementById("acceptBtn").style.display = "none";
+                document.getElementById("reconnectBtn").style.display = "none";
                 document.getElementById("callTitle").textContent = `Call ${otherUserName}`;
             }
 
             function showAcceptMode() {
                 document.getElementById("startBtn").style.display = "none";
                 document.getElementById("acceptBtn").style.display = "block";
+                document.getElementById("reconnectBtn").style.display = "none";
             }
 
             function hideAllButtons() {
                 document.getElementById("startBtn").style.display = "none";
                 document.getElementById("acceptBtn").style.display = "none";
+                document.getElementById("reconnectBtn").style.display = "none";
             }
 
             // ==================== WEBRTC ====================
             function createPeer() {
-                debug("Creating peer connection");
+                debug("Creating peer connection with ICE servers:", iceServers);
                 updateStatus("Setting up connection...");
                 pendingCandidates = [];
                 isRemoteSet = false;
-                peerConnection = new RTCPeerConnection({
-                    iceServers: [
-                        { urls: "stun:stun.l.google.com:19302" },
-                        {
-                            urls: [
-                                "turn:pm.inovace.in:3478?transport=udp",
-                                "turn:pm.inovace.in:3478?transport=tcp"
-                            ],
-                            username: "webrtcuser",
-                            credential: "strongpassword123"
-                        }
-                    ]
-                });
+                peerConnection = new RTCPeerConnection({ iceServers: iceServers });
+
                 peerConnection.onconnectionstatechange = () => {
                     debug("Connection state:", peerConnection.connectionState);
                     updateStatus(`Connection: ${peerConnection.connectionState}`);
                     if (peerConnection.connectionState === 'connected') {
                         updateStatus("✅ Call connected!");
+                        document.getElementById("reconnectBtn").style.display = "none";
                     } else if (peerConnection.connectionState === 'failed') {
-                        updateStatus("❌ Connection failed - check TURN server");
+                        updateStatus("❌ Connection failed - check network or TURN server");
+                        document.getElementById("reconnectBtn").style.display = "inline-block";
                     }
                 };
                 peerConnection.oniceconnectionstatechange = () => {
                     debug("ICE state:", peerConnection.iceConnectionState);
+                    if (peerConnection.iceConnectionState === 'failed') {
+                        debug("ICE failed, trying to restart ICE...");
+                        restartIce();
+                    }
                 };
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
@@ -613,11 +617,8 @@
 
                     currentRemoteStream = event.streams[0];
                     startRemoteVolumeMeter(event.streams[0]);
-
-                    // Show the "Play Remote" button as a fallback
                     document.getElementById('playRemoteBtn').style.display = 'block';
 
-                    // Set up the <audio> element fallback
                     remoteAudioElement = document.getElementById("remoteAudio");
                     remoteAudioElement.style.display = "block";
                     remoteAudioElement.controls = true;
@@ -627,11 +628,8 @@
                     remoteAudioElement.volume = 1;
                     remoteAudioElement.srcObject = event.streams[0];
 
-                    // Attempt to play immediately
                     const played = attemptPlayRemoteAudio();
-
                     if (!played) {
-                        // Autoplay blocked – show message and add one‑time click listener
                         const msgDiv = document.getElementById('audioMessage');
                         if (msgDiv) msgDiv.style.display = 'block';
                         const enableAudio = () => {
@@ -647,7 +645,6 @@
                         document.addEventListener('click', enableAudio);
                         updateStatus("🔊 Click anywhere to enable audio");
                     } else {
-                        // Play succeeded, hide message
                         const msgDiv = document.getElementById('audioMessage');
                         if (msgDiv) msgDiv.style.display = 'none';
                     }
@@ -669,6 +666,36 @@
                 };
             }
 
+            // ==================== ICE RESTART ====================
+            async function restartIce() {
+                if (!peerConnection || iceRestartPending) return;
+                iceRestartPending = true;
+                debug("Attempting ICE restart...");
+                updateStatus("Reconnecting...");
+                try {
+                    const offer = await peerConnection.createOffer({ iceRestart: true });
+                    await peerConnection.setLocalDescription(offer);
+                    // Send the new offer to the other peer
+                    await fetch('/send-offer', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        body: JSON.stringify({
+                            offer: { type: offer.type, sdp: offer.sdp },
+                            receiverId: incomingCallerId ?? otherUserId
+                        })
+                    });
+                    debug("ICE restart offer sent");
+                } catch (err) {
+                    debug("ICE restart failed:", err);
+                } finally {
+                    iceRestartPending = false;
+                }
+            }
+            window.restartIce = restartIce;
+
             // ==================== CALL FUNCTIONS ====================
             window.startCall = async function() {
                 debug("Starting call...");
@@ -682,7 +709,6 @@
                     startLocalVolumeMeter(localStream);
                     document.getElementById('testMicBtn').style.display = 'block';
 
-                    // Create playback AudioContext and resume it (user gesture)
                     if (!playbackAudioContext) {
                         playbackAudioContext = new (window.AudioContext || window.webkitAudioContext)();
                         await playbackAudioContext.resume();
@@ -731,18 +757,7 @@
 
             window.acceptCall = async function() {
                 try {
-                    console.log("========== ACCEPT CALL CLICKED ==========");
                     debug("========== ACCEPT CALL CLICKED ==========");
-                    debug("incomingOffer:", incomingOffer ? "present" : "null");
-                    debug("incomingCallerId:", incomingCallerId);
-                    if (incomingOffer) {
-                        debug("Offer type:", incomingOffer.type);
-                        debug("Offer has sdp:", !!incomingOffer.sdp);
-                        console.log("Full offer:", incomingOffer);
-                        if (incomingOffer.sdp) {
-                            console.log("Original SDP preview (first 500 chars):", incomingOffer.sdp.substring(0, 500));
-                        }
-                    }
                     if (!incomingOffer || !incomingCallerId) {
                         debug("❌ No incoming call to accept");
                         alert("No incoming call to accept");
@@ -750,13 +765,7 @@
                     }
 
                     if (incomingOffer.sdp) {
-                        debug("Original SDP length:", incomingOffer.sdp.length);
                         incomingOffer.sdp = cleanSDP(incomingOffer.sdp);
-                        debug("Cleaned SDP length:", incomingOffer.sdp.length);
-                        console.log("Cleaned SDP preview (first 500 chars):", incomingOffer.sdp.substring(0, 500));
-                        console.log("=== FULL CLEANED SDP ===");
-                        console.log(incomingOffer.sdp);
-                        console.log("========================");
                     }
 
                     if (callActive) {
@@ -767,7 +776,6 @@
                     callActive = true;
                     hideAllButtons();
                     updateStatus('<span class="spinner"></span> Accessing microphone...');
-                    debug("Requesting microphone permission...");
                     try {
                         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                         debug("✅ Microphone access granted");
@@ -782,7 +790,6 @@
                         return;
                     }
 
-                    // Create playback AudioContext and resume it (user gesture)
                     if (!playbackAudioContext) {
                         playbackAudioContext = new (window.AudioContext || window.webkitAudioContext)();
                         await playbackAudioContext.resume();
@@ -795,7 +802,6 @@
                     debug("Setting remote description...");
                     let remoteSet = false;
                     let lastError = null;
-
                     try {
                         const offerDesc = new RTCSessionDescription({
                             type: incomingOffer.type,
@@ -816,7 +822,6 @@
 
                     debug("Creating answer...");
                     const answer = await peerConnection.createAnswer();
-                    debug("Answer created:", answer.type);
                     await peerConnection.setLocalDescription(answer);
                     debug("✅ Local description set");
 
@@ -928,7 +933,6 @@
                 currentRemoteStream = null;
                 document.getElementById('testMicBtn').style.display = 'none';
                 document.getElementById('playRemoteBtn').style.display = 'none';
-                // Hide autoplay message
                 const msgDiv = document.getElementById('audioMessage');
                 if (msgDiv) msgDiv.style.display = 'none';
                 if (incomingCallerId) {
