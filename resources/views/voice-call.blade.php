@@ -227,13 +227,17 @@
                     ],
                     username: "webrtcuser",
                     credential: "strongpassword123"
+                },
+                // Public TURN server as fallback (for testing, remove in production if needed)
+                {
+                    urls: [
+                        "turn:openrelay.metered.ca:80",
+                        "turn:openrelay.metered.ca:443",
+                        "turn:openrelay.metered.ca:443?transport=tcp"
+                    ],
+                    username: "openrelayproject",
+                    credential: "openrelayproject"
                 }
-                // Optional: add a public TURN server for testing (remove in production)
-                // {
-                //     urls: "turn:openrelay.metered.ca:80",
-                //     username: "openrelayproject",
-                //     credential: "openrelayproject"
-                // }
             ];
 
             // ==================== SDP CLEANER (improved) ====================
@@ -596,7 +600,7 @@
                 };
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
-                        debug("Sending ICE candidate");
+                        debug("Sending ICE candidate:", event.candidate);
                         fetch('/send-ice', {
                             method: 'POST',
                             headers: {
