@@ -297,9 +297,42 @@
                    }
                ]; */
 
+            // ==================== WORKING ICE SERVERS ====================
             const iceServers = [
+                // STUN servers for NAT discovery
                 { urls: "stun:stun.l.google.com:19302" },
-                { urls: "stun:stun1.l.google.com:19302" }
+                { urls: "stun:stun1.l.google.com:19302" },
+                { urls: "stun:stun2.l.google.com:19302" },
+                { urls: "stun:stun3.l.google.com:19302" },
+                { urls: "stun:stun4.l.google.com:19302" },
+
+                // Public TURN servers that actually work
+                {
+                    urls: [
+                        "turn:openrelay.metered.ca:80",
+                        "turn:openrelay.metered.ca:443",
+                        "turn:openrelay.metered.ca:443?transport=tcp"
+                    ],
+                    username: "openrelayproject",
+                    credential: "openrelayproject"
+                },
+                {
+                    urls: [
+                        "turn:turn.anyfirewall.com:3478?transport=udp",
+                        "turn:turn.anyfirewall.com:3478?transport=tcp"
+                    ],
+                    username: "anyfirewall",
+                    credential: "anyfirewall"
+                },
+                // Additional backup TURN servers
+                {
+                    urls: [
+                        "turn:turn.nextcloud.com:3478",
+                        "turn:turn.nextcloud.com:3478?transport=tcp"
+                    ],
+                    username: "nextcloud",
+                    credential: "nextcloud"
+                }
             ];
 
             // ==================== SDP CLEANER (improved) ====================
@@ -640,9 +673,11 @@
                 updateStatus("Setting up connection...");
                 pendingCandidates = [];
                 isRemoteSet = false;
+
                 peerConnection = new RTCPeerConnection({
                     iceServers: iceServers,
-                    iceCandidatePoolSize: 5   // Force earlier candidate gathering
+                    iceCandidatePoolSize: 10,  // Increased to gather more candidates
+                    iceTransportPolicy: 'all'   // Use all candidates including relay
                 });
 
                 peerConnection.onconnectionstatechange = () => {
