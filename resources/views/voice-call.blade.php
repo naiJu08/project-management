@@ -296,21 +296,10 @@
                        credential: "nextcloud"
                    }
                ]; */
-               
-            const iceServers = [
-                // STUN servers
-                { urls: "stun:stun.l.google.com:19302" },
 
-                // Public TURN servers (these should work)
-                {
-                    urls: [
-                        "turn:openrelay.metered.ca:80",
-                        "turn:openrelay.metered.ca:443",
-                        "turn:openrelay.metered.ca:443?transport=tcp"
-                    ],
-                    username: "openrelayproject",
-                    credential: "openrelayproject"
-                }
+            const iceServers = [
+                { urls: "stun:stun.l.google.com:19302" },
+                { urls: "stun:stun1.l.google.com:19302" }
             ];
 
             // ==================== SDP CLEANER (improved) ====================
