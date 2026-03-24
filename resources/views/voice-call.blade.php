@@ -11,6 +11,7 @@
     <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
     <style>
+        /* Your existing styles remain unchanged */
         #startBtn { display: block; }
         #acceptBtn { display: none; }
         #endBtn { display: block; }
@@ -107,6 +108,22 @@
             background: #222;
             border-radius: 5px;
         }
+        /* New message for autoplay */
+        #audioMessage {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #ff9800;
+            color: #000;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 10001;
+            display: none;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 
@@ -154,6 +171,9 @@
     </div>
 
     <audio id="remoteAudio" controls autoplay style="display: none;"></audio>
+
+    <!-- Autoplay message -->
+    <div id="audioMessage">🔊 Click anywhere to enable audio</div>
 
     <script>
         (function() {
@@ -364,7 +384,7 @@
                 }).catch(e => debug("Test mic failed:", e));
             };
 
-            // ==================== FORCE REMOTE PLAYBACK ====================
+            // ==================== IMPROVED REMOTE PLAYBACK ====================
             function ensureRemotePlayback() {
                 if (!currentRemoteStream) {
                     debug("No remote stream available yet.");
@@ -395,18 +415,11 @@
                     if (playbackAudioContext.state !== 'running') {
                         playbackAudioContext.resume().then(() => {
                             debug("Playback AudioContext resumed");
-                            updateStatus("✅ Remote audio playing (after resume)");
+                            updateStatus("✅ Remote audio playing (via AudioContext)");
                         }).catch(e => {
                             debug("Failed to resume AudioContext automatically:", e);
                             updateStatus("🔊 Click anywhere to enable audio");
-                            const enableAudio = () => {
-                                playbackAudioContext.resume().then(() => {
-                                    debug("AudioContext resumed after user click");
-                                    updateStatus("Call connected!");
-                                    document.removeEventListener('click', enableAudio);
-                                }).catch(e2 => debug("Still cannot resume:", e2));
-                            };
-                            document.addEventListener('click', enableAudio);
+                            // We'll rely on the global click handler later
                         });
                     }
                     return true;
@@ -416,24 +429,48 @@
                 }
             }
 
-            window.forcePlayRemote = function() {
+            // Combined attempt: first AudioContext, then <audio> element
+            function attemptPlayRemoteAudio() {
+                if (!currentRemoteStream) {
+                    debug("No remote stream available yet.");
+                    return false;
+                }
+
+                // 1. Try AudioContext
                 if (ensureRemotePlayback()) {
-                    updateStatus("🔊 Force‑playing remote audio");
-                } else {
-                    // Fallback to <audio> element
-                    if (remoteAudioElement && remoteAudioElement.srcObject) {
-                        remoteAudioElement.muted = false;
-                        remoteAudioElement.volume = 1;
-                        remoteAudioElement.play().then(() => {
-                            debug("✅ <audio> element forced to play");
-                            updateStatus("🔊 Remote audio forced via element");
-                        }).catch(e => {
-                            debug("❌ <audio> play failed:", e);
-                            alert("Could not play remote audio. Please check microphone permissions and speaker.");
+                    debug("✅ AudioContext playback started successfully.");
+                    updateStatus("✅ Audio is playing");
+                    return true;
+                }
+
+                // 2. Fallback to <audio> element
+                if (remoteAudioElement && remoteAudioElement.srcObject) {
+                    remoteAudioElement.muted = false;
+                    remoteAudioElement.volume = 1;
+                    remoteAudioElement.play()
+                        .then(() => {
+                            debug("✅ <audio> element playback started.");
+                            updateStatus("✅ Audio is playing (fallback)");
+                            return true;
+                        })
+                        .catch(e => {
+                            debug("❌ <audio> element play() failed:", e);
+                            return false;
                         });
-                    } else {
-                        alert("No remote stream available yet.");
-                    }
+                } else {
+                    debug("No <audio> element or srcObject set.");
+                    return false;
+                }
+            }
+
+            window.forcePlayRemote = function() {
+                if (attemptPlayRemoteAudio()) {
+                    updateStatus("🔊 Force‑playing remote audio");
+                    // Hide the autoplay message if it was visible
+                    const msgDiv = document.getElementById('audioMessage');
+                    if (msgDiv) msgDiv.style.display = 'none';
+                } else {
+                    alert("Could not play remote audio. Please check your browser permissions.");
                 }
             };
 
@@ -574,16 +611,13 @@
                     debug("🎵 Remote audio track received");
                     updateStatus("Audio connected - Call active");
 
-                    // Store the stream globally for manual playback
                     currentRemoteStream = event.streams[0];
-
-                    // Start remote volume meter (visualization)
                     startRemoteVolumeMeter(event.streams[0]);
 
-                    // Show the "Play Remote" button
+                    // Show the "Play Remote" button as a fallback
                     document.getElementById('playRemoteBtn').style.display = 'block';
 
-                    // --- FALLBACK: <audio> element (for old browsers) ---
+                    // Set up the <audio> element fallback
                     remoteAudioElement = document.getElementById("remoteAudio");
                     remoteAudioElement.style.display = "block";
                     remoteAudioElement.controls = true;
@@ -593,14 +627,32 @@
                     remoteAudioElement.volume = 1;
                     remoteAudioElement.srcObject = event.streams[0];
 
-                    // Attempt to play via AudioContext if it already exists (created in startCall or acceptCall)
-                    if (playbackAudioContext) {
-                        ensureRemotePlayback();
+                    // Attempt to play immediately
+                    const played = attemptPlayRemoteAudio();
+
+                    if (!played) {
+                        // Autoplay blocked – show message and add one‑time click listener
+                        const msgDiv = document.getElementById('audioMessage');
+                        if (msgDiv) msgDiv.style.display = 'block';
+                        const enableAudio = () => {
+                            debug("User clicked – trying to enable audio...");
+                            if (attemptPlayRemoteAudio()) {
+                                if (msgDiv) msgDiv.style.display = 'none';
+                                document.removeEventListener('click', enableAudio);
+                                updateStatus("✅ Audio enabled after click");
+                            } else {
+                                debug("Still unable to play audio.");
+                            }
+                        };
+                        document.addEventListener('click', enableAudio);
+                        updateStatus("🔊 Click anywhere to enable audio");
                     } else {
-                        debug("No playback AudioContext yet; will wait for Play Remote button or later creation");
+                        // Play succeeded, hide message
+                        const msgDiv = document.getElementById('audioMessage');
+                        if (msgDiv) msgDiv.style.display = 'none';
                     }
 
-                    // Mute/unmute control (handles both playbackGain and element)
+                    // Mute/unmute control
                     const remotePanel = document.getElementById('remotePanel');
                     const muteIcon = document.getElementById('remoteMuteIcon');
                     remotePanel.onclick = () => {
@@ -876,6 +928,9 @@
                 currentRemoteStream = null;
                 document.getElementById('testMicBtn').style.display = 'none';
                 document.getElementById('playRemoteBtn').style.display = 'none';
+                // Hide autoplay message
+                const msgDiv = document.getElementById('audioMessage');
+                if (msgDiv) msgDiv.style.display = 'none';
                 if (incomingCallerId) {
                     document.getElementById("callTitle").textContent = "Call ended";
                     updateStatus("Call ended - close window");
