@@ -19,18 +19,18 @@
                 </div>
 
                 @foreach($this->users as $user)
-                    <div wire:click="selectUser({{ $user->id }})" 
-                        class="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800
-                               @if($selectedUser == $user->id) bg-gray-100 dark:bg-gray-800 @endif">
+                    <div wire:click="selectUser({{ $user->id }})" class="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800
+                                           @if($selectedUser == $user->id) bg-gray-100 dark:bg-gray-800 @endif">
 
                         <div class="relative">
-                            <div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
+                            <div
+                                class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
                                 {{ strtoupper(substr($user->name, 0, 1)) }}
                             </div>
                             @php $isOnline = $user->last_seen && $user->last_seen->gt(now()->subMinutes(2)); @endphp
                             <span class="absolute bottom-0 right-0 w-3 h-3 
-                                  {{ $isOnline ? 'bg-green-500' : 'bg-gray-400' }} 
-                                  border-2 border-white rounded-full"></span>
+                                              {{ $isOnline ? 'bg-green-500' : 'bg-gray-400' }} 
+                                              border-2 border-white rounded-full"></span>
                         </div>
 
                         <div class="flex-1 min-w-0">
@@ -59,7 +59,7 @@
                                     Start Chatting
                                 @endif
                             </div>
-                     </div>
+                        </div>
                         @php
                             $unreadCount = \App\Models\DirectMessage::where('sender_id', $user->id)
                                 ->where('receiver_id', auth()->id())
@@ -164,9 +164,10 @@
                                         @if($msg->message)
                                             @if($editingMessageId === $msg->id)
                                                 <div class="flex items-center gap-2">
-                                                    <input type="text" wire:model.defer="editingText" class="px-2 py-1 rounded border border-gray-400 w-full text-sm text-gray-900
-                                                                              focus:outline-none focus:ring-2 focus:ring-blue-400
-                                                                              dark:bg-gray-800 dark:text-white dark:border-gray-600">
+                                                    <input type="text" wire:model.defer="editingText"
+                                                        class="px-2 py-1 rounded border border-gray-400 w-full text-sm text-gray-900
+                                                                                                                              focus:outline-none focus:ring-2 focus:ring-blue-400
+                                                                                                                              dark:bg-gray-800 dark:text-white dark:border-gray-600">
                                                     <button wire:click="updateMessage"
                                                         class="text-xs bg-green-500 text-white px-2 py-1 rounded">Save</button>
                                                 </div>
@@ -178,21 +179,24 @@
                                         @endif
 
                                         <!-- Timestamp + Read status (inside bubble, bottom right) -->
-                                        <div class="text-right text-[10px] mt-1 flex items-center justify-end gap-1 leading-tight opacity-80">
+                                        <div
+                                            class="text-right text-[10px] mt-1 flex items-center justify-end gap-1 leading-tight opacity-80">
                                             <span>
                                                 {{ $msg->created_at->timezone(config('app.timezone'))->format('h:i A') }}
                                             </span>
 
                                             @if($msg->read_at)
                                                 <!-- Double tick (Seen) - RED -->
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="#ffffff">
-                                                    <path d="M1 14l5 5L15 6l-1.5-1.5L6 16 2.5 12.5z"/>
-                                                    <path d="M7 14l5 5L23 6l-1.5-1.5L12 16 8.5 12.5z"/>
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24"
+                                                    fill="#ffffff">
+                                                    <path d="M1 14l5 5L15 6l-1.5-1.5L6 16 2.5 12.5z" />
+                                                    <path d="M7 14l5 5L23 6l-1.5-1.5L12 16 8.5 12.5z" />
                                                 </svg>
                                             @else
                                                 <!-- Single tick (Sent) - WHITE -->
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="#eb9b08">
-                                                    <path d="M1 14l5 5L15 6l-1.5-1.5L6 16 2.5 12.5z"/>
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24"
+                                                    fill="#eb9b08">
+                                                    <path d="M1 14l5 5L15 6l-1.5-1.5L6 16 2.5 12.5z" />
                                                 </svg>
                                             @endif
                                         </div>
@@ -207,7 +211,8 @@
                                     {{ strtoupper(substr($this->selectedUserModel->name, 0, 1)) }}
                                 </div>
                                 <div class="max-w-md relative">
-                                    <div class="bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-4 py-2 rounded-xl shadow-sm">
+                                    <div
+                                        class="bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-4 py-2 rounded-xl shadow-sm">
                                         @if($msg->file)
                                             @if(Str::contains($msg->file, ['jpg', 'jpeg', 'png', 'gif', 'webp']))
                                                 <img src="{{ asset('storage/' . $msg->file) }}"
@@ -249,7 +254,8 @@
 
                 @if($selectedUser)
                     <!-- MESSAGE INPUT -->
-                    <div class="border-t border-gray-200 dark:border-gray-700 px-6 pt-6 pb-4 flex-shrink-0 sticky bottom-0 bg-white dark:bg-gray-900">
+                    <div
+                        class="border-t border-gray-200 dark:border-gray-700 px-6 pt-6 pb-4 flex-shrink-0 sticky bottom-0 bg-white dark:bg-gray-900">
                         @if ($files)
                             @foreach($files as $index => $file)
                                 <div class="mb-3 flex items-center gap-3 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
@@ -259,31 +265,34 @@
                                         <div class="w-16 h-16 flex items-center justify-center bg-gray-300 rounded">📄</div>
                                     @endif
                                     <div class="text-sm">{{ $file->getClientOriginalName() }}</div>
-                                    <button wire:click="$set('files', [])" class="text-red-500 hover:text-red-700 text-lg">✕</button>
+                                    <button wire:click="$set('files', [])"
+                                        class="text-red-500 hover:text-red-700 text-lg">✕</button>
                                 </div>
                             @endforeach
                         @endif
 
                         <form wire:submit.prevent="sendMessage" class="flex items-center gap-3 w-full">
-                            <label class="cursor-pointer px-3 py-2 bg-gray-200 rounded-lg flex-shrink-0 hover:bg-gray-300 transition">
+                            <label
+                                class="cursor-pointer px-3 py-2 bg-gray-200 rounded-lg flex-shrink-0 hover:bg-gray-300 transition">
                                 📎
                                 <input type="file" wire:model="files" multiple class="hidden">
                             </label>
                             <textarea id="chatInput" wire:model.defer="message" rows="1"
                                 class="flex-1 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white
-                                             focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 resize-none"
-                                             placeholder="Type your message..."
+                                                         focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 resize-none" placeholder="Type your message..."
                                 @keydown.enter.prevent="
-                                        if(!event.shiftKey){
-                                            let text = $event.target.value.trim();
-                                            if(text.length > 0){
-                                                $wire.sendMessage();
-                                                $event.target.value = '';
-                                            }
-                                        }"></textarea>
-                            <button type="submit" class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700
-                                                          focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0">
-                                <svg class="w-5 h-5 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    if(!event.shiftKey){
+                                                        let text = $event.target.value.trim();
+                                                        if(text.length > 0){
+                                                            $wire.sendMessage();
+                                                            $event.target.value = '';
+                                                        }
+                                                    }"></textarea>
+                            <button type="submit"
+                                class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700
+                                                                      focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0">
+                                <svg class="w-5 h-5 transform rotate-90" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                                 </svg>
@@ -370,7 +379,7 @@
             });
 
             // Handle incoming calls - AUTOMATICALLY OPEN RECEIVER WINDOW
-            channel.bind('CallOffer', function(data) {
+            channel.bind('CallOffer', function (data) {
                 console.log("📞 INCOMING CALL from user " + data.callerId + ": " + data.callerName);
 
                 // Store call data
@@ -418,7 +427,7 @@
             });
 
             // Handle ICE candidates for multi-window support
-            channel.bind('IceCandidate', function(data) {
+            channel.bind('IceCandidate', function (data) {
                 if (callWindow && !callWindow.closed) {
                     try {
                         callWindow.postMessage({
@@ -433,7 +442,7 @@
             });
 
             // Handle call answers
-            channel.bind('CallAnswer', function(data) {
+            channel.bind('CallAnswer', function (data) {
                 if (callWindow && !callWindow.closed) {
                     try {
                         callWindow.postMessage({
@@ -517,6 +526,7 @@
     let localStream;
     let peerConnection;
     let currentRoom = null;
+    let pendingCandidates = [];
 
     const config = {
         iceServers: [
@@ -550,6 +560,15 @@
         document.getElementById("localVideo").srcObject = localStream;
 
         peerConnection = new RTCPeerConnection(config);
+
+        pendingCandidates.forEach(async (candidate) => {
+            try {
+                await peerConnection.addIceCandidate(candidate);
+            } catch (e) {
+                console.error("Queued ICE error:", e);
+            }
+        });
+        pendingCandidates = [];
 
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
@@ -606,6 +625,15 @@
         document.getElementById("localVideo").srcObject = localStream;
 
         peerConnection = new RTCPeerConnection(config);
+        // Apply pending ICE candidates
+        pendingCandidates.forEach(async (candidate) => {
+            try {
+                await peerConnection.addIceCandidate(candidate);
+            } catch (e) {
+                console.error("Queued ICE error:", e);
+            }
+        });
+        pendingCandidates = [];
 
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
@@ -637,15 +665,11 @@
     });
 
     // RECEIVE ANSWER
-    socket.on("answer", async (data) => {
-        await peerConnection.setRemoteDescription(data.answer);
-    });
-
-    // ICE
     socket.on("ice-candidate", async (data) => {
 
         if (!peerConnection) {
-            console.warn("⚠️ PeerConnection not ready yet");
+            console.log("📦 Storing ICE candidate");
+            pendingCandidates.push(data.candidate);
             return;
         }
 
@@ -674,7 +698,8 @@
         border-style: solid;
         border-color: transparent #e5e7eb transparent transparent;
     }
+
     .dark .chat-bubble-left:after {
         border-color: transparent #374151 transparent transparent;
-    }   
+    }
 </style>
