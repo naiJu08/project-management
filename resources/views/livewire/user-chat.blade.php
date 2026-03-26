@@ -531,17 +531,73 @@
     let peerConnection;
     let currentRoom = null;
     let pendingCandidates = [];
+    let isRemoteDescriptionSet = false;
 
     const config = {
         iceServers: [
             { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" },
+            { urls: "stun:stun2.l.google.com:19302" },
             {
                 urls: "turn:openrelay.metered.ca:80",
                 username: "openrelayproject",
                 credential: "openrelayproject"
+            },
+            {
+                urls: "turn:openrelay.metered.ca:443",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+            },
+            {
+                urls: "turn:openrelay.metered.ca:443?transport=tcp",
+                username: "openrelayproject",
+                credential: "openrelayproject"
             }
-        ]
+        ],
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: "all"
     };
+
+    async function flushPendingCandidates() {
+        if (!peerConnection || !isRemoteDescriptionSet || !pendingCandidates.length) {
+            return;
+        }
+
+        const queuedCandidates = [...pendingCandidates];
+        pendingCandidates = [];
+
+        for (const candidate of queuedCandidates) {
+            try {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+                console.error("Queued ICE error:", e);
+            }
+        }
+    }
+
+    function attachPeerConnectionListeners() {
+        peerConnection.ontrack = event => {
+            console.log("🎥 Remote stream received");
+            document.getElementById("remoteVideo").srcObject = event.streams[0];
+        };
+
+        peerConnection.onicecandidate = event => {
+            if (event.candidate) {
+                socket.emit("ice-candidate", {
+                    room: currentRoom,
+                    candidate: event.candidate
+                });
+            }
+        };
+
+        peerConnection.onconnectionstatechange = () => {
+            console.log("WebRTC connection state:", peerConnection.connectionState);
+        };
+
+        peerConnection.oniceconnectionstatechange = () => {
+            console.log("WebRTC ICE state:", peerConnection.iceConnectionState);
+        };
+    }
 
     async function startVideoCall(userId) {
 
@@ -554,6 +610,7 @@
             peerConnection.close();
         }
         pendingCandidates = [];
+        isRemoteDescriptionSet = false;
 
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
@@ -569,32 +626,11 @@
         document.getElementById("localVideo").srcObject = localStream;
 
         peerConnection = new RTCPeerConnection(config);
-
-        pendingCandidates.forEach(async (candidate) => {
-            try {
-                await peerConnection.addIceCandidate(candidate);
-            } catch (e) {
-                console.error("Queued ICE error:", e);
-            }
-        });
-        pendingCandidates = [];
+        attachPeerConnectionListeners();
 
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
-
-        peerConnection.ontrack = event => {
-            document.getElementById("remoteVideo").srcObject = event.streams[0];
-        };
-
-        peerConnection.onicecandidate = event => {
-            if (event.candidate) {
-                socket.emit("ice-candidate", {
-                    room: currentRoom,
-                    candidate: event.candidate
-                });
-            }
-        };
 
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
@@ -621,6 +657,7 @@
             peerConnection.close();
         }
         pendingCandidates = [];
+        isRemoteDescriptionSet = false;
 
         // ✅ SHOW VIDEO UI
         document.getElementById("videoCallContainer").style.display = "block";
@@ -640,35 +677,15 @@
         document.getElementById("localVideo").srcObject = localStream;
 
         peerConnection = new RTCPeerConnection(config);
-        // Apply pending ICE candidates
-        pendingCandidates.forEach(async (candidate) => {
-            try {
-                await peerConnection.addIceCandidate(candidate);
-            } catch (e) {
-                console.error("Queued ICE error:", e);
-            }
-        });
-        pendingCandidates = [];
+        attachPeerConnectionListeners();
 
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
 
-        peerConnection.ontrack = event => {
-            console.log("🎥 Remote stream received");
-            document.getElementById("remoteVideo").srcObject = event.streams[0];
-        };
-
-        peerConnection.onicecandidate = event => {
-            if (event.candidate) {
-                socket.emit("ice-candidate", {
-                    room: currentRoom,
-                    candidate: event.candidate
-                });
-            }
-        };
-
         await peerConnection.setRemoteDescription(data.offer);
+        isRemoteDescriptionSet = true;
+        await flushPendingCandidates();
 
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
@@ -690,6 +707,8 @@
 
         try {
             await peerConnection.setRemoteDescription(data.answer);
+            isRemoteDescriptionSet = true;
+            await flushPendingCandidates();
         } catch (e) {
             console.error("Answer error:", e);
         }
@@ -704,8 +723,14 @@
             return;
         }
 
+        if (!isRemoteDescriptionSet) {
+            console.log("📦 Queueing ICE candidate until remote description is ready");
+            pendingCandidates.push(data.candidate);
+            return;
+        }
+
         try {
-            await peerConnection.addIceCandidate(data.candidate);
+            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
         } catch (e) {
             console.error("ICE error:", e);
         }
@@ -724,6 +749,7 @@
         document.getElementById("remoteVideo").srcObject = null;
         pendingCandidates = [];
         currentRoom = null;
+        isRemoteDescriptionSet = false;
     }
 
 </script>
