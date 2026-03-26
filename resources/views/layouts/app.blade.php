@@ -20,7 +20,16 @@
     // ================= GLOBAL VIDEO CALL LISTENER =================
     const globalVideoSocket = io("https://pm.inovace.in");
     const myGlobalVideoUserId = {{ auth()->id() }};
-    globalVideoSocket.emit("join-user", myGlobalVideoUserId);
+    
+    globalVideoSocket.on("connect", () => {
+        console.log("✅ Global video socket connected");
+        globalVideoSocket.emit("join-user", myGlobalVideoUserId);
+        console.log("📡 Joined user room:", `user-${myGlobalVideoUserId}`);
+    });
+    
+    globalVideoSocket.on("disconnect", () => {
+        console.log("❌ Global video socket disconnected");
+    });
 
     // Incoming video call UI
     const incomingVideoUI = document.createElement("div");
@@ -75,7 +84,14 @@
 
         incomingVideoUI.style.display = "none";
 
-        // Redirect to chat page with the caller selected
+        // If we're on the chat page, use the chat handler
+        if (window.location.pathname.includes('/chat') && window.acceptChatVideoCall) {
+            console.log("📱 Using chat page accept handler");
+            await window.acceptChatVideoCall();
+            return;
+        }
+
+        // Otherwise redirect to chat page with the caller selected
         window.location.href = `/chat?selectUser=${pendingGlobalVideoCallerId}`;
     };
 

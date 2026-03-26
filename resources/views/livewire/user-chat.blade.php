@@ -674,6 +674,26 @@
         console.log("🔥 OFFER RECEIVED");
         console.log("📩 Incoming video offer");
 
+        // If global UI exists, use it instead of starting video immediately
+        if (window.incomingVideoUI) {
+            console.log("📱 Using global incoming UI");
+            window.incomingVideoUI.style.display = "block";
+            document.getElementById("incomingVideoCallerName").textContent = `Incoming video call from User ${data.targetUserId || 'Unknown'}`;
+            
+            // Store offer for when user accepts
+            window.pendingChatVideoOffer = data;
+            window.acceptChatVideoCall = async function() {
+                window.incomingVideoUI.style.display = "none";
+                await handleChatVideoOffer(data);
+            };
+            return;
+        }
+
+        // Fallback: handle immediately if no global UI
+        await handleChatVideoOffer(data);
+    });
+
+    async function handleChatVideoOffer(data) {
         // ✅ JOIN ROOM (IMPORTANT FIX)
         socket.emit("join-room", data.room);
 
@@ -720,7 +740,7 @@
             room: currentRoom,
             answer: answer
         });
-    });
+    }
 
     // RECEIVE ANSWER
     socket.on("answer", async (data) => {
