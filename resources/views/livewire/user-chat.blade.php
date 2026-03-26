@@ -20,7 +20,7 @@
 
                 @foreach($this->users as $user)
                     <div wire:click="selectUser({{ $user->id }})" class="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800
-                                           @if($selectedUser == $user->id) bg-gray-100 dark:bg-gray-800 @endif">
+                                                   @if($selectedUser == $user->id) bg-gray-100 dark:bg-gray-800 @endif">
 
                         <div class="relative">
                             <div
@@ -29,8 +29,8 @@
                             </div>
                             @php $isOnline = $user->last_seen && $user->last_seen->gt(now()->subMinutes(2)); @endphp
                             <span class="absolute bottom-0 right-0 w-3 h-3 
-                                              {{ $isOnline ? 'bg-green-500' : 'bg-gray-400' }} 
-                                              border-2 border-white rounded-full"></span>
+                                                      {{ $isOnline ? 'bg-green-500' : 'bg-gray-400' }} 
+                                                      border-2 border-white rounded-full"></span>
                         </div>
 
                         <div class="flex-1 min-w-0">
@@ -166,8 +166,8 @@
                                                 <div class="flex items-center gap-2">
                                                     <input type="text" wire:model.defer="editingText"
                                                         class="px-2 py-1 rounded border border-gray-400 w-full text-sm text-gray-900
-                                                                                                                              focus:outline-none focus:ring-2 focus:ring-blue-400
-                                                                                                                              dark:bg-gray-800 dark:text-white dark:border-gray-600">
+                                                                                                                                                              focus:outline-none focus:ring-2 focus:ring-blue-400
+                                                                                                                                                              dark:bg-gray-800 dark:text-white dark:border-gray-600">
                                                     <button wire:click="updateMessage"
                                                         class="text-xs bg-green-500 text-white px-2 py-1 rounded">Save</button>
                                                 </div>
@@ -279,18 +279,18 @@
                             </label>
                             <textarea id="chatInput" wire:model.defer="message" rows="1"
                                 class="flex-1 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white
-                                                         focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 resize-none" placeholder="Type your message..."
-                                @keydown.enter.prevent="
-                                                    if(!event.shiftKey){
-                                                        let text = $event.target.value.trim();
-                                                        if(text.length > 0){
-                                                            $wire.sendMessage();
-                                                            $event.target.value = '';
-                                                        }
-                                                    }"></textarea>
+                                                                 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 resize-none"
+                                placeholder="Type your message..." @keydown.enter.prevent="
+                                                            if(!event.shiftKey){
+                                                                let text = $event.target.value.trim();
+                                                                if(text.length > 0){
+                                                                    $wire.sendMessage();
+                                                                    $event.target.value = '';
+                                                                }
+                                                            }"></textarea>
                             <button type="submit"
                                 class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700
-                                                                      focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0">
+                                                                              focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0">
                                 <svg class="w-5 h-5 transform rotate-90" fill="none" stroke="currentColor"
                                     viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -665,18 +665,18 @@
     });
 
     // RECEIVE ANSWER
-    socket.on("ice-candidate", async (data) => {
+    socket.on("answer", async (data) => {
+        console.log("✅ ANSWER RECEIVED");
 
         if (!peerConnection) {
-            console.log("📦 Storing ICE candidate");
-            pendingCandidates.push(data.candidate);
+            console.log("⚠️ PeerConnection not ready yet");
             return;
         }
 
         try {
-            await peerConnection.addIceCandidate(data.candidate);
+            await peerConnection.setRemoteDescription(data.answer);
         } catch (e) {
-            console.error("ICE error:", e);
+            console.error("Answer error:", e);
         }
     });
 
