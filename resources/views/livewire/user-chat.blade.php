@@ -19,24 +19,10 @@
                 </div>
 
                 @foreach($this->users as $user)
-                    <div wire:click="selectUser({{ $user->id }})"
-                        class="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800
-                                                                               @if($selectedUser == $user->id) bg-gray-100 dark:bg-gray-800 @endif">
                     <div wire:click="selectUser({{ $user->id }})" 
                         class="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800
                                @if($selectedUser == $user->id) bg-gray-100 dark:bg-gray-800 @endif">
 
-                        <div class="relative">
-                            <div
-                                class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
-                                {{ strtoupper(substr($user->name, 0, 1)) }}
-                            </div>
-                            @php $isOnline = $user->last_seen && $user->last_seen->gt(now()->subMinutes(2)); @endphp
-                            <span
-                                class="absolute bottom-0 right-0 w-3 h-3 
-                                                                                  {{ $isOnline ? 'bg-green-500' : 'bg-gray-400' }} 
-                                                                                  border-2 border-white rounded-full"></span>
-                        </div>
                         <div class="relative">
                             <div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
                                 {{ strtoupper(substr($user->name, 0, 1)) }}
@@ -73,47 +59,7 @@
                                     Start Chatting
                                 @endif
                             </div>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="font-semibold text-sm text-gray-800 dark:text-gray-200 truncate">
-                                {{ $user->name }}
-                            </div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                @php
-                                    $lastMsg = \App\Models\DirectMessage::where(function ($q) use ($user) {
-                                        $q->where('sender_id', auth()->id())->where('receiver_id', $user->id);
-                                    })->orWhere(function ($q) use ($user) {
-                                        $q->where('sender_id', $user->id)->where('receiver_id', auth()->id());
-                                    })->latest()->first();
-                                @endphp
-                                @if($lastMsg)
-                                    @if($lastMsg->file)
-                                        @if(Str::contains($lastMsg->file, ['jpg', 'jpeg', 'png', 'gif', 'webp']))
-                                            📷 Photo
-                                        @else
-                                            📎 File
-                                        @endif
-                                    @else
-                                        {{ Str::limit($lastMsg->message, 35) }}
-                                    @endif
-                                @else
-                                    Start Chatting
-                                @endif
-                            </div>
-                        </div>
-
-                        @php
-                            $unreadCount = \App\Models\DirectMessage::where('sender_id', $user->id)
-                                ->where('receiver_id', auth()->id())
-                                ->whereNull('read_at')
-                                ->count();
-                        @endphp
-                        @if($unreadCount > 0)
-                            <span class="bg-green-500 text-white text-xs px-2 py-0.5 rounded-full min-w-[20px] text-center">
-                                {{ $unreadCount }}
-                            </span>
-                        @endif
-                    </div>
+                     </div>
                         @php
                             $unreadCount = \App\Models\DirectMessage::where('sender_id', $user->id)
                                 ->where('receiver_id', auth()->id())
@@ -138,18 +84,6 @@
                         <div class="flex items-center gap-3">
                             <div
                                 class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
-                                {{ strtoupper(substr($this->selectedUserModel->name, 0, 1)) }}
-                            </div>
-                            <div>
-                                <div class="font-semibold text-gray-800 dark:text-gray-200">
-                                    {{ $this->selectedUserModel->name }}
-                                </div>
-                            </div>
-                        </div>
-                    <!-- HEADER -->
-                    <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
                                 {{ strtoupper(substr($this->selectedUserModel->name, 0, 1)) }}
                             </div>
                             <div>
@@ -192,8 +126,7 @@
                                         <div
                                             class="absolute -right-10 top-3 opacity-0 group-hover:opacity-100 transition duration-200">
                                             <div
-                                                class="flex items-center gap-1 bg-white dark:bg-gray-800
-                                                                                                                                                            border border-gray-200 dark:border-gray-600 rounded-full shadow px-2 py-[3px] text-[11px]">
+                                                class="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full shadow px-2 py-[3px] text-[11px]">
                                                 <button class="text-gray-500 hover:text-blue-500"
                                                     wire:click="editMessage({{ $msg->id }})">
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none"
@@ -401,26 +334,7 @@
             document.getElementById("imagePreviewModal").style.display = "none";
         }
     });
-    // Image preview
-    document.addEventListener("click", function (e) {
-        if (e.target.tagName === "IMG" && e.target.closest("#chatMessages")) {
-            document.getElementById("previewImage").src = e.target.src;
-            document.getElementById("imagePreviewModal").style.display = "flex";
-        }
-        if (e.target.id === "closePreview" || e.target.id === "imagePreviewModal") {
-            document.getElementById("imagePreviewModal").style.display = "none";
-        }
-    });
 
-    // Auto-scroll
-    document.addEventListener("DOMContentLoaded", function () {
-        const chat = document.getElementById("chatMessages");
-        if (!chat) return;
-        function scrollToBottom() { chat.scrollTop = chat.scrollHeight; }
-        setTimeout(scrollToBottom, 300);
-        const observer = new MutationObserver(scrollToBottom);
-        observer.observe(chat, { childList: true, subtree: true });
-    });
     // Auto-scroll
     document.addEventListener("DOMContentLoaded", function () {
         const chat = document.getElementById("chatMessages");
@@ -435,13 +349,7 @@
     const PUSHER_APP_KEY = "0c08d7f3f0fa0c883f22";
     const PUSHER_CLUSTER = "ap2";
     const currentUserId = {{ auth()->id() }};
-    // ==================== VOICE CALL FUNCTIONALITY ====================
-    const PUSHER_APP_KEY = "0c08d7f3f0fa0c883f22";
-    const PUSHER_CLUSTER = "ap2";
-    const currentUserId = {{ auth()->id() }};
 
-    // Track open call windows
-    let callWindow = null;
     // Track open call windows
     let callWindow = null;
 
@@ -454,17 +362,7 @@
                 cluster: PUSHER_CLUSTER,
                 forceTLS: true
             });
-    // Initialize Pusher
-    document.addEventListener("livewire:load", function () {
-        console.log("✅ Initializing Pusher for voice calls...");
 
-        try {
-            const pusher = new Pusher(PUSHER_APP_KEY, {
-                cluster: PUSHER_CLUSTER,
-                forceTLS: true
-            });
-
-            const channel = pusher.subscribe('voice-call.' + currentUserId);
             const channel = pusher.subscribe('voice-call.' + currentUserId);
 
             channel.bind('subscription_succeeded', function () {
@@ -583,40 +481,10 @@
             alert("Failed to open call window. Please check your popup blocker.");
         }
     }
-    // Open call window (caller)
-    function openCall(userId) {
-        console.log("📞 Opening voice call to user:", userId);
-
-        try {
-            // Clear any pending calls
-            sessionStorage.removeItem('pendingCall');
-
-            // Close existing window if any
-            if (callWindow && !callWindow.closed) {
-                callWindow.close();
-            }
-
-            // Open caller window
-            callWindow = window.open(
-                "/voice-call/" + userId + "?mode=caller",
-                "VoiceCallWindow",
-                "width=420,height=650,resizable=yes,scrollbars=yes"
-            );
-
-            if (!callWindow) {
-                alert("Please allow popups for this site to make calls.\n\nClick OK to open manually.");
-                window.open("/voice-call/" + userId + "?mode=caller", "_blank");
-            }
-        } catch (error) {
-            console.error("Failed to open call window:", error);
-            alert("Failed to open call window. Please check your popup blocker.");
-        }
-    }
 
     // Make function globally available
     window.openCall = openCall;
-    // Make function globally available
-    window.openCall = openCall;
+
 
     // ================= VIDEO CALL =================
 
