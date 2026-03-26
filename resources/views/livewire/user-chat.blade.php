@@ -533,27 +533,46 @@
     let pendingCandidates = [];
     let isRemoteDescriptionSet = false;
 
+    const iceServers = [
+        // STUN servers for NAT discovery
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" },
+        { urls: "stun:stun2.l.google.com:19302" },
+        { urls: "stun:stun3.l.google.com:19302" },
+        { urls: "stun:stun4.l.google.com:19302" },
+
+        // Your own TURN server (now properly configured)
+        {
+            urls: [
+                "turn:pm.inovace.in:3478?transport=udp",
+                "turn:pm.inovace.in:3478?transport=tcp"
+            ],
+            username: "webrtcuser",
+            credential: "strongpassword123"
+        },
+
+        // Public TURN servers as backup
+        {
+            urls: [
+                "turn:openrelay.metered.ca:80",
+                "turn:openrelay.metered.ca:443",
+                "turn:openrelay.metered.ca:443?transport=tcp"
+            ],
+            username: "openrelayproject",
+            credential: "openrelayproject"
+        },
+        {
+            urls: [
+                "turn:turn.anyfirewall.com:3478?transport=udp",
+                "turn:turn.anyfirewall.com:3478?transport=tcp"
+            ],
+            username: "anyfirewall",
+            credential: "anyfirewall"
+        }
+    ];
+
     const config = {
-        iceServers: [
-            { urls: "stun:stun.l.google.com:19302" },
-            { urls: "stun:stun1.l.google.com:19302" },
-            { urls: "stun:stun2.l.google.com:19302" },
-            {
-                urls: "turn:openrelay.metered.ca:80",
-                username: "openrelayproject",
-                credential: "openrelayproject"
-            },
-            {
-                urls: "turn:openrelay.metered.ca:443",
-                username: "openrelayproject",
-                credential: "openrelayproject"
-            },
-            {
-                urls: "turn:openrelay.metered.ca:443?transport=tcp",
-                username: "openrelayproject",
-                credential: "openrelayproject"
-            }
-        ],
+        iceServers: iceServers,
         iceCandidatePoolSize: 10,
         iceTransportPolicy: "all"
     };
@@ -583,10 +602,19 @@
 
         peerConnection.onicecandidate = event => {
             if (event.candidate) {
+                const candidateStr = event.candidate.candidate;
+                let type = "unknown";
+                if (candidateStr.includes("typ host")) type = "host";
+                else if (candidateStr.includes("typ srflx")) type = "srflx (STUN)";
+                else if (candidateStr.includes("typ relay")) type = "relay (TURN)";
+                console.log(`ICE candidate [${type}]:`, event.candidate);
+
                 socket.emit("ice-candidate", {
                     room: currentRoom,
                     candidate: event.candidate
                 });
+            } else {
+                console.log("ICE candidate gathering completed.");
             }
         };
 
