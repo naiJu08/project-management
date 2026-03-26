@@ -6,7 +6,8 @@
             User Chat
         </h1>
 
-        <div class="flex flex-1 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 h-full">
+        <div
+            class="flex flex-1 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 h-full">
 
             <!-- USERS LIST -->
             <div wire:poll.5s class="w-72 border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
@@ -58,8 +59,7 @@
                                     Start Chatting
                                 @endif
                             </div>
-                        </div>
-
+                     </div>
                         @php
                             $unreadCount = \App\Models\DirectMessage::where('sender_id', $user->id)
                                 ->where('receiver_id', auth()->id())
@@ -79,9 +79,11 @@
             <div class="flex flex-col flex-1 min-h-0 h-full">
                 @if($selectedUser)
                     <!-- HEADER -->
-                    <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                    <div
+                        class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
+                            <div
+                                class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
                                 {{ strtoupper(substr($this->selectedUserModel->name, 0, 1)) }}
                             </div>
                             <div>
@@ -93,10 +95,19 @@
 
                         <!-- HEADER ACTIONS -->
                         <div class="flex gap-3 text-gray-400">
+
+                            <!-- Voice Call -->
                             <button onclick="openCall({{ $selectedUserModel->id }})"
-                                class="hover:text-green-500 transition text-xl" 
-                                title="Voice Call">📞</button>
-                            <button class="hover:text-blue-500 transition text-xl" title="Video Call (Coming Soon)">🎥</button>
+                                class="hover:text-green-500 transition text-xl" title="Voice Call">
+                                📞
+                            </button>
+
+                            <!-- Video Call -->
+                            <button onclick="startVideoCall({{ $selectedUserModel->id }})"
+                                class="hover:text-blue-500 transition text-xl" title="Video Call">
+                                🎥
+                            </button>
+
                         </div>
                     </div>
                 @endif
@@ -106,16 +117,16 @@
                     class="flex-1 overflow-y-auto px-6 pt-6 space-y-4 min-h-0">
                     @forelse($chatMessages as $index => $msg)
                         @if($msg->sender_id == auth()->id())
-                            <!-- MY MESSAGE (WhatsApp style) -->
+                            <!-- MY MESSAGE -->
                             <div class="flex justify-end">
-                                <div class="max-w-md relative">
-                                    <div class="bg-blue-600 text-white px-4 py-2 rounded-xl shadow-sm relative group break-words inline-block">
-                                        <!-- HOVER TOOLBAR (unchanged) -->
+                                <div class="max-w-md">
+                                    <div
+                                        class="relative bg-blue-600 text-white px-4 py-2 rounded-xl shadow-sm group break-words inline-block">
+                                        <!-- HOVER TOOLBAR -->
                                         <div
-                                            class="absolute -left-10 top-3 opacity-0 group-hover:opacity-100 transition duration-200 z-10">
+                                            class="absolute -right-10 top-3 opacity-0 group-hover:opacity-100 transition duration-200">
                                             <div
-                                                class="flex items-center gap-1 bg-white dark:bg-gray-800
-                                                            border border-gray-200 dark:border-gray-600 rounded-full shadow px-2 py-[3px] text-[11px]">
+                                                class="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full shadow px-2 py-[3px] text-[11px]">
                                                 <button class="text-gray-500 hover:text-blue-500"
                                                     wire:click="editMessage({{ $msg->id }})">
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none"
@@ -136,13 +147,14 @@
                                             </div>
                                         </div>
 
-                                        <!-- Message content -->
                                         @if($msg->file)
-                                            <div class="mb-2 max-w-[140px] rounded-lg overflow-hidden border border-white/20 cursor-pointer transform hover:scale-105 transition duration-200">
+                                            <div
+                                                class="mb-2 max-w-[140px] rounded-lg overflow-hidden border border-white/20 cursor-pointer transform hover:scale-105 transition duration-200">
                                                 @if(Str::contains($msg->file, ['jpg', 'jpeg', 'png', 'gif', 'webp']))
                                                     <img src="{{ asset('storage/' . $msg->file) }}" class="w-full h-auto object-cover">
                                                 @else
-                                                    <a href="{{ asset('storage/' . $msg->file) }}" target="_blank" class="text-xs underline text-blue-200">
+                                                    <a href="{{ asset('storage/' . $msg->file) }}" target="_blank"
+                                                        class="text-xs underline text-blue-200">
                                                         📎 {{ basename($msg->file) }}
                                                     </a>
                                                 @endif
@@ -224,7 +236,8 @@
                     @empty
                         <div class="flex items-center justify-center h-full">
                             <div class="text-center text-gray-400">
-                                <svg class="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                 </svg>
@@ -292,7 +305,23 @@
     </div>
 </div>
 
+<!-- VIDEO CALL UI -->
+<div id="videoCallContainer" style="display:none; position:fixed; inset:0; background:black; z-index:9999;">
+
+    <video id="localVideo" autoplay muted
+        style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px;"></video>
+
+    <video id="remoteVideo" autoplay style="width:100%; height:100%; object-fit:cover;"></video>
+
+    <button onclick="endCall()" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+                   background:red; color:white; padding:10px 20px; border-radius:50px;">
+        End Call
+    </button>
+</div>
+
 <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 
 <script>
     // Image preview
@@ -336,7 +365,7 @@
 
             const channel = pusher.subscribe('voice-call.' + currentUserId);
 
-            channel.bind('subscription_succeeded', function() {
+            channel.bind('subscription_succeeded', function () {
                 console.log("✅ Subscribed to voice-call." + currentUserId);
             });
 
@@ -455,6 +484,183 @@
 
     // Make function globally available
     window.openCall = openCall;
+
+
+    // ================= VIDEO CALL =================
+
+    const socket = io("https://pm.inovace.in");
+
+    // ✅ ADD THIS BLOCK HERE
+    document.addEventListener("DOMContentLoaded", () => {
+
+        const myId = {{ auth()->id() }};
+        const selectedUser = @this.get('selectedUser');
+
+        if (selectedUser) {
+            const room = "room-" + Math.min(myId, selectedUser) + "-" + Math.max(myId, selectedUser);
+            socket.emit("join-room", room);
+        }
+    });
+
+    // ✅ ADD THIS ALSO BELOW
+    document.addEventListener("livewire:update", () => {
+
+        const myId = {{ auth()->id() }};
+        const selectedUser = @this.get('selectedUser');
+
+        if (selectedUser) {
+            const room = "room-" + Math.min(myId, selectedUser) + "-" + Math.max(myId, selectedUser);
+            socket.emit("join-room", room);
+        }
+    });
+
+    let localStream;
+    let peerConnection;
+    let currentRoom = null;
+
+    const config = {
+        iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            {
+                urls: "turn:openrelay.metered.ca:80",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+            }
+        ]
+    };
+
+    async function startVideoCall(userId) {
+
+        currentRoom = "room-" + Math.min({{ auth()->id() }}, userId) + "-" + Math.max({{ auth()->id() }}, userId);
+        document.getElementById("videoCallContainer").style.display = "block";
+
+        socket.emit("join-room", currentRoom);
+
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+        } catch (e) {
+            alert("Camera/Mic permission blocked or not supported");
+            console.error(e);
+            return;
+        }
+
+        document.getElementById("localVideo").srcObject = localStream;
+
+        peerConnection = new RTCPeerConnection(config);
+
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        peerConnection.ontrack = event => {
+            document.getElementById("remoteVideo").srcObject = event.streams[0];
+        };
+
+        peerConnection.onicecandidate = event => {
+            if (event.candidate) {
+                socket.emit("ice-candidate", {
+                    room: currentRoom,
+                    candidate: event.candidate
+                });
+            }
+        };
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        socket.emit("offer", {
+            room: currentRoom,
+            offer: offer
+        });
+    }
+
+    // RECEIVE OFFER
+    socket.on("offer", async (data) => {
+
+        console.log("🔥 OFFER RECEIVED");
+        console.log("📩 Incoming video offer");
+
+        // ✅ JOIN ROOM (IMPORTANT FIX)
+        socket.emit("join-room", data.room);
+
+        currentRoom = data.room;
+
+        // ✅ SHOW VIDEO UI
+        document.getElementById("videoCallContainer").style.display = "block";
+
+        // ✅ GET CAMERA
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+        } catch (e) {
+            alert("Camera not allowed on receiver side");
+            console.error(e);
+            return;
+        }
+
+        document.getElementById("localVideo").srcObject = localStream;
+
+        peerConnection = new RTCPeerConnection(config);
+
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        peerConnection.ontrack = event => {
+            console.log("🎥 Remote stream received");
+            document.getElementById("remoteVideo").srcObject = event.streams[0];
+        };
+
+        peerConnection.onicecandidate = event => {
+            if (event.candidate) {
+                socket.emit("ice-candidate", {
+                    room: currentRoom,
+                    candidate: event.candidate
+                });
+            }
+        };
+
+        await peerConnection.setRemoteDescription(data.offer);
+
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        socket.emit("answer", {
+            room: currentRoom,
+            answer: answer
+        });
+    });
+
+    // RECEIVE ANSWER
+    socket.on("answer", async (data) => {
+        await peerConnection.setRemoteDescription(data.answer);
+    });
+
+    // ICE
+    socket.on("ice-candidate", async (data) => {
+
+        if (!peerConnection) {
+            console.warn("⚠️ PeerConnection not ready yet");
+            return;
+        }
+
+        try {
+            await peerConnection.addIceCandidate(data.candidate);
+        } catch (e) {
+            console.error("ICE error:", e);
+        }
+    });
+
+    // END CALL
+    function endCall() {
+        document.getElementById("videoCallContainer").style.display = "none";
+        if (peerConnection) peerConnection.close();
+    }
 
 </script>
 
