@@ -17,11 +17,14 @@ io.on("connection", socket => {
     });
 
     socket.on("offer", data => {
+        console.log(" OFFER RECEIVED:", data);
         if (data.targetUserId) {
+            console.log(" Sending offer to user room:", `user-${data.targetUserId}`);
             socket.to(`user-${data.targetUserId}`).emit("offer", data);
             return;
         }
 
+        console.log(" Sending offer to shared room:", data.room);
         socket.to(data.room).emit("offer", data);
     });
 

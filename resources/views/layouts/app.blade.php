@@ -54,8 +54,10 @@
     let pendingGlobalVideoCallerName = null;
 
     globalVideoSocket.on("offer", async (data) => {
+        console.log("🔥 GLOBAL VIDEO OFFER RECEIVED", data);
         // Ignore if we are already in the chat video flow
         if (window.peerConnection || (document.getElementById("videoCallContainer") && document.getElementById("videoCallContainer").style.display === "block")) {
+            console.log("Ignoring offer - already in video call");
             return;
         }
 
