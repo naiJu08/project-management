@@ -499,11 +499,14 @@
     // ================= VIDEO CALL =================
 
     const socket = io("https://pm.inovace.in");
+    const myVideoUserId = {{ auth()->id() }};
+
+    socket.emit("join-user", myVideoUserId);
 
     // ✅ ADD THIS BLOCK HERE
     document.addEventListener("DOMContentLoaded", () => {
 
-        const myId = {{ auth()->id() }};
+        const myId = myVideoUserId;
         const selectedUser = @this.get('selectedUser');
 
         if (selectedUser) {
@@ -515,7 +518,7 @@
     // ✅ ADD THIS ALSO BELOW
     document.addEventListener("livewire:update", () => {
 
-        const myId = {{ auth()->id() }};
+        const myId = myVideoUserId;
         const selectedUser = @this.get('selectedUser');
 
         if (selectedUser) {
@@ -542,10 +545,15 @@
 
     async function startVideoCall(userId) {
 
-        currentRoom = "room-" + Math.min({{ auth()->id() }}, userId) + "-" + Math.max({{ auth()->id() }}, userId);
+        currentRoom = "room-" + Math.min(myVideoUserId, userId) + "-" + Math.max(myVideoUserId, userId);
         document.getElementById("videoCallContainer").style.display = "block";
 
         socket.emit("join-room", currentRoom);
+
+        if (peerConnection) {
+            peerConnection.close();
+        }
+        pendingCandidates = [];
 
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
@@ -593,6 +601,7 @@
 
         socket.emit("offer", {
             room: currentRoom,
+            targetUserId: userId,
             offer: offer
         });
     }
@@ -607,6 +616,11 @@
         socket.emit("join-room", data.room);
 
         currentRoom = data.room;
+
+        if (peerConnection) {
+            peerConnection.close();
+        }
+        pendingCandidates = [];
 
         // ✅ SHOW VIDEO UI
         document.getElementById("videoCallContainer").style.display = "block";
@@ -701,6 +715,15 @@
     function endCall() {
         document.getElementById("videoCallContainer").style.display = "none";
         if (peerConnection) peerConnection.close();
+        peerConnection = null;
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+        document.getElementById("localVideo").srcObject = null;
+        document.getElementById("remoteVideo").srcObject = null;
+        pendingCandidates = [];
+        currentRoom = null;
     }
 
 </script>
