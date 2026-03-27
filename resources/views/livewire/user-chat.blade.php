@@ -501,6 +501,46 @@
 
     // ================= VIDEO CALL =================
 
+    // Test camera function
+    window.testCamera = async function() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 1280, max: 1920 },
+                    height: { ideal: 720, max: 1080 },
+                    facingMode: "user"
+                },
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
+            console.log("✅ Camera test successful");
+            console.log("🎥 Video tracks:", stream.getVideoTracks());
+            console.log("🎥 Audio tracks:", stream.getAudioTracks());
+            
+            // Test local video element
+            const localVideo = document.getElementById("localVideo");
+            if (localVideo) {
+                localVideo.srcObject = stream;
+                localVideo.style.display = "block";
+                console.log("✅ Local video test - you should see yourself");
+            }
+            
+            // Stop test after 5 seconds
+            setTimeout(() => {
+                stream.getTracks().forEach(track => track.stop());
+                if (localVideo) localVideo.style.display = "none";
+                console.log("🛑 Camera test stopped");
+            }, 5000);
+            
+        } catch (error) {
+            console.error("❌ Camera test failed:", error);
+            alert("Camera test failed: " + error.message);
+        }
+    };
+
     // Use the global socket if it exists to avoid conflicts
     const socket = window.globalVideoSocket || (() => {
         try {
@@ -731,9 +771,18 @@
             console.log(" Video tracks:", localStream.getVideoTracks());
             console.log(" Audio tracks:", localStream.getAudioTracks());
         } catch (e) {
-            alert("Camera/Mic permission blocked or not supported");
-            console.error(" Media error:", e);
-            return;
+            console.warn(" Enhanced constraints failed, trying basic constraints");
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+                console.log(" Basic local stream obtained:", localStream);
+            } catch (e2) {
+                alert("Camera/Mic permission blocked or not supported");
+                console.error(" Media error:", e2);
+                return;
+            }
         }
 
         document.getElementById("localVideo").srcObject = localStream;
