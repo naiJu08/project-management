@@ -716,12 +716,23 @@
 
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
+                video: {
+                    width: { ideal: 1280, max: 1920 },
+                    height: { ideal: 720, max: 1080 },
+                    facingMode: "user"
+                },
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
             });
+            console.log(" Local stream obtained:", localStream);
+            console.log(" Video tracks:", localStream.getVideoTracks());
+            console.log(" Audio tracks:", localStream.getAudioTracks());
         } catch (e) {
             alert("Camera/Mic permission blocked or not supported");
-            console.error(e);
+            console.error(" Media error:", e);
             return;
         }
 
@@ -821,12 +832,23 @@
         // ✅ GET CAMERA
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
+                video: {
+                    width: { ideal: 1280, max: 1920 },
+                    height: { ideal: 720, max: 1080 },
+                    facingMode: "user"
+                },
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
             });
+            console.log("🎥 Receiver local stream obtained:", localStream);
+            console.log("🎥 Receiver video tracks:", localStream.getVideoTracks());
+            console.log("🎥 Receiver audio tracks:", localStream.getAudioTracks());
         } catch (e) {
             alert("Camera not allowed on receiver side");
-            console.error(e);
+            console.error("❌ Receiver media error:", e);
             return;
         }
 
