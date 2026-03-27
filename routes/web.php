@@ -17,6 +17,11 @@ Route::get('/test-ai', function () {
     return view('test-ai');
 })->name('test-ai');
 
+// Chat page
+Route::get('/chat', function () {
+    return view('chat');
+})->middleware(['auth'])->name('chat');
+
 // Share ticket
 Route::get('/tickets/share/{ticket:code}', function (Ticket $ticket) {
     return redirect()->to(route('filament.resources.tickets.view', $ticket));
