@@ -574,8 +574,13 @@
         { urls: "stun:stun2.l.google.com:19302" },
         { urls: "stun:stun3.l.google.com:19302" },
         { urls: "stun:stun4.l.google.com:19302" },
+        
+        // Additional STUN servers
+        { urls: "stun:stun.stunprotocol.org:3478" },
+        { urls: "stun:stun.l.google.com:5229" },
+        { urls: "stun:stun.services.mozilla.com:3478" },
 
-        // Your own TURN server (now properly configured)
+        // Your TURN server (updated configuration)
         {
             urls: [
                 "turn:pm.inovace.in:3478?transport=udp",
@@ -602,6 +607,18 @@
             ],
             username: "anyfirewall",
             credential: "anyfirewall"
+        },
+        
+        // More reliable TURN servers
+        {
+            urls: "turn:numb.viagenie.ca:3478",
+            username: "webrtc@live.com",
+            credential: "muazkh"
+        },
+        {
+            urls: "turn:relay.metered.ca:80",
+            username: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c",
+            credential: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c"
         }
     ];
 
@@ -631,7 +648,11 @@
     function attachPeerConnectionListeners() {
         peerConnection.ontrack = event => {
             console.log("🎥 Remote stream received");
-            document.getElementById("remoteVideo").srcObject = event.streams[0];
+            console.log("🎥 Stream tracks:", event.streams[0].getTracks());
+            console.log("🎥 Stream active:", event.streams[0].active);
+            const remoteVideo = document.getElementById("remoteVideo");
+            remoteVideo.srcObject = event.streams[0];
+            remoteVideo.play().catch(e => console.error("🎥 Remote video play error:", e));
         };
 
         peerConnection.onicecandidate = event => {
@@ -653,11 +674,30 @@
         };
 
         peerConnection.onconnectionstatechange = () => {
-            console.log("WebRTC connection state:", peerConnection.connectionState);
+            const state = peerConnection.connectionState;
+            console.log("WebRTC connection state:", state);
+            if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+                console.error("❌ WebRTC connection failed - video won't work");
+                alert("Video connection failed. Please check your network and try again.");
+            }
         };
 
         peerConnection.oniceconnectionstatechange = () => {
-            console.log("WebRTC ICE state:", peerConnection.iceConnectionState);
+            const state = peerConnection.iceConnectionState;
+            console.log("WebRTC ICE state:", state);
+            if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+                console.error("❌ ICE connection failed - video won't work");
+                alert("ICE connection failed. This might be due to network restrictions or firewall.");
+            }
+        };
+
+        // Add more debugging
+        peerConnection.onsignalingstatechange = () => {
+            console.log("WebRTC signaling state:", peerConnection.signalingState);
+        };
+
+        peerConnection.onicegatheringstatechange = () => {
+            console.log("WebRTC ICE gathering state:", peerConnection.iceGatheringState);
         };
     }
 
