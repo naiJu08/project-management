@@ -318,14 +318,28 @@
 <!-- VIDEO CALL UI -->
 <div id="videoCallContainer" style="display:none; position:fixed; inset:0; background:black; z-index:9999;">
 
-    <video id="localVideo" autoplay muted
-        style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px;"></video>
+    <video id="localVideo" autoplay muted playsinline
+        style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px; background:#333;"></video>
 
-    <video id="remoteVideo" autoplay style="width:100%; height:100%; object-fit:cover;"></video>
+    <video id="remoteVideo" autoplay playsinline muted
+        style="width:100%; height:100%; object-fit:cover; background:#333;"></video>
 
     <button onclick="endCall()" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
-                   background:red; color:white; padding:10px 20px; border-radius:50px;">
+                   background:red; color:white; padding:10px 20px; border-radius:50px; z-index:10000;">
         End Call
+    </button>
+    
+    <!-- Debug Info -->
+    <div id="videoDebugInfo" style="position:absolute; top:20px; left:20px; color:white; font-size:12px; background:rgba(0,0,0,0.7); padding:10px; border-radius:5px; display:none;">
+        <div>Local Video: <span id="localVideoStatus">No Stream</span></div>
+        <div>Remote Video: <span id="remoteVideoStatus">No Stream</span></div>
+        <div>Connection: <span id="connectionStatus">Disconnected</span></div>
+        <div>ICE State: <span id="iceState">Disconnected</span></div>
+    </div>
+    
+    <!-- Unmute Button -->
+    <button id="unmuteBtn" onclick="toggleMute()" style="position:absolute; top:20px; right:20px; background:rgba(255,255,255,0.2); color:white; padding:8px 15px; border-radius:20px; display:none;">
+        🔇 Unmute
     </button>
 </div>
 
@@ -501,6 +515,10 @@
 
     // ================= VIDEO CALL =================
 
+    // Video call state management
+    let isVideoCallActive = false;
+    let isRemoteMuted = true;
+
     // Test camera function
     window.testCamera = async function() {
         try {
@@ -540,6 +558,69 @@
             alert("Camera test failed: " + error.message);
         }
     };
+
+    // Toggle mute function
+    window.toggleMute = function() {
+        const remoteVideo = document.getElementById("remoteVideo");
+        const unmuteBtn = document.getElementById("unmuteBtn");
+        
+        if (remoteVideo.muted) {
+            remoteVideo.muted = false;
+            unmuteBtn.textContent = "🔊 Mute";
+            isRemoteMuted = false;
+            console.log("🔊 Remote video unmuted");
+        } else {
+            remoteVideo.muted = true;
+            unmuteBtn.textContent = "🔇 Unmute";
+            isRemoteMuted = true;
+            console.log("🔇 Remote video muted");
+        }
+    };
+
+    // Update debug info
+    function updateDebugInfo() {
+        const localVideoStatus = document.getElementById("localVideoStatus");
+        const remoteVideoStatus = document.getElementById("remoteVideoStatus");
+        const connectionStatus = document.getElementById("connectionStatus");
+        const iceState = document.getElementById("iceState");
+        
+        const localVideo = document.getElementById("localVideo");
+        const remoteVideo = document.getElementById("remoteVideo");
+        
+        if (localVideoStatus) {
+            localVideoStatus.textContent = localVideo.srcObject ? "✅ Active" : "❌ No Stream";
+        }
+        
+        if (remoteVideoStatus) {
+            remoteVideoStatus.textContent = remoteVideo.srcObject ? "✅ Active" : "❌ No Stream";
+        }
+        
+        if (connectionStatus && peerConnection) {
+            connectionStatus.textContent = peerConnection.connectionState || "❌ Disconnected";
+        }
+        
+        if (iceState && peerConnection) {
+            iceState.textContent = peerConnection.iceConnectionState || "❌ Disconnected";
+        }
+    }
+
+    // Show debug info during call
+    function showDebugInfo() {
+        const debugInfo = document.getElementById("videoDebugInfo");
+        if (debugInfo) {
+            debugInfo.style.display = "block";
+            // Update every second
+            setInterval(updateDebugInfo, 1000);
+        }
+    }
+
+    // Hide debug info
+    function hideDebugInfo() {
+        const debugInfo = document.getElementById("videoDebugInfo");
+        if (debugInfo) {
+            debugInfo.style.display = "none";
+        }
+    }
 
     // Use the global socket if it exists to avoid conflicts
     const socket = window.globalVideoSocket || (() => {
@@ -691,8 +772,42 @@
             console.log("🎥 Stream tracks:", event.streams[0].getTracks());
             console.log("🎥 Stream active:", event.streams[0].active);
             const remoteVideo = document.getElementById("remoteVideo");
+            const unmuteBtn = document.getElementById("unmuteBtn");
+                
+            // Clear previous stream to prevent interruption
+            if (remoteVideo.srcObject) {
+                const oldStream = remoteVideo.srcObject;
+                oldStream.getTracks().forEach(track => track.stop());
+            }
+                
             remoteVideo.srcObject = event.streams[0];
-            remoteVideo.play().catch(e => console.error("🎥 Remote video play error:", e));
+            
+            // Show unmute button when remote stream is received
+            if (unmuteBtn) {
+                unmuteBtn.style.display = "block";
+            }
+                
+            // Ensure video plays without interruption
+            remoteVideo.play().then(() => {
+                console.log("✅ Remote video playing successfully");
+                updateDebugInfo();
+            }).catch(e => {
+                console.error("🎥 Remote video play error:", e);
+                // Try autoplay with muted
+                remoteVideo.muted = true;
+                remoteVideo.play().then(() => {
+                    console.log("✅ Remote video playing (muted)");
+                    // Show unmute button for user to enable audio
+                    if (unmuteBtn) {
+                        unmuteBtn.style.display = "block";
+                        unmuteBtn.textContent = "🔊 Unmute for Audio";
+                    }
+                    updateDebugInfo();
+                }).catch(e2 => {
+                    console.error("🎥 Even muted autoplay failed:", e2);
+                    alert("Video playback failed. Please check your browser settings and try again.");
+                });
+            });
         };
 
         peerConnection.onicecandidate = event => {
@@ -745,6 +860,9 @@
 
         currentRoom = "room-" + Math.min(myVideoUserId, userId) + "-" + Math.max(myVideoUserId, userId);
         document.getElementById("videoCallContainer").style.display = "block";
+        
+        // Show debug info
+        showDebugInfo();
 
         socket.emit("join-room", currentRoom);
 
@@ -753,6 +871,7 @@
         }
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
+        isVideoCallActive = true;
 
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
@@ -808,7 +927,9 @@
     // RECEIVE OFFER
     socket.on("offer", async (data) => {
 
-        console.log("🔥 CHAT OFFER RECEIVED");
+        console.log(" CHAT OFFER RECEIVED");
+        console.log(" Incoming video offer");
+        console.log(" Checking for global UI:", window.incomingVideoUI);
         console.log("📩 Incoming video offer");
         console.log("🔍 Checking for global UI:", window.incomingVideoUI);
 
@@ -874,9 +995,13 @@
         }
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
+        isVideoCallActive = true;
 
         // ✅ SHOW VIDEO UI
         document.getElementById("videoCallContainer").style.display = "block";
+        
+        // Show debug info
+        showDebugInfo();
 
         // ✅ GET CAMERA
         try {
@@ -999,3 +1124,4 @@
         border-color: transparent #374151 transparent transparent;
     }
 </style>
+</div>
