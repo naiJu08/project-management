@@ -363,7 +363,6 @@
     // Track open call windows
     let callWindow = null;
 
-    // Initialize Pusher
     document.addEventListener("livewire:load", function () {
         console.log("✅ Initializing Pusher for voice calls...");
 
@@ -460,6 +459,11 @@
         } catch (error) {
             console.error("❌ Failed to initialize Pusher:", error);
         }
+
+        // Expose global UI reference for video calls
+        if (window.incomingVideoUI) {
+            console.log("✅ Global video UI detected");
+        }
     });
 
     // Open call window (caller)
@@ -497,7 +501,23 @@
 
     // ================= VIDEO CALL =================
 
-    const socket = io("https://pm.inovace.in");
+    // Use the global socket if it exists to avoid conflicts
+    const socket = window.globalVideoSocket || (() => {
+        try {
+            return io("https://pm.inovace.in", {
+                transports: ['websocket', 'polling'],
+                timeout: 5000,
+                forceNew: true
+            });
+        } catch (error) {
+            console.error("❌ Failed to connect to socket server:", error);
+            return io("http://localhost:3000", {
+                transports: ['websocket', 'polling'],
+                timeout: 5000,
+                forceNew: true
+            });
+        }
+    })();
     const myVideoUserId = {{ auth()->id() }};
 
     socket.emit("join-user", myVideoUserId);
@@ -510,6 +530,22 @@
         if (selectedUser) {
             const room = "room-" + Math.min(myId, selectedUser) + "-" + Math.max(myId, selectedUser);
             socket.emit("join-room", room);
+        }
+        
+        // Check if there's a pending video call from redirect
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('videoCall') === 'true') {
+            const pendingCallData = sessionStorage.getItem('pendingVideoCall');
+            if (pendingCallData) {
+                console.log("🔄 Resuming pending video call after redirect");
+                const data = JSON.parse(pendingCallData);
+                sessionStorage.removeItem('pendingVideoCall');
+                
+                // Small delay to ensure UI is ready
+                setTimeout(() => {
+                    handleChatVideoOffer(data);
+                }, 500);
+            }
         }
     });
 
@@ -664,6 +700,7 @@
         socket.emit("offer", {
             room: currentRoom,
             targetUserId: userId,
+            callerUserId: myVideoUserId,
             offer: offer
         });
     }
@@ -671,16 +708,23 @@
     // RECEIVE OFFER
     socket.on("offer", async (data) => {
 
-        console.log("🔥 OFFER RECEIVED");
+        console.log("🔥 CHAT OFFER RECEIVED");
         console.log("📩 Incoming video offer");
+        console.log("🔍 Checking for global UI:", window.incomingVideoUI);
 
-        // If global UI exists, use it instead of starting video immediately
-        if (window.incomingVideoUI) {
-            console.log("📱 Using global incoming UI");
-            window.incomingVideoUI.style.display = "block";
-            document.getElementById("incomingVideoCallerName").textContent = `Incoming video call from User ${data.targetUserId || 'Unknown'}`;
-            
-            // Store offer for when user accepts
+        // Wait for global UI to be available (race condition fix)
+        let attempts = 0;
+        while (!window.incomingVideoUI && attempts < 50) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            attempts++;
+        }
+        
+        console.log("🔍 Global UI after wait:", window.incomingVideoUI);
+
+        // If global UI exists and is visible, let it handle the UI
+        if (window.incomingVideoUI && window.incomingVideoUI.style.display === "block") {
+            console.log("📱 Global UI is handling the offer, just storing data");
+            // Store the data for when user accepts
             window.pendingChatVideoOffer = data;
             window.acceptChatVideoCall = async function() {
                 window.incomingVideoUI.style.display = "none";
@@ -689,7 +733,33 @@
             return;
         }
 
-        // Fallback: handle immediately if no global UI
+        // If global UI exists but not visible, show it
+        if (window.incomingVideoUI && window.incomingVideoUI.style.display !== "block") {
+            console.log("📱 Showing global UI for incoming call");
+            
+            const callerName = `User ${data.callerUserId || data.targetUserId || 'Unknown'}`;
+            const callerNameElement = document.getElementById("incomingVideoCallerName");
+            if (callerNameElement) {
+                callerNameElement.textContent = `Incoming video call from ${callerName}`;
+            }
+            
+            // Store the complete data
+            window.pendingGlobalVideoData = data;
+            window.pendingChatVideoOffer = data;
+            
+            window.acceptChatVideoCall = async function() {
+                window.incomingVideoUI.style.display = "none";
+                await handleChatVideoOffer(data);
+            };
+            
+            window.incomingVideoUI.style.display = "block";
+            return;
+        }
+
+        // Fallback: handle immediately if no global UI available
+        console.log("📱 No global UI detected after waiting, handling immediately");
+        console.log("🔍 window.incomingVideoUI:", window.incomingVideoUI);
+        console.log("🔍 Attempts made:", attempts);
         await handleChatVideoOffer(data);
     });
 
@@ -797,6 +867,9 @@
         currentRoom = null;
         isRemoteDescriptionSet = false;
     }
+
+    window.startVideoCall = startVideoCall;
+    window.endCall = endCall;
 
 </script>
 
