@@ -622,6 +622,8 @@
     let isRemoteDescriptionSet = false;
     let remoteStream = null;
     let isRelayFallbackEnabled = false;
+    let isInCall = false;
+    let currentCallUserId = null;
 
     const iceServers = [
         // Primary STUN servers (IPv4 only to avoid IPv6 issues)
@@ -921,6 +923,15 @@
 
     async function startVideoCall(userId) {
         console.log("🎥 Starting video call to user:", userId);
+        
+        // Check if already in call
+        if (isInCall) {
+            console.log("⚠️ Already in a call, ending current call first");
+            endCall();
+        }
+        
+        isInCall = true;
+        currentCallUserId = userId;
         currentRoom = "room-" + Math.min(myVideoUserId, userId) + "-" + Math.max(myVideoUserId, userId);
         document.getElementById("videoCallContainer").style.display = "block";
 
@@ -980,6 +991,8 @@
             } catch (e2) {
                 console.error("❌ Media access failed:", e2);
                 alert("Camera/Microphone access is required for video calls. Please allow permissions and try again.");
+                isInCall = false;
+                currentCallUserId = null;
                 endCall();
                 return;
             }
@@ -1021,15 +1034,33 @@
         } catch (error) {
             console.error("❌ Failed to create offer:", error);
             alert("Failed to initiate video call. Please try again.");
+            isInCall = false;
+            currentCallUserId = null;
             endCall();
         }
     }
 
     // RECEIVE OFFER
     socket.on("offer", async (data) => {
+        console.log("🔥 CHAT OFFER RECEIVED", data);
+        
+        // Check if we're already in a call with this user
+        if (isInCall && currentCallUserId === data.callerUserId) {
+            console.log("⚠️ Already in call with this user, ignoring duplicate offer");
+            return;
+        }
+        
+        // Check if we're already in any call
+        if (isInCall) {
+            console.log("⚠️ Already in another call, declining new offer");
+            socket.emit("decline-call", {
+                room: data.room,
+                targetUserId: data.callerUserId
+            });
+            return;
+        }
 
-        console.log("🔥 CHAT OFFER RECEIVED");
-        console.log("📩 Incoming video offer");
+        console.log("📩 Incoming video offer from user:", data.callerUserId);
         console.log("🔍 Checking for global UI:", window.incomingVideoUI);
 
         // Wait for global UI to be available (race condition fix)
@@ -1041,6 +1072,9 @@
         
         console.log("🔍 Global UI after wait:", window.incomingVideoUI);
 
+        // Mark that we have a pending call from this user
+        currentCallUserId = data.callerUserId;
+
         // If global UI exists and is visible, let it handle the UI
         if (window.incomingVideoUI && window.incomingVideoUI.style.display === "block") {
             console.log("📱 Global UI is handling the offer, just storing data");
@@ -1049,8 +1083,13 @@
             window.pendingChatVideoOffer = data;
             sessionStorage.setItem('pendingVideoCall', JSON.stringify(data));
             window.acceptChatVideoCall = async function() {
+                if (isInCall) {
+                    console.log("⚠️ Already in call, ignoring accept");
+                    return;
+                }
                 sessionStorage.removeItem('pendingVideoCall');
                 window.incomingVideoUI.style.display = "none";
+                isInCall = true;
                 await handleChatVideoOffer(data);
             };
             return;
@@ -1073,8 +1112,13 @@
             sessionStorage.setItem('pendingVideoCall', JSON.stringify(data));
             
             window.acceptChatVideoCall = async function() {
+                if (isInCall) {
+                    console.log("⚠️ Already in call, ignoring accept");
+                    return;
+                }
                 sessionStorage.removeItem('pendingVideoCall');
                 window.incomingVideoUI.style.display = "none";
+                isInCall = true;
                 await handleChatVideoOffer(data);
             };
             
@@ -1094,6 +1138,15 @@
 
     async function handleChatVideoOffer(data) {
         console.log("🎥 Handling incoming video offer:", data);
+        
+        // Check if already in call
+        if (isInCall) {
+            console.log("⚠️ Already in a call, ignoring offer");
+            return;
+        }
+        
+        isInCall = true;
+        currentCallUserId = data.callerUserId;
         
         // ✅ JOIN ROOM (IMPORTANT FIX)
         socket.emit("join-room", data.room);
@@ -1146,6 +1199,8 @@
         } catch (e) {
             console.error("❌ Receiver media error:", e);
             alert("Camera/Microphone access is required to accept video calls. Please allow permissions and try again.");
+            isInCall = false;
+            currentCallUserId = null;
             endCall();
             return;
         }
@@ -1188,6 +1243,8 @@
         } catch (error) {
             console.error("❌ Failed to handle offer:", error);
             alert("Failed to accept video call. Please try again.");
+            isInCall = false;
+            currentCallUserId = null;
             endCall();
         }
     }
@@ -1234,9 +1291,14 @@
 
     // END CALL
     function endCall() {
+        console.log("🛑 Ending call");
         document.getElementById("videoCallContainer").style.display = "none";
-        if (peerConnection) peerConnection.close();
-        peerConnection = null;
+        
+        if (peerConnection) {
+            peerConnection.close();
+            peerConnection = null;
+        }
+        
         if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
             localStream = null;
@@ -1255,11 +1317,24 @@
             remoteVideo.srcObject = null;
         }
         
+        // Reset call state
         pendingCandidates = [];
         currentRoom = null;
         isRemoteDescriptionSet = false;
         remoteStream = null;
         isRelayFallbackEnabled = false;
+        isInCall = false;
+        currentCallUserId = null;
+        
+        // Hide any incoming call UI
+        if (window.incomingVideoUI) {
+            window.incomingVideoUI.style.display = "none";
+        }
+        
+        // Clear pending call data
+        sessionStorage.removeItem('pendingVideoCall');
+        window.pendingGlobalVideoData = null;
+        window.pendingChatVideoOffer = null;
     }
 
     window.startVideoCall = startVideoCall;
