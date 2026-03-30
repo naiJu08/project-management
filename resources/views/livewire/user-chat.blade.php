@@ -614,10 +614,24 @@
 
         peerConnection.ontrack = (event) => {
             console.log("📡 Received remote track:", event.track.kind, event.streams.length, "streams");
+            console.log("📡 Track details:", {
+                kind: event.track.kind,
+                label: event.track.label,
+                enabled: event.track.enabled,
+                state: event.track.readyState,
+                id: event.track.id
+            });
             
             if (event.streams && event.streams[0]) {
                 const remoteVideo = document.getElementById("remoteVideo");
                 const stream = event.streams[0];
+                
+                console.log("🎬 Remote stream details:", {
+                    id: stream.id,
+                    active: stream.active,
+                    audioTracks: stream.getAudioTracks().length,
+                    videoTracks: stream.getVideoTracks().length
+                });
                 
                 // Only set srcObject if it's different to prevent AbortError
                 if (remoteVideo.srcObject !== stream) {
@@ -629,6 +643,14 @@
                         console.log("🎬 Metadata loaded, playing video");
                         remoteVideo.play().catch(e => console.error("❌ Remote video play error:", e));
                     };
+                    
+                    // Also try to play immediately as backup
+                    setTimeout(() => {
+                        if (remoteVideo.paused) {
+                            console.log("🎬 Trying to play video again...");
+                            remoteVideo.play().catch(e => console.error("❌ Backup play error:", e));
+                        }
+                    }, 1000);
                 }
                 
                 // Log audio track details
@@ -637,10 +659,26 @@
                     console.log("🎤 Remote audio track received:", audioTracks[0].label, "enabled:", audioTracks[0].enabled);
                     // Ensure remote audio is not muted
                     remoteVideo.muted = false;
+                    // Force audio track to be enabled
+                    audioTracks.forEach(track => {
+                        track.enabled = true;
+                        console.log("🎤 Enabling audio track:", track.label);
+                    });
                 }
                 
                 const videoTracks = stream.getVideoTracks();
+                if (videoTracks.length > 0) {
+                    console.log("📹 Remote video track received:", videoTracks[0].label, "enabled:", videoTracks[0].enabled);
+                    // Force video track to be enabled
+                    videoTracks.forEach(track => {
+                        track.enabled = true;
+                        console.log("📹 Enabling video track:", track.label);
+                    });
+                }
+                
                 console.log("✅ Remote stream attached with", audioTracks.length, "audio tracks and", videoTracks.length, "video tracks");
+            } else {
+                console.warn("⚠️ No streams received in ontrack event");
             }
         };
 
@@ -867,7 +905,7 @@
     // RECEIVE ANSWER
     socket.on("answer", async (data) => {
 
-        console.log("✅ ANSWER RECEIVED");
+        console.log("✅ ANSWER RECEIVED from room:", data.room);
 
         if (!peerConnection) {
             console.log("⚠️ PeerConnection not ready yet");
@@ -875,9 +913,11 @@
         }
 
         try {
+            console.log("📡 Setting remote description from answer");
             await peerConnection.setRemoteDescription(data.answer);
             isRemoteDescriptionSet = true;
             await flushPendingCandidates();
+            console.log("✅ Remote description set, waiting for remote tracks...");
         } catch (e) {
             console.error("Answer error:", e);
         }
