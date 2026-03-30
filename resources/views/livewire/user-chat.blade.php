@@ -617,20 +617,30 @@
             
             if (event.streams && event.streams[0]) {
                 const remoteVideo = document.getElementById("remoteVideo");
-                remoteVideo.srcObject = event.streams[0];
+                const stream = event.streams[0];
                 
-                // Force remote video to play with audio
-                remoteVideo.play().catch(e => console.error("❌ Remote video play error:", e));
+                // Only set srcObject if it's different to prevent AbortError
+                if (remoteVideo.srcObject !== stream) {
+                    console.log("🎬 Setting new remote stream");
+                    remoteVideo.srcObject = stream;
+                    
+                    // Wait for metadata to load before playing
+                    remoteVideo.onloadedmetadata = () => {
+                        console.log("🎬 Metadata loaded, playing video");
+                        remoteVideo.play().catch(e => console.error("❌ Remote video play error:", e));
+                    };
+                }
                 
                 // Log audio track details
-                const audioTracks = event.streams[0].getAudioTracks();
+                const audioTracks = stream.getAudioTracks();
                 if (audioTracks.length > 0) {
                     console.log("🎤 Remote audio track received:", audioTracks[0].label, "enabled:", audioTracks[0].enabled);
                     // Ensure remote audio is not muted
                     remoteVideo.muted = false;
                 }
                 
-                console.log("✅ Remote video stream attached with", audioTracks.length, "audio tracks");
+                const videoTracks = stream.getVideoTracks();
+                console.log("✅ Remote stream attached with", audioTracks.length, "audio tracks and", videoTracks.length, "video tracks");
             }
         };
 
@@ -722,7 +732,9 @@
         socket.emit("offer", {
             room: currentRoom,
             targetUserId: userId,
-            offer: offer
+            offer: offer,
+            callerName: "{{ auth()->user()->name }}",
+            callerId: myVideoUserId
         });
     }
 
@@ -730,13 +742,16 @@
     socket.on("offer", async (data) => {
 
         console.log("🔥 OFFER RECEIVED");
-        console.log("📩 Incoming video offer");
+        console.log("📩 Incoming video offer from user:", data.targetUserId);
 
         // If global UI exists, use it instead of starting video immediately
         if (window.incomingVideoUI) {
             console.log("📱 Using global incoming UI");
             window.incomingVideoUI.style.display = "block";
-            document.getElementById("incomingVideoCallerName").textContent = `Incoming video call from User ${data.targetUserId || 'Unknown'}`;
+            
+            // Get caller name from the data or use fallback
+            const callerName = data.callerName || `User ${data.targetUserId}` || 'Unknown User';
+            document.getElementById("incomingVideoCallerName").textContent = `Incoming video call from ${callerName}`;
             
             // Store offer for when user accepts
             window.pendingChatVideoOffer = data;
