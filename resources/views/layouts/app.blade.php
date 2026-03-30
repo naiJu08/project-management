@@ -71,88 +71,21 @@
     let pendingGlobalVideoCallerId = null;
     let pendingGlobalVideoCallerName = null;
 
-    // Global call state management
-    window.isInCall = false;
-    window.currentCallUserId = null;
-
-    // Clean up any existing call state on page load
-    function cleanupCallState() {
-        console.log("🧹 Cleaning up call state on page load");
-        window.isInCall = false;
-        window.currentCallUserId = null;
-        pendingGlobalVideoOffer = null;
-        pendingGlobalVideoCallerId = null;
-        pendingGlobalVideoCallerName = null;
-        incomingVideoUI.style.display = "none";
-        sessionStorage.removeItem('pendingVideoCall');
-        sessionStorage.removeItem('isInCall');
-        sessionStorage.removeItem('currentCallUserId');
-    }
-
-    // Call cleanup on page load
-    cleanupCallState();
-
-    // Listen for call state changes from chat component
-    window.addEventListener('message', function(event) {
-        if (event.data && event.data.type === 'call-state-change') {
-            console.log("📞 Received call state change:", event.data);
-            window.isInCall = event.data.isInCall;
-            window.currentCallUserId = event.data.currentCallUserId;
-            
-            // Update sessionStorage for persistence across page reloads
-            sessionStorage.setItem('isInCall', window.isInCall);
-            sessionStorage.setItem('currentCallUserId', window.currentCallUserId || '');
-            
-            // Hide incoming call UI if we're now in a call
-            if (window.isInCall && incomingVideoUI.style.display === 'block') {
-                console.log("🔄 Hiding incoming call UI - now in call");
-                incomingVideoUI.style.display = 'none';
-                pendingGlobalVideoOffer = null;
-                pendingGlobalVideoCallerId = null;
-                pendingGlobalVideoCallerName = null;
-            }
-        }
-    });
-
     globalVideoSocket.on("offer", async (data) => {
         console.log("🔥 GLOBAL VIDEO OFFER RECEIVED", data);
-        
-        // Restore call state from sessionStorage if available
-        if (sessionStorage.getItem('isInCall') === 'true') {
-            window.isInCall = true;
-            window.currentCallUserId = sessionStorage.getItem('currentCallUserId');
-        }
-        
-        // Ignore if we are already in the chat video flow or already in a call
-        if (window.peerConnection || 
-            (document.getElementById("videoCallContainer") && document.getElementById("videoCallContainer").style.display === "block") || 
-            window.isInCall) {
-            console.log("⚠️ Ignoring offer - already in video call or call state");
-            // Clear the pending offer if we're ignoring it to prevent stale data
-            pendingGlobalVideoOffer = null;
-            pendingGlobalVideoCallerId = null;
-            pendingGlobalVideoCallerName = null;
+        // Ignore if we are already in the chat video flow
+        if (window.peerConnection || (document.getElementById("videoCallContainer") && document.getElementById("videoCallContainer").style.display === "block")) {
+            console.log("Ignoring offer - already in video call");
             return;
         }
 
-        console.log("🔥 Processing new global video offer");
+        console.log("🔥 GLOBAL VIDEO OFFER RECEIVED");
         pendingGlobalVideoOffer = data.offer;
-        pendingGlobalVideoCallerId = data.callerUserId || data.targetUserId || data.room;
+        pendingGlobalVideoCallerId = data.targetUserId || data.room;
         pendingGlobalVideoCallerName = `User ${pendingGlobalVideoCallerId}`;
 
         document.getElementById("incomingVideoCallerName").textContent = `Incoming video call from ${pendingGlobalVideoCallerName}`;
         incomingVideoUI.style.display = "block";
-        
-        // Auto-hide after 30 seconds if no response
-        setTimeout(() => {
-            if (incomingVideoUI.style.display === "block" && !window.isInCall) {
-                console.log("⏰ Auto-hiding incoming call UI after 30 seconds");
-                incomingVideoUI.style.display = "none";
-                pendingGlobalVideoOffer = null;
-                pendingGlobalVideoCallerId = null;
-                pendingGlobalVideoCallerName = null;
-            }
-        }, 30000);
     });
 
     window.acceptGlobalVideoCall = async function() {
@@ -162,16 +95,7 @@
             return;
         }
 
-        // Set call state immediately to prevent duplicate popups
-        window.isInCall = true;
-        window.currentCallUserId = pendingGlobalVideoCallerId;
-        sessionStorage.setItem('isInCall', 'true');
-        sessionStorage.setItem('currentCallUserId', pendingGlobalVideoCallerId);
-        
         incomingVideoUI.style.display = "none";
-        pendingGlobalVideoOffer = null;
-        pendingGlobalVideoCallerId = null;
-        pendingGlobalVideoCallerName = null;
 
         // If we're on the chat page, trigger the offer handling
         if (window.location.pathname.includes('/chat')) {
@@ -187,7 +111,7 @@
                         await window.handleChatVideoOffer(window.pendingChatVideoOffer);
                     } else {
                         // If still not available, redirect
-                        window.location.href = `/chat?selectUser=${window.currentCallUserId}&videoCall=true`;
+                        window.location.href = `/chat?selectUser=${pendingGlobalVideoCallerId}`;
                     }
                 }, 500);
             }
@@ -195,44 +119,11 @@
         }
 
         // Otherwise redirect to chat page with the caller selected
-        window.location.href = `/chat?selectUser=${window.currentCallUserId}&videoCall=true`;
+        window.location.href = `/chat?selectUser=${pendingGlobalVideoCallerId}`;
     };
 
     window.declineGlobalVideoCall = function() {
-        console.log("📱 Global decline button clicked");
         incomingVideoUI.style.display = "none";
-        
-        // Send decline signal to caller
-        if (pendingGlobalVideoCallerId) {
-            globalVideoSocket.emit("decline-call", {
-                targetUserId: pendingGlobalVideoCallerId
-            });
-        }
-        
-        // Clear all call state
-        pendingGlobalVideoOffer = null;
-        pendingGlobalVideoCallerId = null;
-        pendingGlobalVideoCallerName = null;
-        window.isInCall = false;
-        window.currentCallUserId = null;
-        sessionStorage.removeItem('isInCall');
-        sessionStorage.removeItem('currentCallUserId');
-        sessionStorage.removeItem('pendingVideoCall');
-    };
-
-    // Global function to end call from anywhere
-    window.endGlobalCall = function() {
-        console.log("🛑 Ending global call");
-        window.isInCall = false;
-        window.currentCallUserId = null;
-        sessionStorage.removeItem('isInCall');
-        sessionStorage.removeItem('currentCallUserId');
-        sessionStorage.removeItem('pendingVideoCall');
-        
-        if (incomingVideoUI) {
-            incomingVideoUI.style.display = "none";
-        }
-        
         pendingGlobalVideoOffer = null;
         pendingGlobalVideoCallerId = null;
         pendingGlobalVideoCallerName = null;
