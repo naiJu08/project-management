@@ -607,6 +607,7 @@
     let currentRoom = null;
     let pendingCandidates = [];
     let isRemoteDescriptionSet = false;
+    let remoteStream = null;
 
     const iceServers = [
         // STUN servers for NAT discovery
@@ -688,15 +689,27 @@
 
     function attachPeerConnectionListeners() {
         peerConnection.ontrack = event => {
-            console.log("🎥 Remote stream received");
-            console.log("🎥 Stream tracks:", event.streams[0].getTracks());
-            console.log("🎥 Stream active:", event.streams[0].active);
+            console.log("🎥 Remote track received:", event.track.kind);
+            console.log("🎥 Incoming streams:", event.streams);
             const remoteVideo = document.getElementById("remoteVideo");
             
             if (!remoteVideo) {
                 console.error("❌ Remote video element not found");
                 return;
             }
+
+            if (!remoteStream) {
+                remoteStream = new MediaStream();
+            }
+
+            const trackAlreadyExists = remoteStream.getTracks().some(track => track.id === event.track.id);
+            if (!trackAlreadyExists) {
+                remoteStream.addTrack(event.track);
+            }
+
+            console.log("🎥 Remote stream tracks now:", remoteStream.getTracks());
+            console.log("🎥 Remote video tracks:", remoteStream.getVideoTracks());
+            console.log("🎥 Remote audio tracks:", remoteStream.getAudioTracks());
             
             // ✅ FIX: Proper stream handling without interruption
             // Clear any existing timeout to avoid conflicts
@@ -704,9 +717,24 @@
                 clearTimeout(remoteVideo.playTimeout);
             }
             
-            // Set the stream immediately without pause/play cycle that causes AbortError
-            remoteVideo.srcObject = event.streams[0];
+            if (remoteVideo.srcObject !== remoteStream) {
+                remoteVideo.srcObject = remoteStream;
+            }
             remoteVideo.muted = false;
+            remoteVideo.autoplay = true;
+            remoteVideo.playsInline = true;
+            remoteVideo.controls = false;
+            remoteVideo.volume = 1;
+
+            event.track.onunmute = () => {
+                console.log(`✅ Remote ${event.track.kind} track unmuted`);
+                const playPromise = remoteVideo.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.error("❌ Remote video play error after unmute:", error);
+                    });
+                }
+            };
             
             // Use a single play attempt with proper error handling
             remoteVideo.playTimeout = setTimeout(() => {
@@ -781,7 +809,18 @@
         socket.emit("join-room", currentRoom);
 
         if (peerConnection) {
+            peerConnection.ontrack = null;
+            peerConnection.onicecandidate = null;
+            peerConnection.onconnectionstatechange = null;
+            peerConnection.oniceconnectionstatechange = null;
             peerConnection.close();
+        }
+        remoteStream = new MediaStream();
+        const remoteVideo = document.getElementById("remoteVideo");
+        if (remoteVideo) {
+            remoteVideo.pause();
+            remoteVideo.srcObject = remoteStream;
+            remoteVideo.load();
         }
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
@@ -912,7 +951,18 @@
         currentRoom = data.room;
 
         if (peerConnection) {
+            peerConnection.ontrack = null;
+            peerConnection.onicecandidate = null;
+            peerConnection.onconnectionstatechange = null;
+            peerConnection.oniceconnectionstatechange = null;
             peerConnection.close();
+        }
+        remoteStream = new MediaStream();
+        const remoteVideo = document.getElementById("remoteVideo");
+        if (remoteVideo) {
+            remoteVideo.pause();
+            remoteVideo.srcObject = remoteStream;
+            remoteVideo.load();
         }
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
@@ -962,7 +1012,7 @@
             peerConnection.addTrack(track, localStream);
         });
 
-        await peerConnection.setRemoteDescription(data.offer);
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
         isRemoteDescriptionSet = true;
         await flushPendingCandidates();
 
@@ -985,7 +1035,7 @@
         }
 
         try {
-            await peerConnection.setRemoteDescription(data.answer);
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
             isRemoteDescriptionSet = true;
             await flushPendingCandidates();
         } catch (e) {
@@ -1041,6 +1091,7 @@
         pendingCandidates = [];
         currentRoom = null;
         isRemoteDescriptionSet = false;
+        remoteStream = null;
     }
 
     window.startVideoCall = startVideoCall;
