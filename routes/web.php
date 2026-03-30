@@ -60,10 +60,6 @@ Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $requ
 })->middleware(['auth', 'signed'])->name('verification.verify');
 
 // ==================== VOICE CALL ROUTES ====================
-
-// ==================== VOICE CALL ROUTES ====================
-
-// ==================== VOICE CALL ROUTES ====================
 Route::get('/voice-call/{id}', function ($id) {
     $user = App\Models\User::findOrFail($id);
     return view('voice-call', compact('user'));
