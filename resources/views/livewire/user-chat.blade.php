@@ -318,28 +318,14 @@
 <!-- VIDEO CALL UI -->
 <div id="videoCallContainer" style="display:none; position:fixed; inset:0; background:black; z-index:9999;">
 
-    <video id="localVideo" autoplay muted playsinline
-        style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px; background:#333;"></video>
+    <video id="localVideo" autoplay muted
+        style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px;"></video>
 
-    <video id="remoteVideo" autoplay playsinline muted
-        style="width:100%; height:100%; object-fit:cover; background:#333;"></video>
+    <video id="remoteVideo" autoplay style="width:100%; height:100%; object-fit:cover;"></video>
 
     <button onclick="endCall()" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
-                   background:red; color:white; padding:10px 20px; border-radius:50px; z-index:10000;">
+                   background:red; color:white; padding:10px 20px; border-radius:50px;">
         End Call
-    </button>
-    
-    <!-- Debug Info -->
-    <div id="videoDebugInfo" style="position:absolute; top:20px; left:20px; color:white; font-size:12px; background:rgba(0,0,0,0.7); padding:10px; border-radius:5px; display:none;">
-        <div>Local Video: <span id="localVideoStatus">No Stream</span></div>
-        <div>Remote Video: <span id="remoteVideoStatus">No Stream</span></div>
-        <div>Connection: <span id="connectionStatus">Disconnected</span></div>
-        <div>ICE State: <span id="iceState">Disconnected</span></div>
-    </div>
-    
-    <!-- Unmute Button -->
-    <button id="unmuteBtn" onclick="toggleMute()" style="position:absolute; top:20px; right:20px; background:rgba(255,255,255,0.2); color:white; padding:8px 15px; border-radius:20px; display:none;">
-        🔇 Unmute
     </button>
 </div>
 
@@ -377,6 +363,7 @@
     // Track open call windows
     let callWindow = null;
 
+    // Initialize Pusher
     document.addEventListener("livewire:load", function () {
         console.log("✅ Initializing Pusher for voice calls...");
 
@@ -473,11 +460,6 @@
         } catch (error) {
             console.error("❌ Failed to initialize Pusher:", error);
         }
-
-        // Expose global UI reference for video calls
-        if (window.incomingVideoUI) {
-            console.log("✅ Global video UI detected");
-        }
     });
 
     // Open call window (caller)
@@ -515,130 +497,7 @@
 
     // ================= VIDEO CALL =================
 
-    // Video call state management
-    let isVideoCallActive = false;
-    let isRemoteMuted = true;
-
-    // Test camera function
-    window.testCamera = async function() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 },
-                    facingMode: "user"
-                },
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
-            });
-            console.log("✅ Camera test successful");
-            console.log("🎥 Video tracks:", stream.getVideoTracks());
-            console.log("🎥 Audio tracks:", stream.getAudioTracks());
-            
-            // Test local video element
-            const localVideo = document.getElementById("localVideo");
-            if (localVideo) {
-                localVideo.srcObject = stream;
-                localVideo.style.display = "block";
-                console.log("✅ Local video test - you should see yourself");
-            }
-            
-            // Stop test after 5 seconds
-            setTimeout(() => {
-                stream.getTracks().forEach(track => track.stop());
-                if (localVideo) localVideo.style.display = "none";
-                console.log("🛑 Camera test stopped");
-            }, 5000);
-            
-        } catch (error) {
-            console.error("❌ Camera test failed:", error);
-            alert("Camera test failed: " + error.message);
-        }
-    };
-
-    // Toggle mute function
-    window.toggleMute = function() {
-        const remoteVideo = document.getElementById("remoteVideo");
-        const unmuteBtn = document.getElementById("unmuteBtn");
-        
-        if (remoteVideo.muted) {
-            remoteVideo.muted = false;
-            unmuteBtn.textContent = "🔊 Mute";
-            isRemoteMuted = false;
-            console.log("🔊 Remote video unmuted");
-        } else {
-            remoteVideo.muted = true;
-            unmuteBtn.textContent = "🔇 Unmute";
-            isRemoteMuted = true;
-            console.log("🔇 Remote video muted");
-        }
-    };
-
-    // Update debug info
-    function updateDebugInfo() {
-        const localVideoStatus = document.getElementById("localVideoStatus");
-        const remoteVideoStatus = document.getElementById("remoteVideoStatus");
-        const connectionStatus = document.getElementById("connectionStatus");
-        const iceState = document.getElementById("iceState");
-        
-        const localVideo = document.getElementById("localVideo");
-        const remoteVideo = document.getElementById("remoteVideo");
-        
-        if (localVideoStatus) {
-            localVideoStatus.textContent = localVideo.srcObject ? "✅ Active" : "❌ No Stream";
-        }
-        
-        if (remoteVideoStatus) {
-            remoteVideoStatus.textContent = remoteVideo.srcObject ? "✅ Active" : "❌ No Stream";
-        }
-        
-        if (connectionStatus && peerConnection) {
-            connectionStatus.textContent = peerConnection.connectionState || "❌ Disconnected";
-        }
-        
-        if (iceState && peerConnection) {
-            iceState.textContent = peerConnection.iceConnectionState || "❌ Disconnected";
-        }
-    }
-
-    // Show debug info during call
-    function showDebugInfo() {
-        const debugInfo = document.getElementById("videoDebugInfo");
-        if (debugInfo) {
-            debugInfo.style.display = "block";
-            // Update every second
-            setInterval(updateDebugInfo, 1000);
-        }
-    }
-
-    // Hide debug info
-    function hideDebugInfo() {
-        const debugInfo = document.getElementById("videoDebugInfo");
-        if (debugInfo) {
-            debugInfo.style.display = "none";
-        }
-    }
-
-    // Use the global socket if it exists to avoid conflicts
-    const socket = window.globalVideoSocket || (() => {
-        try {
-            return io("https://pm.inovace.in", {
-                transports: ['websocket', 'polling'],
-                timeout: 5000,
-                forceNew: true
-            });
-        } catch (error) {
-            console.error("❌ Failed to connect to socket server:", error);
-            return io("http://localhost:3000", {
-                transports: ['websocket', 'polling'],
-                timeout: 5000,
-                forceNew: true
-            });
-        }
-    })();
+    const socket = io("https://pm.inovace.in");
     const myVideoUserId = {{ auth()->id() }};
 
     socket.emit("join-user", myVideoUserId);
@@ -651,22 +510,6 @@
         if (selectedUser) {
             const room = "room-" + Math.min(myId, selectedUser) + "-" + Math.max(myId, selectedUser);
             socket.emit("join-room", room);
-        }
-        
-        // Check if there's a pending video call from redirect
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('videoCall') === 'true') {
-            const pendingCallData = sessionStorage.getItem('pendingVideoCall');
-            if (pendingCallData) {
-                console.log("🔄 Resuming pending video call after redirect");
-                const data = JSON.parse(pendingCallData);
-                sessionStorage.removeItem('pendingVideoCall');
-                
-                // Small delay to ensure UI is ready
-                setTimeout(() => {
-                    handleChatVideoOffer(data);
-                }, 500);
-            }
         }
     });
 
@@ -695,13 +538,8 @@
         { urls: "stun:stun2.l.google.com:19302" },
         { urls: "stun:stun3.l.google.com:19302" },
         { urls: "stun:stun4.l.google.com:19302" },
-        
-        // Additional STUN servers
-        { urls: "stun:stun.stunprotocol.org:3478" },
-        { urls: "stun:stun.l.google.com:5229" },
-        { urls: "stun:stun.services.mozilla.com:3478" },
 
-        // Your TURN server (updated configuration)
+        // Your own TURN server (now properly configured)
         {
             urls: [
                 "turn:pm.inovace.in:3478?transport=udp",
@@ -728,18 +566,6 @@
             ],
             username: "anyfirewall",
             credential: "anyfirewall"
-        },
-        
-        // More reliable TURN servers
-        {
-            urls: "turn:numb.viagenie.ca:3478",
-            username: "webrtc@live.com",
-            credential: "muazkh"
-        },
-        {
-            urls: "turn:relay.metered.ca:80",
-            username: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c",
-            credential: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c"
         }
     ];
 
@@ -767,92 +593,26 @@
     }
 
     function attachPeerConnectionListeners() {
-        peerConnection.ontrack = event => {
-            console.log("🎥 Remote stream received");
-            console.log("🎥 Stream tracks:", event.streams[0].getTracks());
-            console.log("🎥 Stream active:", event.streams[0].active);
-            const remoteVideo = document.getElementById("remoteVideo");
-            const unmuteBtn = document.getElementById("unmuteBtn");
-                
-            // Clear previous stream to prevent interruption
-            if (remoteVideo.srcObject) {
-                const oldStream = remoteVideo.srcObject;
-                oldStream.getTracks().forEach(track => track.stop());
-            }
-                
-            remoteVideo.srcObject = event.streams[0];
-            
-            // Show unmute button when remote stream is received
-            if (unmuteBtn) {
-                unmuteBtn.style.display = "block";
-            }
-                
-            // Ensure video plays without interruption
-            remoteVideo.play().then(() => {
-                console.log("✅ Remote video playing successfully");
-                updateDebugInfo();
-            }).catch(e => {
-                console.error("🎥 Remote video play error:", e);
-                // Try autoplay with muted
-                remoteVideo.muted = true;
-                remoteVideo.play().then(() => {
-                    console.log("✅ Remote video playing (muted)");
-                    // Show unmute button for user to enable audio
-                    if (unmuteBtn) {
-                        unmuteBtn.style.display = "block";
-                        unmuteBtn.textContent = "🔊 Unmute for Audio";
-                    }
-                    updateDebugInfo();
-                }).catch(e2 => {
-                    console.error("🎥 Even muted autoplay failed:", e2);
-                    alert("Video playback failed. Please check your browser settings and try again.");
-                });
-            });
-        };
-
-        peerConnection.onicecandidate = event => {
+        peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
-                const candidateStr = event.candidate.candidate;
-                let type = "unknown";
-                if (candidateStr.includes("typ host")) type = "host";
-                else if (candidateStr.includes("typ srflx")) type = "srflx (STUN)";
-                else if (candidateStr.includes("typ relay")) type = "relay (TURN)";
-                console.log(`ICE candidate [${type}]:`, event.candidate);
-
                 socket.emit("ice-candidate", {
                     room: currentRoom,
                     candidate: event.candidate
                 });
-            } else {
-                console.log("ICE candidate gathering completed.");
             }
+        };
+
+        peerConnection.ontrack = (event) => {
+            document.getElementById("remoteVideo").srcObject = event.streams[0];
         };
 
         peerConnection.onconnectionstatechange = () => {
-            const state = peerConnection.connectionState;
-            console.log("WebRTC connection state:", state);
-            if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-                console.error("❌ WebRTC connection failed - video won't work");
-                alert("Video connection failed. Please check your network and try again.");
+            console.log("Connection state:", peerConnection.connectionState);
+            if (peerConnection.connectionState === "disconnected" || 
+                peerConnection.connectionState === "failed" || 
+                peerConnection.connectionState === "closed") {
+                endCall();
             }
-        };
-
-        peerConnection.oniceconnectionstatechange = () => {
-            const state = peerConnection.iceConnectionState;
-            console.log("WebRTC ICE state:", state);
-            if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-                console.error("❌ ICE connection failed - video won't work");
-                alert("ICE connection failed. This might be due to network restrictions or firewall.");
-            }
-        };
-
-        // Add more debugging
-        peerConnection.onsignalingstatechange = () => {
-            console.log("WebRTC signaling state:", peerConnection.signalingState);
-        };
-
-        peerConnection.onicegatheringstatechange = () => {
-            console.log("WebRTC ICE gathering state:", peerConnection.iceGatheringState);
         };
     }
 
@@ -860,9 +620,6 @@
 
         currentRoom = "room-" + Math.min(myVideoUserId, userId) + "-" + Math.max(myVideoUserId, userId);
         document.getElementById("videoCallContainer").style.display = "block";
-        
-        // Show debug info
-        showDebugInfo();
 
         socket.emit("join-room", currentRoom);
 
@@ -871,37 +628,16 @@
         }
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
-        isVideoCallActive = true;
 
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 },
-                    facingMode: "user"
-                },
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
+                video: true,
+                audio: true
             });
-            console.log(" Local stream obtained:", localStream);
-            console.log(" Video tracks:", localStream.getVideoTracks());
-            console.log(" Audio tracks:", localStream.getAudioTracks());
         } catch (e) {
-            console.warn(" Enhanced constraints failed, trying basic constraints");
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({
-                    video: true,
-                    audio: true
-                });
-                console.log(" Basic local stream obtained:", localStream);
-            } catch (e2) {
-                alert("Camera/Mic permission blocked or not supported");
-                console.error(" Media error:", e2);
-                return;
-            }
+            alert("Camera/Mic permission blocked or not supported");
+            console.error(e);
+            return;
         }
 
         document.getElementById("localVideo").srcObject = localStream;
@@ -919,7 +655,6 @@
         socket.emit("offer", {
             room: currentRoom,
             targetUserId: userId,
-            callerUserId: myVideoUserId,
             offer: offer
         });
     }
@@ -927,60 +662,35 @@
     // RECEIVE OFFER
     socket.on("offer", async (data) => {
 
-        console.log(" CHAT OFFER RECEIVED");
-        console.log(" Incoming video offer");
-        console.log(" Checking for global UI:", window.incomingVideoUI);
+        console.log("🔥 OFFER RECEIVED");
         console.log("📩 Incoming video offer");
-        console.log("🔍 Checking for global UI:", window.incomingVideoUI);
 
-        // Wait for global UI to be available (race condition fix)
-        let attempts = 0;
-        while (!window.incomingVideoUI && attempts < 50) {
-            await new Promise(resolve => setTimeout(resolve, 50));
-            attempts++;
-        }
-        
-        console.log("🔍 Global UI after wait:", window.incomingVideoUI);
-
-        // If global UI exists and is visible, let it handle the UI
-        if (window.incomingVideoUI && window.incomingVideoUI.style.display === "block") {
-            console.log("📱 Global UI is handling the offer, just storing data");
-            // Store the data for when user accepts
-            window.pendingChatVideoOffer = data;
-            window.acceptChatVideoCall = async function() {
-                window.incomingVideoUI.style.display = "none";
-                await handleChatVideoOffer(data);
-            };
-            return;
-        }
-
-        // If global UI exists but not visible, show it
-        if (window.incomingVideoUI && window.incomingVideoUI.style.display !== "block") {
-            console.log("📱 Showing global UI for incoming call");
-            
-            const callerName = `User ${data.callerUserId || data.targetUserId || 'Unknown'}`;
-            const callerNameElement = document.getElementById("incomingVideoCallerName");
-            if (callerNameElement) {
-                callerNameElement.textContent = `Incoming video call from ${callerName}`;
-            }
-            
-            // Store the complete data
-            window.pendingGlobalVideoData = data;
-            window.pendingChatVideoOffer = data;
-            
-            window.acceptChatVideoCall = async function() {
-                window.incomingVideoUI.style.display = "none";
-                await handleChatVideoOffer(data);
-            };
-            
+        // If global UI exists, use it instead of starting video immediately
+        if (window.incomingVideoUI) {
+            console.log("📱 Using global incoming UI");
             window.incomingVideoUI.style.display = "block";
+            document.getElementById("incomingVideoCallerName").textContent = `Incoming video call from User ${data.targetUserId || 'Unknown'}`;
+            
+            // Store offer for when user accepts
+            window.pendingChatVideoOffer = data;
+            
+            // Find and override the accept button click handler
+            const acceptBtn = window.incomingVideoUI.querySelector("button");
+            if (acceptBtn) {
+                // Remove existing onclick
+                acceptBtn.removeAttribute('onclick');
+                // Add new click listener
+                acceptBtn.addEventListener('click', async function(e) {
+                    e.preventDefault();
+                    console.log("📱 Accept button clicked in chat");
+                    window.incomingVideoUI.style.display = "none";
+                    await handleChatVideoOffer(data);
+                });
+            }
             return;
         }
 
-        // Fallback: handle immediately if no global UI available
-        console.log("📱 No global UI detected after waiting, handling immediately");
-        console.log("🔍 window.incomingVideoUI:", window.incomingVideoUI);
-        console.log("🔍 Attempts made:", attempts);
+        // Fallback: handle immediately if no global UI
         await handleChatVideoOffer(data);
     });
 
@@ -995,34 +705,32 @@
         }
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
-        isVideoCallActive = true;
 
         // ✅ SHOW VIDEO UI
         document.getElementById("videoCallContainer").style.display = "block";
-        
-        // Show debug info
-        showDebugInfo();
 
-        // ✅ GET CAMERA
+        // ✅ GET CAMERA WITH AUDIO
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 },
-                    facingMode: "user"
-                },
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
+                video: true,
+                audio: true
             });
-            console.log("🎥 Receiver local stream obtained:", localStream);
-            console.log("🎥 Receiver video tracks:", localStream.getVideoTracks());
-            console.log("🎥 Receiver audio tracks:", localStream.getAudioTracks());
+            
+            // Ensure audio tracks are enabled
+            localStream.getAudioTracks().forEach(track => {
+                track.enabled = true;
+                console.log("🎤 Audio track enabled:", track.label);
+            });
+            
+            // Ensure video tracks are enabled
+            localStream.getVideoTracks().forEach(track => {
+                track.enabled = true;
+                console.log("📹 Video track enabled:", track.label);
+            });
+            
         } catch (e) {
             alert("Camera not allowed on receiver side");
-            console.error("❌ Receiver media error:", e);
+            console.error(e);
             return;
         }
 
@@ -1031,7 +739,9 @@
         peerConnection = new RTCPeerConnection(config);
         attachPeerConnectionListeners();
 
+        // ✅ ADD ALL TRACKS (AUDIO AND VIDEO) TO PEER CONNECTION
         localStream.getTracks().forEach(track => {
+            console.log("Adding track to peer connection:", track.kind, track.label);
             peerConnection.addTrack(track, localStream);
         });
 
@@ -1047,6 +757,9 @@
             answer: answer
         });
     }
+
+    // Make handleChatVideoOffer globally available
+    window.handleChatVideoOffer = handleChatVideoOffer;
 
     // RECEIVE ANSWER
     socket.on("answer", async (data) => {
@@ -1104,9 +817,6 @@
         isRemoteDescriptionSet = false;
     }
 
-    window.startVideoCall = startVideoCall;
-    window.endCall = endCall;
-
 </script>
 
 <style>
@@ -1124,4 +834,3 @@
         border-color: transparent #374151 transparent transparent;
     }
 </style>
-</div>
