@@ -318,10 +318,11 @@
 <!-- VIDEO CALL UI -->
 <div id="videoCallContainer" style="display:none; position:fixed; inset:0; background:black; z-index:9999;">
 
-    <video id="localVideo" autoplay muted
+    <video id="localVideo" autoplay muted playsinline
         style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px;"></video>
 
-    <video id="remoteVideo" autoplay style="width:100%; height:100%; object-fit:cover;"></video>
+    <video id="remoteVideo" autoplay playsinline
+        style="width:100%; height:100%; object-fit:cover;"></video>
 
     <button onclick="endCall()" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
                    background:red; color:white; padding:10px 20px; border-radius:50px;">
@@ -691,8 +692,39 @@
             console.log("🎥 Stream tracks:", event.streams[0].getTracks());
             console.log("🎥 Stream active:", event.streams[0].active);
             const remoteVideo = document.getElementById("remoteVideo");
+            
+            if (!remoteVideo) {
+                console.error("❌ Remote video element not found");
+                return;
+            }
+            
+            // ✅ FIX: Proper stream handling without interruption
+            // Clear any existing timeout to avoid conflicts
+            if (remoteVideo.playTimeout) {
+                clearTimeout(remoteVideo.playTimeout);
+            }
+            
+            // Set the stream immediately without pause/play cycle that causes AbortError
             remoteVideo.srcObject = event.streams[0];
-            remoteVideo.play().catch(e => console.error("🎥 Remote video play error:", e));
+            remoteVideo.muted = false;
+            
+            // Use a single play attempt with proper error handling
+            remoteVideo.playTimeout = setTimeout(() => {
+                const playPromise = remoteVideo.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        console.log("✅ Remote video playing successfully");
+                    }).catch(error => {
+                        if (error.name === 'AbortError') {
+                            console.warn("⚠️ Video play was aborted, this is usually harmless");
+                        } else if (error.name === 'NotAllowedError') {
+                            console.warn("⚠️ Autoplay prevented, user interaction required");
+                        } else {
+                            console.error("❌ Remote video play error:", error);
+                        }
+                    });
+                }
+            }, 100);
         };
 
         peerConnection.onicecandidate = event => {
@@ -785,7 +817,17 @@
             }
         }
 
-        document.getElementById("localVideo").srcObject = localStream;
+        // ✅ FIX: Proper local video setup
+        const localVideo = document.getElementById("localVideo");
+        if (localVideo.srcObject) {
+            localVideo.pause();
+            localVideo.srcObject = null;
+        }
+        setTimeout(() => {
+            localVideo.srcObject = localStream;
+            localVideo.muted = true; // Always mute local video to avoid echo
+            localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
+        }, 50);
 
         peerConnection = new RTCPeerConnection(config);
         attachPeerConnectionListeners();
@@ -901,7 +943,17 @@
             return;
         }
 
-        document.getElementById("localVideo").srcObject = localStream;
+        // ✅ FIX: Proper local video setup
+        const localVideo = document.getElementById("localVideo");
+        if (localVideo.srcObject) {
+            localVideo.pause();
+            localVideo.srcObject = null;
+        }
+        setTimeout(() => {
+            localVideo.srcObject = localStream;
+            localVideo.muted = true; // Always mute local video to avoid echo
+            localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
+        }, 50);
 
         peerConnection = new RTCPeerConnection(config);
         attachPeerConnectionListeners();
@@ -972,8 +1024,20 @@
             localStream.getTracks().forEach(track => track.stop());
             localStream = null;
         }
-        document.getElementById("localVideo").srcObject = null;
-        document.getElementById("remoteVideo").srcObject = null;
+        
+        // ✅ FIX: Proper video cleanup
+        const localVideo = document.getElementById("localVideo");
+        const remoteVideo = document.getElementById("remoteVideo");
+        
+        if (localVideo) {
+            localVideo.pause();
+            localVideo.srcObject = null;
+        }
+        if (remoteVideo) {
+            remoteVideo.pause();
+            remoteVideo.srcObject = null;
+        }
+        
         pendingCandidates = [];
         currentRoom = null;
         isRemoteDescriptionSet = false;
