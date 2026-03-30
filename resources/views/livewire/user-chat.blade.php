@@ -608,6 +608,7 @@
     let pendingCandidates = [];
     let isRemoteDescriptionSet = false;
     let remoteStream = null;
+    let isRelayFallbackEnabled = false;
 
     const iceServers = [
         // STUN servers for NAT discovery
@@ -637,6 +638,7 @@
             urls: [
                 "turn:openrelay.metered.ca:80",
                 "turn:openrelay.metered.ca:443",
+                "turn:openrelay.metered.ca:80?transport=tcp",
                 "turn:openrelay.metered.ca:443?transport=tcp"
             ],
             username: "openrelayproject",
@@ -664,11 +666,15 @@
         }
     ];
 
-    const config = {
-        iceServers: iceServers,
-        iceCandidatePoolSize: 10,
-        iceTransportPolicy: "all"
-    };
+    function getPeerConfig(forceRelay = false) {
+        return {
+            iceServers: iceServers,
+            iceCandidatePoolSize: 10,
+            iceTransportPolicy: forceRelay ? "relay" : "all",
+            bundlePolicy: "max-bundle",
+            rtcpMuxPolicy: "require"
+        };
+    }
 
     async function flushPendingCandidates() {
         if (!peerConnection || !isRemoteDescriptionSet || !pendingCandidates.length) {
@@ -684,6 +690,30 @@
             } catch (e) {
                 console.error("Queued ICE error:", e);
             }
+        }
+    }
+
+    async function enableRelayFallback() {
+        if (!peerConnection || !currentRoom || isRelayFallbackEnabled) {
+            return;
+        }
+
+        isRelayFallbackEnabled = true;
+
+        try {
+            console.warn("🔁 Switching WebRTC connection to TURN relay mode");
+            peerConnection.setConfiguration(getPeerConfig(true));
+            const offer = await peerConnection.createOffer({ iceRestart: true });
+            await peerConnection.setLocalDescription(offer);
+
+            socket.emit("offer", {
+                room: currentRoom,
+                targetUserId: null,
+                callerUserId: myVideoUserId,
+                offer: offer
+            });
+        } catch (error) {
+            console.error("❌ Relay fallback failed:", error);
         }
     }
 
@@ -725,6 +755,8 @@
             remoteVideo.playsInline = true;
             remoteVideo.controls = false;
             remoteVideo.volume = 1;
+            remoteVideo.setAttribute('autoplay', 'autoplay');
+            remoteVideo.setAttribute('playsinline', 'playsinline');
 
             event.track.onunmute = () => {
                 console.log(`✅ Remote ${event.track.kind} track unmuted`);
@@ -747,6 +779,15 @@
                             console.warn("⚠️ Video play was aborted, this is usually harmless");
                         } else if (error.name === 'NotAllowedError') {
                             console.warn("⚠️ Autoplay prevented, user interaction required");
+                            const resumePlayback = async () => {
+                                try {
+                                    await remoteVideo.play();
+                                    document.removeEventListener('click', resumePlayback);
+                                } catch (resumeError) {
+                                    console.error("❌ Remote video resume failed:", resumeError);
+                                }
+                            };
+                            document.addEventListener('click', resumePlayback, { once: true });
                         } else {
                             console.error("❌ Remote video play error:", error);
                         }
@@ -778,6 +819,10 @@
             console.log("WebRTC connection state:", state);
             if (state === 'failed' || state === 'disconnected' || state === 'closed') {
                 console.error("❌ WebRTC connection failed - video won't work");
+                if ((state === 'failed' || state === 'disconnected') && !isRelayFallbackEnabled) {
+                    enableRelayFallback();
+                    return;
+                }
                 alert("Video connection failed. Please check your network and try again.");
             }
         };
@@ -787,8 +832,16 @@
             console.log("WebRTC ICE state:", state);
             if (state === 'failed' || state === 'disconnected' || state === 'closed') {
                 console.error("❌ ICE connection failed - video won't work");
+                if ((state === 'failed' || state === 'disconnected') && !isRelayFallbackEnabled) {
+                    enableRelayFallback();
+                    return;
+                }
                 alert("ICE connection failed. This might be due to network restrictions or firewall.");
             }
+        };
+
+        peerConnection.onicecandidateerror = event => {
+            console.error("ICE candidate error:", event);
         };
 
         // Add more debugging
@@ -868,7 +921,8 @@
             localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
         }, 50);
 
-        peerConnection = new RTCPeerConnection(config);
+        isRelayFallbackEnabled = false;
+        peerConnection = new RTCPeerConnection(getPeerConfig());
         attachPeerConnectionListeners();
 
         localStream.getTracks().forEach(track => {
@@ -966,6 +1020,7 @@
         }
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
+        isRelayFallbackEnabled = false;
 
         // ✅ SHOW VIDEO UI
         document.getElementById("videoCallContainer").style.display = "block";
@@ -1005,7 +1060,7 @@
             localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
         }, 50);
 
-        peerConnection = new RTCPeerConnection(config);
+        peerConnection = new RTCPeerConnection(getPeerConfig());
         attachPeerConnectionListeners();
 
         localStream.getTracks().forEach(track => {
@@ -1092,11 +1147,11 @@
         currentRoom = null;
         isRemoteDescriptionSet = false;
         remoteStream = null;
+        isRelayFallbackEnabled = false;
     }
 
     window.startVideoCall = startVideoCall;
     window.endCall = endCall;
-
 </script>
 
 <style>
