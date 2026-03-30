@@ -321,7 +321,7 @@
     <video id="localVideo" autoplay muted playsinline
         style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px; background:#000;"></video>
 
-    <video id="remoteVideo" autoplay playsinline muted="false"
+    <video id="remoteVideo" autoplay playsinline
         style="width:100%; height:100%; object-fit:cover; background:#000;"></video>
 
     <button onclick="endCall()" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
@@ -579,7 +579,10 @@
     const config = {
         iceServers: iceServers,
         iceCandidatePoolSize: 10,
-        iceTransportPolicy: "all"
+        iceTransportPolicy: "all",
+        sdpSemantics: "unified-plan",
+        bundlePolicy: "max-bundle",
+        rtcpMuxPolicy: "require"
     };
 
     async function flushPendingCandidates() {
@@ -616,10 +619,18 @@
                 const remoteVideo = document.getElementById("remoteVideo");
                 remoteVideo.srcObject = event.streams[0];
                 
-                // Force remote video to play
+                // Force remote video to play with audio
                 remoteVideo.play().catch(e => console.error("❌ Remote video play error:", e));
                 
-                console.log("✅ Remote video stream attached");
+                // Log audio track details
+                const audioTracks = event.streams[0].getAudioTracks();
+                if (audioTracks.length > 0) {
+                    console.log("🎤 Remote audio track received:", audioTracks[0].label, "enabled:", audioTracks[0].enabled);
+                    // Ensure remote audio is not muted
+                    remoteVideo.muted = false;
+                }
+                
+                console.log("✅ Remote video stream attached with", audioTracks.length, "audio tracks");
             }
         };
 
@@ -662,7 +673,9 @@
                     echoCancellation: true,
                     noiseSuppression: true,
                     autoGainControl: true,
-                    sampleRate: 44100
+                    sampleRate: 44100,
+                    channelCount: 2,
+                    latency: 0
                 }
             });
             
@@ -671,7 +684,7 @@
             // Ensure audio tracks are enabled and log details
             localStream.getAudioTracks().forEach(track => {
                 track.enabled = true;
-                console.log("🎤 Audio track enabled:", track.label, "enabled:", track.enabled, "state:", track.readyState);
+                console.log("🎤 Audio track enabled:", track.label, "enabled:", track.enabled, "state:", track.readyState, "settings:", track.getSettings());
             });
             
             // Ensure video tracks are enabled and log details
@@ -687,12 +700,19 @@
         }
 
         document.getElementById("localVideo").srcObject = localStream;
+        
+        // Ensure local video is muted to prevent echo
+        document.getElementById("localVideo").muted = true;
+        
+        // Ensure remote video is not muted for audio
+        document.getElementById("remoteVideo").muted = false;
 
         peerConnection = new RTCPeerConnection(config);
         attachPeerConnectionListeners();
 
+        // ✅ ADD ALL TRACKS (AUDIO AND VIDEO) TO PEER CONNECTION
         localStream.getTracks().forEach(track => {
-            console.log("Adding track to peer connection:", track.kind, track.label);
+            console.log("📡 Adding track to peer connection:", track.kind, track.label, "enabled:", track.enabled, "settings:", track.getSettings());
             peerConnection.addTrack(track, localStream);
         });
 
@@ -770,7 +790,9 @@
                     echoCancellation: true,
                     noiseSuppression: true,
                     autoGainControl: true,
-                    sampleRate: 44100
+                    sampleRate: 44100,
+                    channelCount: 2,
+                    latency: 0
                 }
             });
             
@@ -779,7 +801,7 @@
             // Ensure audio tracks are enabled and log details
             localStream.getAudioTracks().forEach(track => {
                 track.enabled = true;
-                console.log("🎤 Receiver audio track enabled:", track.label, "enabled:", track.enabled, "state:", track.readyState);
+                console.log("🎤 Receiver audio track enabled:", track.label, "enabled:", track.enabled, "state:", track.readyState, "settings:", track.getSettings());
             });
             
             // Ensure video tracks are enabled and log details
@@ -801,9 +823,15 @@
 
         // ✅ ADD ALL TRACKS (AUDIO AND VIDEO) TO PEER CONNECTION
         localStream.getTracks().forEach(track => {
-            console.log("📡 Adding receiver track to peer connection:", track.kind, track.label, "enabled:", track.enabled);
+            console.log("📡 Adding receiver track to peer connection:", track.kind, track.label, "enabled:", track.enabled, "settings:", track.getSettings());
             peerConnection.addTrack(track, localStream);
         });
+        
+        // Ensure local video is not muted
+        document.getElementById("localVideo").muted = true; // Keep local video muted to avoid echo
+        
+        // Ensure remote video is not muted
+        document.getElementById("remoteVideo").muted = false;
 
         await peerConnection.setRemoteDescription(data.offer);
         isRemoteDescriptionSet = true;
