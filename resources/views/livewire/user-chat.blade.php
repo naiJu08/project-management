@@ -963,8 +963,8 @@
             localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
         }, 50);
 
-        isRelayFallbackEnabled = false;
-        peerConnection = new RTCPeerConnection(getPeerConfig());
+        isRelayFallbackEnabled = true;
+        peerConnection = new RTCPeerConnection(getPeerConfig(true));
         attachPeerConnectionListeners();
 
         localStream.getTracks().forEach(track => {
