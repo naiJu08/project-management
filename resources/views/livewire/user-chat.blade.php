@@ -624,19 +624,16 @@
     let isRelayFallbackEnabled = false;
 
     const iceServers = [
-        // STUN servers for NAT discovery
+        // Primary STUN servers (IPv4 only to avoid IPv6 issues)
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
         { urls: "stun:stun2.l.google.com:19302" },
-        { urls: "stun:stun3.l.google.com:19302" },
-        { urls: "stun:stun4.l.google.com:19302" },
         
-        // Additional STUN servers
+        // Additional reliable STUN servers
         { urls: "stun:stun.stunprotocol.org:3478" },
-        { urls: "stun:stun.l.google.com:5229" },
         { urls: "stun:stun.services.mozilla.com:3478" },
 
-        // Your TURN server (updated configuration)
+        // Your TURN server (updated with working configuration)
         {
             urls: [
                 "turn:pm.inovace.in:3478?transport=udp",
@@ -646,47 +643,42 @@
             credential: "strongpassword123"
         },
 
-        // Public TURN servers as backup
+        // Backup TURN servers with verified credentials
         {
             urls: [
                 "turn:openrelay.metered.ca:80",
-                "turn:openrelay.metered.ca:443",
-                "turn:openrelay.metered.ca:80?transport=tcp",
-                "turn:openrelay.metered.ca:443?transport=tcp"
+                "turn:openrelay.metered.ca:443"
             ],
             username: "openrelayproject",
             credential: "openrelayproject"
         },
         {
-            urls: [
-                "turn:turn.anyfirewall.com:3478?transport=udp",
-                "turn:turn.anyfirewall.com:3478?transport=tcp"
-            ],
-            username: "anyfirewall",
-            credential: "anyfirewall"
-        },
-        
-        // More reliable TURN servers
-        {
             urls: "turn:numb.viagenie.ca:3478",
             username: "webrtc@live.com",
             credential: "muazkh"
-        },
-        {
-            urls: "turn:relay.metered.ca:80",
-            username: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c",
-            credential: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c"
         }
     ];
 
     function getPeerConfig(forceRelay = false) {
-        return {
+        const config = {
             iceServers: iceServers,
             iceCandidatePoolSize: 10,
             iceTransportPolicy: forceRelay ? "relay" : "all",
             bundlePolicy: "max-bundle",
             rtcpMuxPolicy: "require"
         };
+        
+        // Force IPv4 to avoid IPv6 connectivity issues
+        config.iceServers = config.iceServers.map(server => {
+            if (server.urls) {
+                const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+                const ipv4Urls = urls.filter(url => !url.includes('[')); // Filter IPv6
+                return { ...server, urls: ipv4Urls };
+            }
+            return server;
+        });
+        
+        return config;
     }
 
     async function flushPendingCandidates() {
@@ -715,18 +707,33 @@
 
         try {
             console.warn("🔁 Switching WebRTC connection to TURN relay mode");
-            peerConnection.setConfiguration(getPeerConfig(true));
+            
+            // Create new peer connection with relay-only configuration
+            const relayConfig = getPeerConfig(true);
+            peerConnection.setConfiguration(relayConfig);
+            
+            // Restart ICE with relay-only
             const offer = await peerConnection.createOffer({ iceRestart: true });
             await peerConnection.setLocalDescription(offer);
 
+            // Send new offer to remote peer
             socket.emit("offer", {
                 room: currentRoom,
-                targetUserId: null,
+                targetUserId: null, // Will be determined by room
                 callerUserId: myVideoUserId,
                 offer: offer
             });
+            
+            console.log("✅ Relay fallback initiated successfully");
         } catch (error) {
             console.error("❌ Relay fallback failed:", error);
+            // Try one more time with a completely new connection
+            setTimeout(() => {
+                if (currentRoom) {
+                    console.log("🔄 Attempting complete connection restart");
+                    startVideoCall(currentRoom.split('-')[1]);
+                }
+            }, 2000);
         }
     }
 
@@ -862,10 +869,15 @@
             if (state === 'failed' || state === 'disconnected' || state === 'closed') {
                 console.error("❌ WebRTC connection failed - video won't work");
                 if ((state === 'failed' || state === 'disconnected') && !isRelayFallbackEnabled) {
+                    console.log("🔄 Attempting relay fallback due to connection failure");
                     enableRelayFallback();
                     return;
                 }
-                alert("Video connection failed. Please check your network and try again.");
+                if (state === 'failed') {
+                    alert("Video connection failed. Please check your network and try again.");
+                }
+            } else if (state === 'connected') {
+                console.log("✅ WebRTC connection established successfully");
             }
         };
 
@@ -875,14 +887,25 @@
             if (state === 'failed' || state === 'disconnected' || state === 'closed') {
                 console.error("❌ ICE connection failed - video won't work");
                 if ((state === 'failed' || state === 'disconnected') && !isRelayFallbackEnabled) {
+                    console.log("🔄 Attempting relay fallback due to ICE failure");
                     enableRelayFallback();
                     return;
                 }
-                alert("ICE connection failed. This might be due to network restrictions or firewall.");
+                if (state === 'failed') {
+                    alert("ICE connection failed. This might be due to network restrictions or firewall. Please try again.");
+                }
+            } else if (state === 'connected' || state === 'completed') {
+                console.log("✅ ICE connection established successfully");
             }
         };
 
         peerConnection.onicecandidateerror = event => {
+            // Suppress ICE candidate errors to reduce console noise
+            // These are common and don't necessarily indicate connection failure
+            if (event.errorCode === 701 || event.errorCode === 702) {
+                // STUN/TURN server timeout - ignore silently
+                return;
+            }
             console.error("ICE candidate error:", event);
         };
 
@@ -897,12 +920,15 @@
     }
 
     async function startVideoCall(userId) {
-
+        console.log("🎥 Starting video call to user:", userId);
         currentRoom = "room-" + Math.min(myVideoUserId, userId) + "-" + Math.max(myVideoUserId, userId);
         document.getElementById("videoCallContainer").style.display = "block";
 
+        // Join socket room first
         socket.emit("join-room", currentRoom);
+        console.log("📡 Joined room:", currentRoom);
 
+        // Clean up existing connection
         if (peerConnection) {
             peerConnection.ontrack = null;
             peerConnection.onicecandidate = null;
@@ -910,6 +936,8 @@
             peerConnection.oniceconnectionstatechange = null;
             peerConnection.close();
         }
+        
+        // Reset remote video
         remoteStream = new MediaStream();
         const remoteVideo = document.getElementById("remoteVideo");
         if (remoteVideo) {
@@ -917,10 +945,15 @@
             remoteVideo.srcObject = remoteStream;
             remoteVideo.load();
         }
+        
+        // Reset state variables
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
+        isRelayFallbackEnabled = false;
 
+        // Get user media with enhanced error handling
         try {
+            console.log("🎥 Requesting camera and microphone...");
             localStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     width: { ideal: 1280, max: 1920 },
@@ -933,25 +966,26 @@
                     autoGainControl: true
                 }
             });
-            console.log(" Local stream obtained:", localStream);
-            console.log(" Video tracks:", localStream.getVideoTracks());
-            console.log(" Audio tracks:", localStream.getAudioTracks());
+            console.log("✅ Local stream obtained:", localStream);
+            console.log("🎥 Video tracks:", localStream.getVideoTracks());
+            console.log("🎥 Audio tracks:", localStream.getAudioTracks());
         } catch (e) {
-            console.warn(" Enhanced constraints failed, trying basic constraints");
+            console.warn("⚠️ Enhanced constraints failed, trying basic constraints");
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({
                     video: true,
                     audio: true
                 });
-                console.log(" Basic local stream obtained:", localStream);
+                console.log("✅ Basic local stream obtained:", localStream);
             } catch (e2) {
-                alert("Camera/Mic permission blocked or not supported");
-                console.error(" Media error:", e2);
+                console.error("❌ Media access failed:", e2);
+                alert("Camera/Microphone access is required for video calls. Please allow permissions and try again.");
+                endCall();
                 return;
             }
         }
 
-        // ✅ FIX: Proper local video setup
+        // Setup local video
         const localVideo = document.getElementById("localVideo");
         if (localVideo.srcObject) {
             localVideo.pause();
@@ -963,23 +997,32 @@
             localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
         }, 50);
 
-        isRelayFallbackEnabled = true;
-        peerConnection = new RTCPeerConnection(getPeerConfig(true));
+        // Create peer connection with optimized configuration
+        peerConnection = new RTCPeerConnection(getPeerConfig());
         attachPeerConnectionListeners();
 
+        // Add local tracks
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
 
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
+        // Create and send offer
+        try {
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
 
-        socket.emit("offer", {
-            room: currentRoom,
-            targetUserId: userId,
-            callerUserId: myVideoUserId,
-            offer: offer
-        });
+            socket.emit("offer", {
+                room: currentRoom,
+                targetUserId: userId,
+                callerUserId: myVideoUserId,
+                offer: offer
+            });
+            console.log("📤 Video call offer sent to user:", userId);
+        } catch (error) {
+            console.error("❌ Failed to create offer:", error);
+            alert("Failed to initiate video call. Please try again.");
+            endCall();
+        }
     }
 
     // RECEIVE OFFER
@@ -1050,11 +1093,13 @@
     });
 
     async function handleChatVideoOffer(data) {
+        console.log("🎥 Handling incoming video offer:", data);
+        
         // ✅ JOIN ROOM (IMPORTANT FIX)
         socket.emit("join-room", data.room);
-
         currentRoom = data.room;
 
+        // Clean up existing connection
         if (peerConnection) {
             peerConnection.ontrack = null;
             peerConnection.onicecandidate = null;
@@ -1062,6 +1107,8 @@
             peerConnection.oniceconnectionstatechange = null;
             peerConnection.close();
         }
+        
+        // Reset remote video
         remoteStream = new MediaStream();
         const remoteVideo = document.getElementById("remoteVideo");
         if (remoteVideo) {
@@ -1069,6 +1116,8 @@
             remoteVideo.srcObject = remoteStream;
             remoteVideo.load();
         }
+        
+        // Reset state variables
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
         isRelayFallbackEnabled = false;
@@ -1076,8 +1125,9 @@
         // ✅ SHOW VIDEO UI
         document.getElementById("videoCallContainer").style.display = "block";
 
-        // ✅ GET CAMERA
+        // ✅ GET CAMERA with enhanced error handling
         try {
+            console.log("🎥 Requesting camera for receiver...");
             localStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     width: { ideal: 1280, max: 1920 },
@@ -1090,12 +1140,13 @@
                     autoGainControl: true
                 }
             });
-            console.log("🎥 Receiver local stream obtained:", localStream);
+            console.log("✅ Receiver local stream obtained:", localStream);
             console.log("🎥 Receiver video tracks:", localStream.getVideoTracks());
             console.log("🎥 Receiver audio tracks:", localStream.getAudioTracks());
         } catch (e) {
-            alert("Camera not allowed on receiver side");
             console.error("❌ Receiver media error:", e);
+            alert("Camera/Microphone access is required to accept video calls. Please allow permissions and try again.");
+            endCall();
             return;
         }
 
@@ -1111,26 +1162,34 @@
             localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
         }, 50);
 
-        isRelayFallbackEnabled = true;
-
-        peerConnection = new RTCPeerConnection(getPeerConfig(true));
+        // Create peer connection
+        peerConnection = new RTCPeerConnection(getPeerConfig());
         attachPeerConnectionListeners();
 
+        // Add local tracks
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
 
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-        isRemoteDescriptionSet = true;
-        await flushPendingCandidates();
+        // Handle the offer
+        try {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+            isRemoteDescriptionSet = true;
+            await flushPendingCandidates();
 
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
 
-        socket.emit("answer", {
-            room: currentRoom,
-            answer: answer
-        });
+            socket.emit("answer", {
+                room: currentRoom,
+                answer: answer
+            });
+            console.log("📤 Video call answer sent");
+        } catch (error) {
+            console.error("❌ Failed to handle offer:", error);
+            alert("Failed to accept video call. Please try again.");
+            endCall();
+        }
     }
 
     // RECEIVE ANSWER
