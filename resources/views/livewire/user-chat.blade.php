@@ -580,11 +580,24 @@
             if (pendingCallData) {
                 console.log("🔄 Resuming pending video call after redirect");
                 const data = JSON.parse(pendingCallData);
-                sessionStorage.removeItem('pendingVideoCall');
-                
-                // Small delay to ensure UI is ready
                 setTimeout(() => {
-                    handleChatVideoOffer(data);
+                    const callerName = `User ${data.callerUserId || data.targetUserId || 'Unknown'}`;
+                    const callerNameElement = document.getElementById("incomingVideoCallerName");
+                    if (callerNameElement) {
+                        callerNameElement.textContent = `Incoming video call from ${callerName}`;
+                    }
+                    window.pendingGlobalVideoData = data;
+                    window.pendingChatVideoOffer = data;
+                    window.acceptChatVideoCall = async function() {
+                        sessionStorage.removeItem('pendingVideoCall');
+                        if (window.incomingVideoUI) {
+                            window.incomingVideoUI.style.display = "none";
+                        }
+                        await handleChatVideoOffer(data);
+                    };
+                    if (window.incomingVideoUI) {
+                        window.incomingVideoUI.style.display = "block";
+                    }
                 }, 500);
             }
         }
@@ -989,8 +1002,11 @@
         if (window.incomingVideoUI && window.incomingVideoUI.style.display === "block") {
             console.log("📱 Global UI is handling the offer, just storing data");
             // Store the data for when user accepts
+            window.pendingGlobalVideoData = data;
             window.pendingChatVideoOffer = data;
+            sessionStorage.setItem('pendingVideoCall', JSON.stringify(data));
             window.acceptChatVideoCall = async function() {
+                sessionStorage.removeItem('pendingVideoCall');
                 window.incomingVideoUI.style.display = "none";
                 await handleChatVideoOffer(data);
             };
@@ -999,6 +1015,7 @@
 
         // If global UI exists but not visible, show it
         if (window.incomingVideoUI && window.incomingVideoUI.style.display !== "block") {
+            
             console.log("📱 Showing global UI for incoming call");
             
             const callerName = `User ${data.callerUserId || data.targetUserId || 'Unknown'}`;
@@ -1010,8 +1027,10 @@
             // Store the complete data
             window.pendingGlobalVideoData = data;
             window.pendingChatVideoOffer = data;
+            sessionStorage.setItem('pendingVideoCall', JSON.stringify(data));
             
             window.acceptChatVideoCall = async function() {
+                sessionStorage.removeItem('pendingVideoCall');
                 window.incomingVideoUI.style.display = "none";
                 await handleChatVideoOffer(data);
             };
@@ -1021,10 +1040,13 @@
         }
 
         // Fallback: handle immediately if no global UI available
-        console.log("📱 No global UI detected after waiting, handling immediately");
+        console.log("📱 No global UI detected after waiting, storing pending call for explicit acceptance");
         console.log("🔍 window.incomingVideoUI:", window.incomingVideoUI);
         console.log("🔍 Attempts made:", attempts);
-        await handleChatVideoOffer(data);
+        sessionStorage.setItem('pendingVideoCall', JSON.stringify(data));
+        window.pendingGlobalVideoData = data;
+        window.pendingChatVideoOffer = data;
+        alert("Incoming video call received. Please accept the call to allow camera and microphone access.");
     });
 
     async function handleChatVideoOffer(data) {
