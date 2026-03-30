@@ -758,6 +758,26 @@
             remoteVideo.setAttribute('autoplay', 'autoplay');
             remoteVideo.setAttribute('playsinline', 'playsinline');
 
+            // ✅ FIX: Force playback immediately when tracks arrive
+            const forcePlay = async () => {
+                try {
+                    await remoteVideo.play();
+                    console.log("✅ Remote media playing immediately after track arrival");
+                } catch (e) {
+                    console.warn("⚠️ Immediate play failed, will retry:", e.name);
+                    // Retry after a short delay
+                    setTimeout(async () => {
+                        try {
+                            await remoteVideo.play();
+                            console.log("✅ Remote media playing on retry");
+                        } catch (e2) {
+                            console.warn("⚠️ Retry failed, waiting for user interaction:", e2.name);
+                        }
+                    }, 300);
+                }
+            };
+            forcePlay();
+
             event.track.onunmute = () => {
                 console.log(`✅ Remote ${event.track.kind} track unmuted`);
                 const playPromise = remoteVideo.play();
@@ -768,6 +788,23 @@
                 }
             };
             
+            // ✅ FIX: Add user interaction fallback for autoplay policies
+            const enablePlaybackWithInteraction = () => {
+                const resumePlayback = async () => {
+                    try {
+                        await remoteVideo.play();
+                        console.log("✅ Remote media started after user interaction");
+                        document.removeEventListener('click', resumePlayback);
+                        document.removeEventListener('touchstart', resumePlayback);
+                    } catch (e) {
+                        console.error("❌ Remote media still failed after interaction:", e);
+                    }
+                };
+                document.addEventListener('click', resumePlayback, { once: true });
+                document.addEventListener('touchstart', resumePlayback, { once: true });
+                console.log("🔊 Click/tap anywhere to enable remote media if blocked");
+            };
+
             // Use a single play attempt with proper error handling
             remoteVideo.playTimeout = setTimeout(() => {
                 const playPromise = remoteVideo.play();
@@ -779,15 +816,7 @@
                             console.warn("⚠️ Video play was aborted, this is usually harmless");
                         } else if (error.name === 'NotAllowedError') {
                             console.warn("⚠️ Autoplay prevented, user interaction required");
-                            const resumePlayback = async () => {
-                                try {
-                                    await remoteVideo.play();
-                                    document.removeEventListener('click', resumePlayback);
-                                } catch (resumeError) {
-                                    console.error("❌ Remote video resume failed:", resumeError);
-                                }
-                            };
-                            document.addEventListener('click', resumePlayback, { once: true });
+                            enablePlaybackWithInteraction();
                         } else {
                             console.error("❌ Remote video play error:", error);
                         }
