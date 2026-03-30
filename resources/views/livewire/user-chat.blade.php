@@ -603,7 +603,6 @@
         }
     });
 
-    // ✅ ADD THIS ALSO BELOW
     document.addEventListener("livewire:update", () => {
 
         const myId = myVideoUserId;
@@ -624,6 +623,26 @@
     let isRelayFallbackEnabled = false;
     let isInCall = false;
     let currentCallUserId = null;
+
+    // Function to update global call state
+    function updateGlobalCallState(inCall, callUserId) {
+        window.isInCall = inCall;
+        window.currentCallUserId = callUserId;
+        sessionStorage.setItem('isInCall', inCall);
+        sessionStorage.setItem('currentCallUserId', callUserId || '');
+        
+        // Send message to parent window if in iframe
+        if (window.parent !== window) {
+            window.parent.postMessage({
+                type: 'call-state-change',
+                isInCall: inCall,
+                currentCallUserId: callUserId
+            }, '*');
+        }
+    }
+
+    // Initialize global call state on page load
+    updateGlobalCallState(false, null);
 
     const iceServers = [
         // Primary STUN servers (IPv4 only to avoid IPv6 issues)
@@ -932,6 +951,8 @@
         
         isInCall = true;
         currentCallUserId = userId;
+        updateGlobalCallState(true, userId);
+        
         currentRoom = "room-" + Math.min(myVideoUserId, userId) + "-" + Math.max(myVideoUserId, userId);
         document.getElementById("videoCallContainer").style.display = "block";
 
@@ -993,6 +1014,7 @@
                 alert("Camera/Microphone access is required for video calls. Please allow permissions and try again.");
                 isInCall = false;
                 currentCallUserId = null;
+                updateGlobalCallState(false, null);
                 endCall();
                 return;
             }
@@ -1036,6 +1058,7 @@
             alert("Failed to initiate video call. Please try again.");
             isInCall = false;
             currentCallUserId = null;
+            updateGlobalCallState(false, null);
             endCall();
         }
     }
@@ -1090,6 +1113,7 @@
                 sessionStorage.removeItem('pendingVideoCall');
                 window.incomingVideoUI.style.display = "none";
                 isInCall = true;
+                updateGlobalCallState(true, data.callerUserId);
                 await handleChatVideoOffer(data);
             };
             return;
@@ -1119,6 +1143,7 @@
                 sessionStorage.removeItem('pendingVideoCall');
                 window.incomingVideoUI.style.display = "none";
                 isInCall = true;
+                updateGlobalCallState(true, data.callerUserId);
                 await handleChatVideoOffer(data);
             };
             
@@ -1147,6 +1172,7 @@
         
         isInCall = true;
         currentCallUserId = data.callerUserId;
+        updateGlobalCallState(true, data.callerUserId);
         
         // ✅ JOIN ROOM (IMPORTANT FIX)
         socket.emit("join-room", data.room);
@@ -1201,6 +1227,7 @@
             alert("Camera/Microphone access is required to accept video calls. Please allow permissions and try again.");
             isInCall = false;
             currentCallUserId = null;
+            updateGlobalCallState(false, null);
             endCall();
             return;
         }
@@ -1245,6 +1272,7 @@
             alert("Failed to accept video call. Please try again.");
             isInCall = false;
             currentCallUserId = null;
+            updateGlobalCallState(false, null);
             endCall();
         }
     }
@@ -1326,6 +1354,9 @@
         isInCall = false;
         currentCallUserId = null;
         
+        // Update global call state
+        updateGlobalCallState(false, null);
+        
         // Hide any incoming call UI
         if (window.incomingVideoUI) {
             window.incomingVideoUI.style.display = "none";
@@ -1335,6 +1366,11 @@
         sessionStorage.removeItem('pendingVideoCall');
         window.pendingGlobalVideoData = null;
         window.pendingChatVideoOffer = null;
+        
+        // Call global end call function if available
+        if (window.endGlobalCall) {
+            window.endGlobalCall();
+        }
     }
 
     window.startVideoCall = startVideoCall;
