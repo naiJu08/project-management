@@ -580,29 +580,17 @@
             if (pendingCallData) {
                 console.log("🔄 Resuming pending video call after redirect");
                 const data = JSON.parse(pendingCallData);
+                sessionStorage.removeItem('pendingVideoCall');
+                
+                // Small delay to ensure UI is ready
                 setTimeout(() => {
-                    const callerName = `User ${data.callerUserId || data.targetUserId || 'Unknown'}`;
-                    const callerNameElement = document.getElementById("incomingVideoCallerName");
-                    if (callerNameElement) {
-                        callerNameElement.textContent = `Incoming video call from ${callerName}`;
-                    }
-                    window.pendingGlobalVideoData = data;
-                    window.pendingChatVideoOffer = data;
-                    window.acceptChatVideoCall = async function() {
-                        sessionStorage.removeItem('pendingVideoCall');
-                        if (window.incomingVideoUI) {
-                            window.incomingVideoUI.style.display = "none";
-                        }
-                        await handleChatVideoOffer(data);
-                    };
-                    if (window.incomingVideoUI) {
-                        window.incomingVideoUI.style.display = "block";
-                    }
+                    handleChatVideoOffer(data);
                 }, 500);
             }
         }
     });
 
+    // ✅ ADD THIS ALSO BELOW
     document.addEventListener("livewire:update", () => {
 
         const myId = myVideoUserId;
@@ -619,42 +607,21 @@
     let currentRoom = null;
     let pendingCandidates = [];
     let isRemoteDescriptionSet = false;
-    let remoteStream = null;
-    let isRelayFallbackEnabled = false;
-    let isInCall = false;
-    let currentCallUserId = null;
-
-    // Function to update global call state
-    function updateGlobalCallState(inCall, callUserId) {
-        window.isInCall = inCall;
-        window.currentCallUserId = callUserId;
-        sessionStorage.setItem('isInCall', inCall);
-        sessionStorage.setItem('currentCallUserId', callUserId || '');
-        
-        // Send message to parent window if in iframe
-        if (window.parent !== window) {
-            window.parent.postMessage({
-                type: 'call-state-change',
-                isInCall: inCall,
-                currentCallUserId: callUserId
-            }, '*');
-        }
-    }
-
-    // Initialize global call state on page load
-    updateGlobalCallState(false, null);
 
     const iceServers = [
-        // Primary STUN servers (IPv4 only to avoid IPv6 issues)
+        // STUN servers for NAT discovery
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
         { urls: "stun:stun2.l.google.com:19302" },
+        { urls: "stun:stun3.l.google.com:19302" },
+        { urls: "stun:stun4.l.google.com:19302" },
         
-        // Additional reliable STUN servers
+        // Additional STUN servers
         { urls: "stun:stun.stunprotocol.org:3478" },
+        { urls: "stun:stun.l.google.com:5229" },
         { urls: "stun:stun.services.mozilla.com:3478" },
 
-        // Your TURN server (updated with working configuration)
+        // Your TURN server (updated configuration)
         {
             urls: [
                 "turn:pm.inovace.in:3478?transport=udp",
@@ -664,43 +631,43 @@
             credential: "strongpassword123"
         },
 
-        // Backup TURN servers with verified credentials
+        // Public TURN servers as backup
         {
             urls: [
                 "turn:openrelay.metered.ca:80",
-                "turn:openrelay.metered.ca:443"
+                "turn:openrelay.metered.ca:443",
+                "turn:openrelay.metered.ca:443?transport=tcp"
             ],
             username: "openrelayproject",
             credential: "openrelayproject"
         },
         {
+            urls: [
+                "turn:turn.anyfirewall.com:3478?transport=udp",
+                "turn:turn.anyfirewall.com:3478?transport=tcp"
+            ],
+            username: "anyfirewall",
+            credential: "anyfirewall"
+        },
+        
+        // More reliable TURN servers
+        {
             urls: "turn:numb.viagenie.ca:3478",
             username: "webrtc@live.com",
             credential: "muazkh"
+        },
+        {
+            urls: "turn:relay.metered.ca:80",
+            username: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c",
+            credential: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c"
         }
     ];
 
-    function getPeerConfig(forceRelay = false) {
-        const config = {
-            iceServers: iceServers,
-            iceCandidatePoolSize: 10,
-            iceTransportPolicy: forceRelay ? "relay" : "all",
-            bundlePolicy: "max-bundle",
-            rtcpMuxPolicy: "require"
-        };
-        
-        // Force IPv4 to avoid IPv6 connectivity issues
-        config.iceServers = config.iceServers.map(server => {
-            if (server.urls) {
-                const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
-                const ipv4Urls = urls.filter(url => !url.includes('[')); // Filter IPv6
-                return { ...server, urls: ipv4Urls };
-            }
-            return server;
-        });
-        
-        return config;
-    }
+    const config = {
+        iceServers: iceServers,
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: "all"
+    };
 
     async function flushPendingCandidates() {
         if (!peerConnection || !isRemoteDescriptionSet || !pendingCandidates.length) {
@@ -719,68 +686,17 @@
         }
     }
 
-    async function enableRelayFallback() {
-        if (!peerConnection || !currentRoom || isRelayFallbackEnabled) {
-            return;
-        }
-
-        isRelayFallbackEnabled = true;
-
-        try {
-            console.warn("🔁 Switching WebRTC connection to TURN relay mode");
-            
-            // Create new peer connection with relay-only configuration
-            const relayConfig = getPeerConfig(true);
-            peerConnection.setConfiguration(relayConfig);
-            
-            // Restart ICE with relay-only
-            const offer = await peerConnection.createOffer({ iceRestart: true });
-            await peerConnection.setLocalDescription(offer);
-
-            // Send new offer to remote peer
-            socket.emit("offer", {
-                room: currentRoom,
-                targetUserId: null, // Will be determined by room
-                callerUserId: myVideoUserId,
-                offer: offer
-            });
-            
-            console.log("✅ Relay fallback initiated successfully");
-        } catch (error) {
-            console.error("❌ Relay fallback failed:", error);
-            // Try one more time with a completely new connection
-            setTimeout(() => {
-                if (currentRoom) {
-                    console.log("🔄 Attempting complete connection restart");
-                    startVideoCall(currentRoom.split('-')[1]);
-                }
-            }, 2000);
-        }
-    }
-
     function attachPeerConnectionListeners() {
         peerConnection.ontrack = event => {
-            console.log("🎥 Remote track received:", event.track.kind);
-            console.log("🎥 Incoming streams:", event.streams);
+            console.log("🎥 Remote stream received");
+            console.log("🎥 Stream tracks:", event.streams[0].getTracks());
+            console.log("🎥 Stream active:", event.streams[0].active);
             const remoteVideo = document.getElementById("remoteVideo");
             
             if (!remoteVideo) {
                 console.error("❌ Remote video element not found");
                 return;
             }
-
-            if (!remoteStream) {
-                remoteStream = new MediaStream();
-            }
-
-            const trackAlreadyExists = remoteStream.getTracks().some(track => track.id === event.track.id);
-            if (!trackAlreadyExists) {
-                remoteStream.addTrack(event.track);
-            }
-
-            console.log("🎥 Remote stream tracks now:", remoteStream.getTracks());
-            console.log("🎥 Remote video tracks:", remoteStream.getVideoTracks());
-            console.log("🎥 Remote audio tracks:", remoteStream.getAudioTracks());
             
             // ✅ FIX: Proper stream handling without interruption
             // Clear any existing timeout to avoid conflicts
@@ -788,64 +704,10 @@
                 clearTimeout(remoteVideo.playTimeout);
             }
             
-            if (remoteVideo.srcObject !== remoteStream) {
-                remoteVideo.srcObject = remoteStream;
-            }
+            // Set the stream immediately without pause/play cycle that causes AbortError
+            remoteVideo.srcObject = event.streams[0];
             remoteVideo.muted = false;
-            remoteVideo.autoplay = true;
-            remoteVideo.playsInline = true;
-            remoteVideo.controls = false;
-            remoteVideo.volume = 1;
-            remoteVideo.setAttribute('autoplay', 'autoplay');
-            remoteVideo.setAttribute('playsinline', 'playsinline');
-
-            // ✅ FIX: Force playback immediately when tracks arrive
-            const forcePlay = async () => {
-                try {
-                    await remoteVideo.play();
-                    console.log("✅ Remote media playing immediately after track arrival");
-                } catch (e) {
-                    console.warn("⚠️ Immediate play failed, will retry:", e.name);
-                    // Retry after a short delay
-                    setTimeout(async () => {
-                        try {
-                            await remoteVideo.play();
-                            console.log("✅ Remote media playing on retry");
-                        } catch (e2) {
-                            console.warn("⚠️ Retry failed, waiting for user interaction:", e2.name);
-                        }
-                    }, 300);
-                }
-            };
-            forcePlay();
-
-            event.track.onunmute = () => {
-                console.log(`✅ Remote ${event.track.kind} track unmuted`);
-                const playPromise = remoteVideo.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(error => {
-                        console.error("❌ Remote video play error after unmute:", error);
-                    });
-                }
-            };
             
-            // ✅ FIX: Add user interaction fallback for autoplay policies
-            const enablePlaybackWithInteraction = () => {
-                const resumePlayback = async () => {
-                    try {
-                        await remoteVideo.play();
-                        console.log("✅ Remote media started after user interaction");
-                        document.removeEventListener('click', resumePlayback);
-                        document.removeEventListener('touchstart', resumePlayback);
-                    } catch (e) {
-                        console.error("❌ Remote media still failed after interaction:", e);
-                    }
-                };
-                document.addEventListener('click', resumePlayback, { once: true });
-                document.addEventListener('touchstart', resumePlayback, { once: true });
-                console.log("🔊 Click/tap anywhere to enable remote media if blocked");
-            };
-
             // Use a single play attempt with proper error handling
             remoteVideo.playTimeout = setTimeout(() => {
                 const playPromise = remoteVideo.play();
@@ -857,7 +719,6 @@
                             console.warn("⚠️ Video play was aborted, this is usually harmless");
                         } else if (error.name === 'NotAllowedError') {
                             console.warn("⚠️ Autoplay prevented, user interaction required");
-                            enablePlaybackWithInteraction();
                         } else {
                             console.error("❌ Remote video play error:", error);
                         }
@@ -889,16 +750,7 @@
             console.log("WebRTC connection state:", state);
             if (state === 'failed' || state === 'disconnected' || state === 'closed') {
                 console.error("❌ WebRTC connection failed - video won't work");
-                if ((state === 'failed' || state === 'disconnected') && !isRelayFallbackEnabled) {
-                    console.log("🔄 Attempting relay fallback due to connection failure");
-                    enableRelayFallback();
-                    return;
-                }
-                if (state === 'failed') {
-                    alert("Video connection failed. Please check your network and try again.");
-                }
-            } else if (state === 'connected') {
-                console.log("✅ WebRTC connection established successfully");
+                alert("Video connection failed. Please check your network and try again.");
             }
         };
 
@@ -907,27 +759,8 @@
             console.log("WebRTC ICE state:", state);
             if (state === 'failed' || state === 'disconnected' || state === 'closed') {
                 console.error("❌ ICE connection failed - video won't work");
-                if ((state === 'failed' || state === 'disconnected') && !isRelayFallbackEnabled) {
-                    console.log("🔄 Attempting relay fallback due to ICE failure");
-                    enableRelayFallback();
-                    return;
-                }
-                if (state === 'failed') {
-                    alert("ICE connection failed. This might be due to network restrictions or firewall. Please try again.");
-                }
-            } else if (state === 'connected' || state === 'completed') {
-                console.log("✅ ICE connection established successfully");
+                alert("ICE connection failed. This might be due to network restrictions or firewall.");
             }
-        };
-
-        peerConnection.onicecandidateerror = event => {
-            // Suppress ICE candidate errors to reduce console noise
-            // These are common and don't necessarily indicate connection failure
-            if (event.errorCode === 701 || event.errorCode === 702) {
-                // STUN/TURN server timeout - ignore silently
-                return;
-            }
-            console.error("ICE candidate error:", event);
         };
 
         // Add more debugging
@@ -941,51 +774,19 @@
     }
 
     async function startVideoCall(userId) {
-        console.log("🎥 Starting video call to user:", userId);
-        
-        // Check if already in call
-        if (isInCall) {
-            console.log("⚠️ Already in a call, ending current call first");
-            endCall();
-        }
-        
-        isInCall = true;
-        currentCallUserId = userId;
-        updateGlobalCallState(true, userId);
-        
+
         currentRoom = "room-" + Math.min(myVideoUserId, userId) + "-" + Math.max(myVideoUserId, userId);
         document.getElementById("videoCallContainer").style.display = "block";
 
-        // Join socket room first
         socket.emit("join-room", currentRoom);
-        console.log("📡 Joined room:", currentRoom);
 
-        // Clean up existing connection
         if (peerConnection) {
-            peerConnection.ontrack = null;
-            peerConnection.onicecandidate = null;
-            peerConnection.onconnectionstatechange = null;
-            peerConnection.oniceconnectionstatechange = null;
             peerConnection.close();
         }
-        
-        // Reset remote video
-        remoteStream = new MediaStream();
-        const remoteVideo = document.getElementById("remoteVideo");
-        if (remoteVideo) {
-            remoteVideo.pause();
-            remoteVideo.srcObject = remoteStream;
-            remoteVideo.load();
-        }
-        
-        // Reset state variables
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
-        isRelayFallbackEnabled = false;
 
-        // Get user media with enhanced error handling
         try {
-            console.log("🎥 Requesting camera and microphone...");
             localStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     width: { ideal: 1280, max: 1920 },
@@ -998,29 +799,25 @@
                     autoGainControl: true
                 }
             });
-            console.log("✅ Local stream obtained:", localStream);
-            console.log("🎥 Video tracks:", localStream.getVideoTracks());
-            console.log("🎥 Audio tracks:", localStream.getAudioTracks());
+            console.log(" Local stream obtained:", localStream);
+            console.log(" Video tracks:", localStream.getVideoTracks());
+            console.log(" Audio tracks:", localStream.getAudioTracks());
         } catch (e) {
-            console.warn("⚠️ Enhanced constraints failed, trying basic constraints");
+            console.warn(" Enhanced constraints failed, trying basic constraints");
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({
                     video: true,
                     audio: true
                 });
-                console.log("✅ Basic local stream obtained:", localStream);
+                console.log(" Basic local stream obtained:", localStream);
             } catch (e2) {
-                console.error("❌ Media access failed:", e2);
-                alert("Camera/Microphone access is required for video calls. Please allow permissions and try again.");
-                isInCall = false;
-                currentCallUserId = null;
-                updateGlobalCallState(false, null);
-                endCall();
+                alert("Camera/Mic permission blocked or not supported");
+                console.error(" Media error:", e2);
                 return;
             }
         }
 
-        // Setup local video
+        // ✅ FIX: Proper local video setup
         const localVideo = document.getElementById("localVideo");
         if (localVideo.srcObject) {
             localVideo.pause();
@@ -1032,58 +829,29 @@
             localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
         }, 50);
 
-        // Create peer connection with optimized configuration
-        peerConnection = new RTCPeerConnection(getPeerConfig());
+        peerConnection = new RTCPeerConnection(config);
         attachPeerConnectionListeners();
 
-        // Add local tracks
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
 
-        // Create and send offer
-        try {
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
 
-            socket.emit("offer", {
-                room: currentRoom,
-                targetUserId: userId,
-                callerUserId: myVideoUserId,
-                offer: offer
-            });
-            console.log("📤 Video call offer sent to user:", userId);
-        } catch (error) {
-            console.error("❌ Failed to create offer:", error);
-            alert("Failed to initiate video call. Please try again.");
-            isInCall = false;
-            currentCallUserId = null;
-            updateGlobalCallState(false, null);
-            endCall();
-        }
+        socket.emit("offer", {
+            room: currentRoom,
+            targetUserId: userId,
+            callerUserId: myVideoUserId,
+            offer: offer
+        });
     }
 
     // RECEIVE OFFER
     socket.on("offer", async (data) => {
-        console.log("🔥 CHAT OFFER RECEIVED", data);
-        
-        // Check if we're already in a call with this user
-        if (isInCall && currentCallUserId === data.callerUserId) {
-            console.log("⚠️ Already in call with this user, ignoring duplicate offer");
-            return;
-        }
-        
-        // Check if we're already in any call
-        if (isInCall) {
-            console.log("⚠️ Already in another call, declining new offer");
-            socket.emit("decline-call", {
-                room: data.room,
-                targetUserId: data.callerUserId
-            });
-            return;
-        }
 
-        console.log("📩 Incoming video offer from user:", data.callerUserId);
+        console.log("🔥 CHAT OFFER RECEIVED");
+        console.log("📩 Incoming video offer");
         console.log("🔍 Checking for global UI:", window.incomingVideoUI);
 
         // Wait for global UI to be available (race condition fix)
@@ -1095,25 +863,13 @@
         
         console.log("🔍 Global UI after wait:", window.incomingVideoUI);
 
-        // Mark that we have a pending call from this user
-        currentCallUserId = data.callerUserId;
-
         // If global UI exists and is visible, let it handle the UI
         if (window.incomingVideoUI && window.incomingVideoUI.style.display === "block") {
             console.log("📱 Global UI is handling the offer, just storing data");
             // Store the data for when user accepts
-            window.pendingGlobalVideoData = data;
             window.pendingChatVideoOffer = data;
-            sessionStorage.setItem('pendingVideoCall', JSON.stringify(data));
             window.acceptChatVideoCall = async function() {
-                if (isInCall) {
-                    console.log("⚠️ Already in call, ignoring accept");
-                    return;
-                }
-                sessionStorage.removeItem('pendingVideoCall');
                 window.incomingVideoUI.style.display = "none";
-                isInCall = true;
-                updateGlobalCallState(true, data.callerUserId);
                 await handleChatVideoOffer(data);
             };
             return;
@@ -1121,7 +877,6 @@
 
         // If global UI exists but not visible, show it
         if (window.incomingVideoUI && window.incomingVideoUI.style.display !== "block") {
-            
             console.log("📱 Showing global UI for incoming call");
             
             const callerName = `User ${data.callerUserId || data.targetUserId || 'Unknown'}`;
@@ -1133,17 +888,9 @@
             // Store the complete data
             window.pendingGlobalVideoData = data;
             window.pendingChatVideoOffer = data;
-            sessionStorage.setItem('pendingVideoCall', JSON.stringify(data));
             
             window.acceptChatVideoCall = async function() {
-                if (isInCall) {
-                    console.log("⚠️ Already in call, ignoring accept");
-                    return;
-                }
-                sessionStorage.removeItem('pendingVideoCall');
                 window.incomingVideoUI.style.display = "none";
-                isInCall = true;
-                updateGlobalCallState(true, data.callerUserId);
                 await handleChatVideoOffer(data);
             };
             
@@ -1152,61 +899,29 @@
         }
 
         // Fallback: handle immediately if no global UI available
-        console.log("📱 No global UI detected after waiting, storing pending call for explicit acceptance");
+        console.log("📱 No global UI detected after waiting, handling immediately");
         console.log("🔍 window.incomingVideoUI:", window.incomingVideoUI);
         console.log("🔍 Attempts made:", attempts);
-        sessionStorage.setItem('pendingVideoCall', JSON.stringify(data));
-        window.pendingGlobalVideoData = data;
-        window.pendingChatVideoOffer = data;
-        alert("Incoming video call received. Please accept the call to allow camera and microphone access.");
+        await handleChatVideoOffer(data);
     });
 
     async function handleChatVideoOffer(data) {
-        console.log("🎥 Handling incoming video offer:", data);
-        
-        // Check if already in call
-        if (isInCall) {
-            console.log("⚠️ Already in a call, ignoring offer");
-            return;
-        }
-        
-        isInCall = true;
-        currentCallUserId = data.callerUserId;
-        updateGlobalCallState(true, data.callerUserId);
-        
         // ✅ JOIN ROOM (IMPORTANT FIX)
         socket.emit("join-room", data.room);
+
         currentRoom = data.room;
 
-        // Clean up existing connection
         if (peerConnection) {
-            peerConnection.ontrack = null;
-            peerConnection.onicecandidate = null;
-            peerConnection.onconnectionstatechange = null;
-            peerConnection.oniceconnectionstatechange = null;
             peerConnection.close();
         }
-        
-        // Reset remote video
-        remoteStream = new MediaStream();
-        const remoteVideo = document.getElementById("remoteVideo");
-        if (remoteVideo) {
-            remoteVideo.pause();
-            remoteVideo.srcObject = remoteStream;
-            remoteVideo.load();
-        }
-        
-        // Reset state variables
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
-        isRelayFallbackEnabled = false;
 
         // ✅ SHOW VIDEO UI
         document.getElementById("videoCallContainer").style.display = "block";
 
-        // ✅ GET CAMERA with enhanced error handling
+        // ✅ GET CAMERA
         try {
-            console.log("🎥 Requesting camera for receiver...");
             localStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     width: { ideal: 1280, max: 1920 },
@@ -1219,16 +934,12 @@
                     autoGainControl: true
                 }
             });
-            console.log("✅ Receiver local stream obtained:", localStream);
+            console.log("🎥 Receiver local stream obtained:", localStream);
             console.log("🎥 Receiver video tracks:", localStream.getVideoTracks());
             console.log("🎥 Receiver audio tracks:", localStream.getAudioTracks());
         } catch (e) {
+            alert("Camera not allowed on receiver side");
             console.error("❌ Receiver media error:", e);
-            alert("Camera/Microphone access is required to accept video calls. Please allow permissions and try again.");
-            isInCall = false;
-            currentCallUserId = null;
-            updateGlobalCallState(false, null);
-            endCall();
             return;
         }
 
@@ -1244,37 +955,24 @@
             localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
         }, 50);
 
-        // Create peer connection
-        peerConnection = new RTCPeerConnection(getPeerConfig());
+        peerConnection = new RTCPeerConnection(config);
         attachPeerConnectionListeners();
 
-        // Add local tracks
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
 
-        // Handle the offer
-        try {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-            isRemoteDescriptionSet = true;
-            await flushPendingCandidates();
+        await peerConnection.setRemoteDescription(data.offer);
+        isRemoteDescriptionSet = true;
+        await flushPendingCandidates();
 
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
 
-            socket.emit("answer", {
-                room: currentRoom,
-                answer: answer
-            });
-            console.log("📤 Video call answer sent");
-        } catch (error) {
-            console.error("❌ Failed to handle offer:", error);
-            alert("Failed to accept video call. Please try again.");
-            isInCall = false;
-            currentCallUserId = null;
-            updateGlobalCallState(false, null);
-            endCall();
-        }
+        socket.emit("answer", {
+            room: currentRoom,
+            answer: answer
+        });
     }
 
     // RECEIVE ANSWER
@@ -1287,7 +985,7 @@
         }
 
         try {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+            await peerConnection.setRemoteDescription(data.answer);
             isRemoteDescriptionSet = true;
             await flushPendingCandidates();
         } catch (e) {
@@ -1319,14 +1017,9 @@
 
     // END CALL
     function endCall() {
-        console.log("🛑 Ending call");
         document.getElementById("videoCallContainer").style.display = "none";
-        
-        if (peerConnection) {
-            peerConnection.close();
-            peerConnection = null;
-        }
-        
+        if (peerConnection) peerConnection.close();
+        peerConnection = null;
         if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
             localStream = null;
@@ -1345,36 +1038,14 @@
             remoteVideo.srcObject = null;
         }
         
-        // Reset call state
         pendingCandidates = [];
         currentRoom = null;
         isRemoteDescriptionSet = false;
-        remoteStream = null;
-        isRelayFallbackEnabled = false;
-        isInCall = false;
-        currentCallUserId = null;
-        
-        // Update global call state
-        updateGlobalCallState(false, null);
-        
-        // Hide any incoming call UI
-        if (window.incomingVideoUI) {
-            window.incomingVideoUI.style.display = "none";
-        }
-        
-        // Clear pending call data
-        sessionStorage.removeItem('pendingVideoCall');
-        window.pendingGlobalVideoData = null;
-        window.pendingChatVideoOffer = null;
-        
-        // Call global end call function if available
-        if (window.endGlobalCall) {
-            window.endGlobalCall();
-        }
     }
 
     window.startVideoCall = startVideoCall;
     window.endCall = endCall;
+
 </script>
 
 <style>
