@@ -323,6 +323,14 @@
 
     <video id="remoteVideo" autoplay playsinline
         style="width:100%; height:100%; object-fit:cover; background:#000;"></video>
+    
+    <!-- Click to play overlay for autoplay issues -->
+    <div id="videoClickOverlay" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); 
+         background:rgba(0,0,0,0.8); color:white; padding:20px; border-radius:10px; text-align:center; 
+         cursor:pointer; z-index:10; font-family:system-ui;">
+        <div style="font-size:18px; margin-bottom:10px;">📹 Click to Start Video</div>
+        <div style="font-size:14px; opacity:0.8;">Browser requires user interaction to play</div>
+    </div>
 
     <button onclick="endCall()" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
                    background:red; color:white; padding:10px 20px; border-radius:50px;">
@@ -633,24 +641,111 @@
                     videoTracks: stream.getVideoTracks().length
                 });
                 
+                // Check if we have video tracks
+                const videoTracks = stream.getVideoTracks();
+                if (videoTracks.length === 0) {
+                    console.warn("⚠️ No video tracks in remote stream");
+                    return;
+                }
+                
                 // Only set srcObject if it's different to prevent AbortError
                 if (remoteVideo.srcObject !== stream) {
                     console.log("🎬 Setting new remote stream");
+                    
+                    // Clear previous srcObject to ensure clean state
+                    remoteVideo.srcObject = null;
+                    
+                    // Set the new stream
                     remoteVideo.srcObject = stream;
+                    
+                    // Force video element to load and play
+                    const playVideo = async () => {
+                        try {
+                            // Ensure the video element is ready
+                            await remoteVideo.load();
+                            
+                            // Try to play with user interaction fallback
+                            const playPromise = remoteVideo.play();
+                            if (playPromise !== undefined) {
+                                playPromise.then(() => {
+                                    console.log("✅ Remote video playing successfully");
+                                }).catch(async (error) => {
+                                    console.warn("⚠️ Autoplay failed, trying muted play:", error);
+                                    // Try muted play first
+                                    remoteVideo.muted = true;
+                                    try {
+                                        await remoteVideo.play();
+                                        console.log("✅ Remote video playing muted");
+                                        setTimeout(() => {
+                                            remoteVideo.muted = false;
+                                            console.log("🔊 Remote video unmuted");
+                                        }, 100);
+                                    } catch (mutedError) {
+                                        console.error("❌ Even muted play failed:", mutedError);
+                                        // Show click overlay for user interaction
+                                        const overlay = document.getElementById("videoClickOverlay");
+                                        if (overlay) {
+                                            overlay.style.display = "block";
+                                            console.log("👆 Showing click overlay for user interaction");
+                                            // Add click handler to enable user interaction
+                                            remoteVideo.addEventListener('click', async () => {
+                                                try {
+                                                    await remoteVideo.play();
+                                                    console.log("✅ Remote video playing after user interaction");
+                                                    remoteVideo.muted = false;
+                                                    // Hide overlay after successful play
+                                                    if (overlay) {
+                                                        overlay.style.display = "none";
+                                                    }
+                                                } catch (clickError) {
+                                                    console.error("❌ Play after click failed:", clickError);
+                                                }
+                                            }, { once: true });
+                                        }
+                                    });
+                                }
+                            } catch (error) {
+                                console.error("❌ Video load error:", error);
+                            }
+                        };
+                        
+                        // Wait for metadata to load before playing
+                        remoteVideo.onloadedmetadata = () => {
+                            console.log("🎬 Metadata loaded, video dimensions:", remoteVideo.videoWidth, "x", remoteVideo.videoHeight);
+                        }
+                    };
                     
                     // Wait for metadata to load before playing
                     remoteVideo.onloadedmetadata = () => {
-                        console.log("🎬 Metadata loaded, playing video");
-                        remoteVideo.play().catch(e => console.error("❌ Remote video play error:", e));
+                        console.log("🎬 Metadata loaded, video dimensions:", remoteVideo.videoWidth, "x", remoteVideo.videoHeight);
+                        playVideo();
                     };
                     
                     // Also try to play immediately as backup
                     setTimeout(() => {
-                        if (remoteVideo.paused) {
+                        if (remoteVideo.paused || remoteVideo.readyState < 2) {
                             console.log("🎬 Trying to play video again...");
-                            remoteVideo.play().catch(e => console.error("❌ Backup play error:", e));
+                            playVideo();
                         }
                     }, 1000);
+                    
+                    // Monitor video element state
+                    const monitorVideo = setInterval(() => {
+                        if (remoteVideo.readyState >= 2) {
+                            console.log("🎬 Video state:", {
+                                readyState: remoteVideo.readyState,
+                                paused: remoteVideo.paused,
+                                currentTime: remoteVideo.currentTime,
+                                duration: remoteVideo.duration,
+                                videoWidth: remoteVideo.videoWidth,
+                                videoHeight: remoteVideo.videoHeight
+                            });
+                            clearInterval(monitorVideo);
+                        }
+                    }, 500);
+                    
+                    // Clear monitor after 10 seconds
+                    setTimeout(() => clearInterval(monitorVideo), 10000);
                 }
                 
                 // Log audio track details
@@ -666,15 +761,11 @@
                     });
                 }
                 
-                const videoTracks = stream.getVideoTracks();
-                if (videoTracks.length > 0) {
-                    console.log("📹 Remote video track received:", videoTracks[0].label, "enabled:", videoTracks[0].enabled);
-                    // Force video track to be enabled
-                    videoTracks.forEach(track => {
-                        track.enabled = true;
-                        console.log("📹 Enabling video track:", track.label);
-                    });
-                }
+                // Force video track to be enabled
+                videoTracks.forEach(track => {
+                    track.enabled = true;
+                    console.log("📹 Enabling video track:", track.label);
+                });
                 
                 console.log("✅ Remote stream attached with", audioTracks.length, "audio tracks and", videoTracks.length, "video tracks");
             } else {
@@ -947,20 +1038,26 @@
 
     // END CALL
     function endCall() {
-        console.log("📞 Ending call...");
+        console.log(" Ending call...");
         
         document.getElementById("videoCallContainer").style.display = "none";
+        
+        // Hide click overlay if it's visible
+        const overlay = document.getElementById("videoClickOverlay");
+        if (overlay) {
+            overlay.style.display = "none";
+        }
         
         if (peerConnection) {
             peerConnection.close();
             peerConnection = null;
-            console.log("✅ PeerConnection closed");
+            console.log(" PeerConnection closed");
         }
         
         if (localStream) {
             localStream.getTracks().forEach(track => {
                 track.stop();
-                console.log("🛑 Stopped track:", track.kind);
+                console.log(" Stopped track:", track.kind);
             });
             localStream = null;
         }
@@ -971,7 +1068,7 @@
         currentRoom = null;
         isRemoteDescriptionSet = false;
         
-        console.log("✅ Call ended and resources cleaned up");
+        console.log(" Call ended and resources cleaned up");
     }
 
 </script>
