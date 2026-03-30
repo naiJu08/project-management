@@ -318,10 +318,11 @@
 <!-- VIDEO CALL UI -->
 <div id="videoCallContainer" style="display:none; position:fixed; inset:0; background:black; z-index:9999;">
 
-    <video id="localVideo" autoplay muted
-        style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px;"></video>
+    <video id="localVideo" autoplay muted playsinline
+        style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px; background:#000;"></video>
 
-    <video id="remoteVideo" autoplay style="width:100%; height:100%; object-fit:cover;"></video>
+    <video id="remoteVideo" autoplay playsinline muted="false"
+        style="width:100%; height:100%; object-fit:cover; background:#000;"></video>
 
     <button onclick="endCall()" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
                    background:red; color:white; padding:10px 20px; border-radius:50px;">
@@ -334,6 +335,12 @@
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 
 <script>
+    // Check browser compatibility
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('❌ Browser does not support WebRTC');
+        alert('Your browser does not support video calls. Please use a modern browser like Chrome, Firefox, or Safari.');
+    }
+
     // Image preview
     document.addEventListener("click", function (e) {
         if (e.target.tagName === "IMG" && e.target.closest("#chatMessages")) {
@@ -603,7 +610,17 @@
         };
 
         peerConnection.ontrack = (event) => {
-            document.getElementById("remoteVideo").srcObject = event.streams[0];
+            console.log("📡 Received remote track:", event.track.kind, event.streams.length, "streams");
+            
+            if (event.streams && event.streams[0]) {
+                const remoteVideo = document.getElementById("remoteVideo");
+                remoteVideo.srcObject = event.streams[0];
+                
+                // Force remote video to play
+                remoteVideo.play().catch(e => console.error("❌ Remote video play error:", e));
+                
+                console.log("✅ Remote video stream attached");
+            }
         };
 
         peerConnection.onconnectionstatechange = () => {
@@ -617,6 +634,11 @@
     }
 
     async function startVideoCall(userId) {
+        // Check if media devices are available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert('Video calls are not supported in this browser or on insecure connections (HTTP). Please use HTTPS and a modern browser.');
+            return;
+        }
 
         currentRoom = "room-" + Math.min(myVideoUserId, userId) + "-" + Math.max(myVideoUserId, userId);
         document.getElementById("videoCallContainer").style.display = "block";
@@ -631,12 +653,36 @@
 
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: 'user'
+                },
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    sampleRate: 44100
+                }
             });
+            
+            console.log("✅ Media stream obtained:", localStream.getTracks().length, "tracks");
+            
+            // Ensure audio tracks are enabled and log details
+            localStream.getAudioTracks().forEach(track => {
+                track.enabled = true;
+                console.log("🎤 Audio track enabled:", track.label, "enabled:", track.enabled, "state:", track.readyState);
+            });
+            
+            // Ensure video tracks are enabled and log details
+            localStream.getVideoTracks().forEach(track => {
+                track.enabled = true;
+                console.log("📹 Video track enabled:", track.label, "enabled:", track.enabled, "state:", track.readyState);
+            });
+            
         } catch (e) {
-            alert("Camera/Mic permission blocked or not supported");
-            console.error(e);
+            console.error("❌ Media access error:", e);
+            alert("Camera/Microphone access denied. Please allow permissions and try again.\n\nError: " + e.message);
             return;
         }
 
@@ -646,6 +692,7 @@
         attachPeerConnectionListeners();
 
         localStream.getTracks().forEach(track => {
+            console.log("Adding track to peer connection:", track.kind, track.label);
             peerConnection.addTrack(track, localStream);
         });
 
@@ -691,7 +738,9 @@
         }
 
         // Fallback: handle immediately if no global UI
-        await handleChatVideoOffer(data);
+        (async () => {
+            await handleChatVideoOffer(data);
+        })();
     });
 
     async function handleChatVideoOffer(data) {
@@ -712,25 +761,36 @@
         // ✅ GET CAMERA WITH AUDIO
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: 'user'
+                },
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    sampleRate: 44100
+                }
             });
             
-            // Ensure audio tracks are enabled
+            console.log("✅ Receiver media stream obtained:", localStream.getTracks().length, "tracks");
+            
+            // Ensure audio tracks are enabled and log details
             localStream.getAudioTracks().forEach(track => {
                 track.enabled = true;
-                console.log("🎤 Audio track enabled:", track.label);
+                console.log("🎤 Receiver audio track enabled:", track.label, "enabled:", track.enabled, "state:", track.readyState);
             });
             
-            // Ensure video tracks are enabled
+            // Ensure video tracks are enabled and log details
             localStream.getVideoTracks().forEach(track => {
                 track.enabled = true;
-                console.log("📹 Video track enabled:", track.label);
+                console.log("📹 Receiver video track enabled:", track.label, "enabled:", track.enabled, "state:", track.readyState);
             });
             
         } catch (e) {
-            alert("Camera not allowed on receiver side");
-            console.error(e);
+            console.error("❌ Receiver media access error:", e);
+            alert("Camera/Microphone access required for video calls. Please allow permissions and try again.\n\nError: " + e.message);
             return;
         }
 
@@ -741,7 +801,7 @@
 
         // ✅ ADD ALL TRACKS (AUDIO AND VIDEO) TO PEER CONNECTION
         localStream.getTracks().forEach(track => {
-            console.log("Adding track to peer connection:", track.kind, track.label);
+            console.log("📡 Adding receiver track to peer connection:", track.kind, track.label, "enabled:", track.enabled);
             peerConnection.addTrack(track, localStream);
         });
 
@@ -763,6 +823,7 @@
 
     // RECEIVE ANSWER
     socket.on("answer", async (data) => {
+
         console.log("✅ ANSWER RECEIVED");
 
         if (!peerConnection) {
@@ -803,18 +864,31 @@
 
     // END CALL
     function endCall() {
+        console.log("📞 Ending call...");
+        
         document.getElementById("videoCallContainer").style.display = "none";
-        if (peerConnection) peerConnection.close();
-        peerConnection = null;
+        
+        if (peerConnection) {
+            peerConnection.close();
+            peerConnection = null;
+            console.log("✅ PeerConnection closed");
+        }
+        
         if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
+            localStream.getTracks().forEach(track => {
+                track.stop();
+                console.log("🛑 Stopped track:", track.kind);
+            });
             localStream = null;
         }
+        
         document.getElementById("localVideo").srcObject = null;
         document.getElementById("remoteVideo").srcObject = null;
         pendingCandidates = [];
         currentRoom = null;
         isRemoteDescriptionSet = false;
+        
+        console.log("✅ Call ended and resources cleaned up");
     }
 
 </script>

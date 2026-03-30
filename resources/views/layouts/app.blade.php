@@ -15,6 +15,12 @@
 
 <!-- GLOBAL VIDEO CALL LISTENER (works on any page) -->
 @if(auth()->check())
+<script>
+    // Check for HTTPS before proceeding
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        console.warn('⚠️ WebRTC requires HTTPS. Video calls may not work on HTTP.');
+    }
+</script>
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script>
     // ================= GLOBAL VIDEO CALL LISTENER =================
