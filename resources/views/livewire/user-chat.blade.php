@@ -874,25 +874,25 @@
         peerConnection = new RTCPeerConnection(config);
         attachPeerConnectionListeners();
 
-        // ✅ ADD ALL TRACKS (AUDIO AND VIDEO) TO PEER CONNECTION
+        // ✅ ADD ALL TRACKS (AUDIO AND VIDEO) TO PEER CONNECTION FIRST
+        console.log("📡 Adding receiver tracks to peer connection...");
         localStream.getTracks().forEach(track => {
             console.log("📡 Adding receiver track to peer connection:", track.kind, track.label, "enabled:", track.enabled, "settings:", track.getSettings());
             peerConnection.addTrack(track, localStream);
         });
         
-        // Ensure local video is not muted
-        document.getElementById("localVideo").muted = true; // Keep local video muted to avoid echo
-        
-        // Ensure remote video is not muted
-        document.getElementById("remoteVideo").muted = false;
+        console.log("📡 Total tracks added:", localStream.getTracks().length);
+        console.log("📡 Peer connection tracks:", peerConnection.getSenders().length);
 
         await peerConnection.setRemoteDescription(data.offer);
         isRemoteDescriptionSet = true;
         await flushPendingCandidates();
 
+        console.log("📡 Creating answer with tracks...");
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
 
+        console.log("📡 Sending answer to room:", currentRoom);
         socket.emit("answer", {
             room: currentRoom,
             answer: answer
