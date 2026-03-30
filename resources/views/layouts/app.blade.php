@@ -73,9 +73,16 @@
 
     globalVideoSocket.on("offer", async (data) => {
         console.log("🔥 GLOBAL VIDEO OFFER RECEIVED", data);
+        
         // Ignore if we are already in the chat video flow
         if (window.peerConnection || (document.getElementById("videoCallContainer") && document.getElementById("videoCallContainer").style.display === "block")) {
             console.log("Ignoring offer - already in video call");
+            return;
+        }
+        
+        // Check if already in call state
+        if (window.isInCall) {
+            console.log("Ignoring offer - already in call");
             return;
         }
 
@@ -86,6 +93,16 @@
 
         document.getElementById("incomingVideoCallerName").textContent = `Incoming video call from ${pendingGlobalVideoCallerName}`;
         incomingVideoUI.style.display = "block";
+        
+        // Auto-hide after 30 seconds if no response
+        setTimeout(() => {
+            if (incomingVideoUI.style.display === "block") {
+                incomingVideoUI.style.display = "none";
+                pendingGlobalVideoOffer = null;
+                pendingGlobalVideoCallerId = null;
+                pendingGlobalVideoCallerName = null;
+            }
+        }, 30000);
     });
 
     window.acceptGlobalVideoCall = async function() {
@@ -111,7 +128,7 @@
                         await window.handleChatVideoOffer(window.pendingChatVideoOffer);
                     } else {
                         // If still not available, redirect
-                        window.location.href = `/chat?selectUser=${pendingGlobalVideoCallerId}`;
+                        window.location.href = `/chat?selectUser=${pendingGlobalVideoCallerId}&videoCall=true`;
                     }
                 }, 500);
             }
@@ -119,11 +136,20 @@
         }
 
         // Otherwise redirect to chat page with the caller selected
-        window.location.href = `/chat?selectUser=${pendingGlobalVideoCallerId}`;
+        window.location.href = `/chat?selectUser=${pendingGlobalVideoCallerId}&videoCall=true`;
     };
 
     window.declineGlobalVideoCall = function() {
+        console.log("📱 Global decline button clicked");
         incomingVideoUI.style.display = "none";
+        
+        // Send decline signal to caller
+        if (pendingGlobalVideoCallerId) {
+            globalVideoSocket.emit("decline-call", {
+                targetUserId: pendingGlobalVideoCallerId
+            });
+        }
+        
         pendingGlobalVideoOffer = null;
         pendingGlobalVideoCallerId = null;
         pendingGlobalVideoCallerName = null;
