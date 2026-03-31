@@ -545,7 +545,7 @@
     // Use the global socket if it exists to avoid conflicts
     const socket = window.globalVideoSocket || (() => {
         try {
-            return io("https://pm.inovace.in", {
+            return io("http://pm.inovace.in:3000", {
                 transports: ['websocket', 'polling'],
                 timeout: 5000,
                 forceNew: true

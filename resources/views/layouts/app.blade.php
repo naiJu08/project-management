@@ -24,13 +24,21 @@
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script>
     // ================= GLOBAL VIDEO CALL LISTENER =================
-    const globalVideoSocket = io("https://pm.inovace.in");
+    const globalVideoSocket = io("http://pm.inovace.in:3000");
     const myGlobalVideoUserId = {{ auth()->id() }};
     
     globalVideoSocket.on("connect", () => {
         console.log("✅ Global video socket connected");
         globalVideoSocket.emit("join-user", myGlobalVideoUserId);
         console.log("📡 Joined user room:", `user-${myGlobalVideoUserId}`);
+    });
+    
+    globalVideoSocket.on("connect_error", (error) => {
+        console.error("❌ Global video socket connection error:", error);
+        console.log("🔧 Troubleshooting tips:");
+        console.log("1. Check if socket server is running on port 3000");
+        console.log("2. Check firewall settings");
+        console.log("3. Verify network connectivity to pm.inovace.in:3000");
     });
     
     globalVideoSocket.on("disconnect", () => {
