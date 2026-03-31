@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Call</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            font-family: system-ui;
+            overflow: hidden;
+        }
+        
+        .video-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #remoteVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #1a1a1a;
+        }
+        
+        #localVideo {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            border-radius: 10px;
+            border: 2px solid #3b82f6;
+            object-fit: cover;
+            background: #2a2a2a;
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .control-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .control-btn:hover {
+            transform: scale(1.1);
+        }
+        
+        .mute-btn {
+            background: #374151;
+            color: white;
+        }
+        
+        .mute-btn.muted {
+            background: #ef4444;
+        }
+        
+        .end-btn {
+            background: #dc2626;
+            color: white;
+        }
+        
+        .status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        
+        .caller-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            text-align: right;
+        }
+        
+        .connecting {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-container">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay muted playsinline></video>
+        
+        <div class="status" id="callStatus">Connecting...</div>
+        <div class="caller-info" id="callerInfo">
+            <div id="callerName">User</div>
+            <div id="callTimer">00:00</div>
+        </div>
+        
+        <div class="connecting" id="connectingMsg">
+            <div>📹 Connecting to video call...</div>
+            <div style="font-size: 14px; margin-top: 10px;">Please allow camera/microphone access</div>
+        </div>
+        
+        <div class="controls">
+            <button id="muteVideoBtn" class="control-btn mute-btn" title="Toggle Video">📹</button>
+            <button id="muteAudioBtn" class="control-btn mute-btn" title="Toggle Audio">🎤</button>
+            <button id="endCallBtn" class="control-btn end-btn" title="End Call">📞</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        // Get call data from sessionStorage or URL params
+        let callData = null;
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        try {
+            const storedData = sessionStorage.getItem('pendingVideoCall');
+            if (storedData) {
+                callData = JSON.parse(storedData);
+                sessionStorage.removeItem('pendingVideoCall');
+            }
+        } catch (e) {
+            console.error("Failed to parse stored call data:", e);
+        }
+        
+        // If no stored data, try to get from URL
+        if (!callData) {
+            const callerId = urlParams.get('callerId') || window.location.pathname.split('/').pop();
+            callData = {
+                callerUserId: callerId,
+                room: `room-${Math.min({{ auth()->id() }}, parseInt(callerId))}-${Math.max({{ auth()->id() }}, parseInt(callerId))}`,
+                callerName: `User ${callerId}`
+            };
+        }
+        
+        console.log("📹 Video call popup opened with data:", callData);
+        
+        // Update UI
+        document.getElementById('callerName').textContent = callData.callerName || 'Unknown User';
+        
+        // Socket connection
+        const socket = io("https://pm.inovace.in");
+        const myUserId = {{ auth()->id() }};
+        
+        socket.on("connect", () => {
+            console.log("✅ Video call socket connected");
+            socket.emit("join-user", myUserId);
+            
+            if (callData.room) {
+                socket.emit("join-room", callData.room);
+            }
+        });
+        
+        // WebRTC setup
+        let localStream = null;
+        let peerConnection = null;
+        let callStartTime = null;
+        let callTimer = null;
+        
+        const iceServers = [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" },
+            { urls: "stun:stun2.l.google.com:19302" },
+            {
+                urls: [
+                    "turn:pm.inovace.in:3478?transport=udp",
+                    "turn:pm.inovace.in:3478?transport=tcp"
+                ],
+                username: "webrtcuser",
+                credential: "strongpassword123"
+            }
+        ];
+        
+        const config = {
+            iceServers: iceServers,
+            iceCandidatePoolSize: 10
+        };
+        
+        // Initialize call
+        async function initializeCall() {
+            try {
+                // Get media
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280, max: 1920 },
+                        height: { ideal: 720, max: 1080 },
+                        facingMode: "user"
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                
+                // Set local video
+                const localVideo = document.getElementById('localVideo');
+                localVideo.srcObject = localStream;
+                
+                // Create peer connection
+                peerConnection = new RTCPeerConnection(config);
+                
+                // Add local tracks
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+                
+                // Setup peer connection listeners
+                peerConnection.ontrack = event => {
+                    console.log("🎥 Remote stream received");
+                    const remoteVideo = document.getElementById('remoteVideo');
+                    remoteVideo.srcObject = event.streams[0];
+                    
+                    // Hide connecting message
+                    document.getElementById('connectingMsg').style.display = 'none';
+                    document.getElementById('callStatus').textContent = 'Connected';
+                    
+                    // Start call timer
+                    if (!callStartTime) {
+                        callStartTime = Date.now();
+                        startCallTimer();
+                    }
+                };
+                
+                peerConnection.onicecandidate = event => {
+                    if (event.candidate) {
+                        socket.emit("ice-candidate", {
+                            room: callData.room,
+                            candidate: event.candidate
+                        });
+                    }
+                };
+                
+                peerConnection.onconnectionstatechange = () => {
+                    const state = peerConnection.connectionState;
+                    console.log("WebRTC connection state:", state);
+                    
+                    if (state === 'connected') {
+                        document.getElementById('callStatus').textContent = 'Connected';
+                    } else if (state === 'failed' || state === 'disconnected') {
+                        document.getElementById('callStatus').textContent = 'Connection Lost';
+                    }
+                };
+                
+                // Handle incoming offer or create one
+                if (callData.offer) {
+                    // Receiver mode - handle incoming offer
+                    await handleIncomingOffer(callData.offer);
+                } else {
+                    // Caller mode - create offer
+                    await createAndSendOffer();
+                }
+                
+            } catch (error) {
+                console.error("❌ Failed to initialize call:", error);
+                document.getElementById('callStatus').textContent = 'Failed: ' + error.message;
+                document.getElementById('connectingMsg').style.display = 'none';
+            }
+        }
+        
+        async function handleIncomingOffer(offer) {
+            try {
+                await peerConnection.setRemoteDescription(offer);
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                
+                socket.emit("answer", {
+                    room: callData.room,
+                    answer: answer
+                });
+                
+                console.log("📞 Sent answer to caller");
+            } catch (error) {
+                console.error("❌ Failed to handle offer:", error);
+            }
+        }
+        
+        async function createAndSendOffer() {
+            try {
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                
+                socket.emit("offer", {
+                    room: callData.room,
+                    targetUserId: callData.callerUserId,
+                    callerUserId: myUserId,
+                    offer: offer
+                });
+                
+                console.log("📞 Sent offer to receiver");
+            } catch (error) {
+                console.error("❌ Failed to create offer:", error);
+            }
+        }
+        
+        // Socket listeners
+        socket.on("answer", async (data) => {
+            console.log("✅ Answer received");
+            try {
+                await peerConnection.setRemoteDescription(data.answer);
+            } catch (error) {
+                console.error("❌ Failed to set remote description:", error);
+            }
+        });
+        
+        socket.on("ice-candidate", async (data) => {
+            try {
+                if (peerConnection) {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                }
+            } catch (error) {
+                console.error("❌ Failed to add ICE candidate:", error);
+            }
+        });
+        
+        // UI Controls
+        function startCallTimer() {
+            callTimer = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('callTimer').textContent = `${minutes}:${seconds}`;
+            }, 1000);
+        }
+        
+        function endCall() {
+            console.log("📞 Ending call");
+            
+            if (callTimer) {
+                clearInterval(callTimer);
+            }
+            
+            if (peerConnection) {
+                peerConnection.close();
+            }
+            
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            
+            // Close window
+            window.close();
+        }
+        
+        function toggleVideo() {
+            const videoTrack = localStream.getVideoTracks()[0];
+            const btn = document.getElementById('muteVideoBtn');
+            
+            if (videoTrack) {
+                videoTrack.enabled = !videoTrack.enabled;
+                btn.classList.toggle('muted');
+                btn.textContent = videoTrack.enabled ? '📹' : '📹';
+            }
+        }
+        
+        function toggleAudio() {
+            const audioTrack = localStream.getAudioTracks()[0];
+            const btn = document.getElementById('muteAudioBtn');
+            
+            if (audioTrack) {
+                audioTrack.enabled = !audioTrack.enabled;
+                btn.classList.toggle('muted');
+                btn.textContent = audioTrack.enabled ? '🎤' : '🔇';
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('endCallBtn').addEventListener('click', endCall);
+        document.getElementById('muteVideoBtn').addEventListener('click', toggleVideo);
+        document.getElementById('muteAudioBtn').addEventListener('click', toggleAudio);
+        
+        // Handle window close
+        window.addEventListener('beforeunload', () => {
+            endCall();
+        });
+        
+        // Initialize call when page loads
+        initializeCall();
+    </script>
+</body>
+</html>

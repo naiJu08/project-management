@@ -65,6 +65,12 @@ Route::get('/voice-call/{id}', function ($id) {
     return view('voice-call', compact('user'));
 })->middleware(['auth'])->name('voice-call');
 
+// ==================== VIDEO CALL ROUTES ====================
+Route::get('/video-call/{id}', function ($id) {
+    $user = App\Models\User::findOrFail($id);
+    return view('video-call', compact('user'));
+})->middleware(['auth'])->name('video-call');
+
 Route::post('/send-offer', function (Request $request) {
     $offer = $request->offer;
     if (is_string($offer))

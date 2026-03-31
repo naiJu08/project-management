@@ -97,29 +97,30 @@
 
         incomingVideoUI.style.display = "none";
 
-        // If we're on the chat page, trigger the offer handling
-        if (window.location.pathname.includes('/chat')) {
-            console.log("📱 Using chat page accept handler");
-            // Call the handleChatVideoOffer function directly with the pending offer
-            if (window.handleChatVideoOffer && window.pendingChatVideoOffer) {
-                await window.handleChatVideoOffer(window.pendingChatVideoOffer);
-            } else {
-                console.log("❌ handleChatVideoOffer not available, waiting...");
-                // Wait a bit and try again
-                setTimeout(async () => {
-                    if (window.handleChatVideoOffer && window.pendingChatVideoOffer) {
-                        await window.handleChatVideoOffer(window.pendingChatVideoOffer);
-                    } else {
-                        // If still not available, redirect
-                        window.location.href = `/chat?selectUser=${pendingGlobalVideoCallerId}`;
-                    }
-                }, 500);
-            }
-            return;
-        }
+        // Store the complete call data
+        const callData = {
+            offer: pendingGlobalVideoOffer,
+            callerUserId: pendingGlobalVideoCallerId,
+            targetUserId: pendingGlobalVideoCallerId,
+            room: typeof pendingGlobalVideoOffer === 'object' ? null : `room-${Math.min(myGlobalVideoUserId, pendingGlobalVideoCallerId)}-${Math.max(myGlobalVideoUserId, pendingGlobalVideoCallerId)}`,
+            callerName: pendingGlobalVideoCallerName
+        };
 
-        // Otherwise redirect to chat page with the caller selected
-        window.location.href = `/chat?selectUser=${pendingGlobalVideoCallerId}`;
+        // Store in sessionStorage for the video call popup to use
+        sessionStorage.setItem('pendingVideoCall', JSON.stringify(callData));
+
+        // Open video call popup window (like voice calls)
+        const popupWindow = window.open(
+            `/video-call/${pendingGlobalVideoCallerId}`,
+            "VideoCallWindow",
+            "width=800,height=600,resizable=yes,scrollbars=yes"
+        );
+
+        if (!popupWindow) {
+            console.error("Failed to open video call popup - popup blocked");
+            // Fallback: redirect to chat page
+            window.location.href = `/user-chat?selectUser=${pendingGlobalVideoCallerId}&videoCall=true`;
+        }
     };
 
     window.declineGlobalVideoCall = function() {
