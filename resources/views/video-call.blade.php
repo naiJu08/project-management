@@ -170,7 +170,7 @@
         document.getElementById('callerName').textContent = callData.callerName || 'Unknown User';
         
         // Socket connection
-        const socket = io("https://pm.inovace.in");
+        const socket = io("http://pm.inovace.in:3000");
         const myUserId = {{ auth()->id() }};
         
         socket.on("connect", () => {
@@ -180,6 +180,12 @@
             if (callData.room) {
                 socket.emit("join-room", callData.room);
             }
+        });
+        
+        socket.on("connect_error", (error) => {
+            console.error("❌ Video call socket connection error:", error);
+            document.getElementById('callStatus').textContent = 'Connection Error';
+            document.getElementById('connectingMsg').innerHTML = '<div>❌ Failed to connect to server</div><div style="font-size: 14px; margin-top: 10px;">Please check your network connection</div>';
         });
         
         // WebRTC setup

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket Connection Test</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Socket.IO Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="logs"></div>
+    
+    <script>
+        const status = document.getElementById('status');
+        const logs = document.getElementById('logs');
+        
+        function log(message) {
+            console.log(message);
+            logs.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+        }
+        
+        // Test connection to the socket server
+        log('Attempting to connect to http://pm.inovace.in:3000...');
+        
+        const socket = io("http://pm.inovace.in:3000", {
+            transports: ['websocket', 'polling'],
+            timeout: 10000
+        });
+        
+        socket.on("connect", () => {
+            status.textContent = '✅ Connected successfully!';
+            status.style.color = 'green';
+            log('✅ Connected to socket server');
+            log('Socket ID: ' + socket.id);
+            
+            // Test joining a user room
+            const testUserId = 'test-user-' + Date.now();
+            socket.emit("join-user", testUserId);
+            log('Joined test user room: ' + testUserId);
+        });
+        
+        socket.on("connect_error", (error) => {
+            status.textContent = '❌ Connection failed';
+            status.style.color = 'red';
+            log('❌ Connection error: ' + error.message);
+            log('Troubleshooting:');
+            log('1. Check if socket server is running on port 3000');
+            log('2. Check firewall/cors settings');
+            log('3. Verify network accessibility to pm.inovace.in:3000');
+        });
+        
+        socket.on("disconnect", () => {
+            status.textContent = '❌ Disconnected';
+            status.style.color = 'orange';
+            log('❌ Disconnected from socket server');
+        });
+        
+        // Test offer reception
+        socket.on("offer", (data) => {
+            log('📞 Received test offer: ' + JSON.stringify(data));
+        });
+    </script>
+</body>
+</html>
