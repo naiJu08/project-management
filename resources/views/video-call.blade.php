@@ -189,9 +189,22 @@
         let callTimer = null;
         
         const iceServers = [
+            // Google STUN servers (primary)
             { urls: "stun:stun.l.google.com:19302" },
             { urls: "stun:stun1.l.google.com:19302" },
             { urls: "stun:stun2.l.google.com:19302" },
+            { urls: "stun:stun3.l.google.com:19302" },
+            { urls: "stun:stun4.l.google.com:19302" },
+            
+            // Public STUN servers (backup)
+            { urls: "stun:stun.stunprotocol.org:3478" },
+            { urls: "stun:stun.ekiga.net:3478" },
+            { urls: "stun:stun.ideasip.com:3478" },
+            { urls: "stun:stun.rixtelecom.se:3478" },
+            { urls: "stun:stun.schlund.de:3478" },
+            { urls: "stun:stun.internetcalls.com:3478" },
+            
+            // TURN servers (for NAT traversal)
             {
                 urls: [
                     "turn:pm.inovace.in:3478?transport=udp",
@@ -199,17 +212,96 @@
                 ],
                 username: "webrtcuser",
                 credential: "strongpassword123"
+            },
+            // Backup TURN servers (public)
+            {
+                urls: "turn:openrelay.metered.ca:80",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+            },
+            {
+                urls: "turn:openrelay.metered.ca:443",
+                username: "openrelayproject",
+                credential: "openrelayproject"
             }
         ];
         
         const config = {
             iceServers: iceServers,
-            iceCandidatePoolSize: 10
+            iceCandidatePoolSize: 20,
+            iceTransportPolicy: 'all',
+            bundlePolicy: 'max-bundle',
+            rtcpMuxPolicy: 'require'
         };
+        
+        // Test network connectivity
+        async function testNetworkConnectivity() {
+            try {
+                // Test connectivity to multiple STUN servers
+                const stunServers = [
+                    'stun:stun.l.google.com:19302',
+                    'stun:stun.stunprotocol.org:3478',
+                    'stun:stun.ekiga.net:3478'
+                ];
+                
+                let connectivityScore = 0;
+                
+                for (const stunServer of stunServers) {
+                    try {
+                        const pc = new RTCPeerConnection({
+                            iceServers: [{ urls: stunServer }]
+                        });
+                        
+                        const promise = new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                pc.close();
+                                reject(new Error('STUN timeout'));
+                            }, 3000);
+                            
+                            pc.onicecandidate = (e) => {
+                                if (e.candidate) {
+                                    clearTimeout(timeout);
+                                    pc.close();
+                                    resolve(true);
+                                }
+                            };
+                            
+                            pc.createDataChannel('test');
+                            pc.createOffer().then(offer => {
+                                return pc.setLocalDescription(offer);
+                            }).catch(reject);
+                        });
+                        
+                        await promise;
+                        connectivityScore++;
+                    } catch (error) {
+                        console.log(`STUN server ${stunServer} failed:`, error.message);
+                    }
+                }
+                
+                console.log(`Network connectivity score: ${connectivityScore}/${stunServers.length}`);
+                return connectivityScore >= 1; // At least one STUN server should work
+                
+            } catch (error) {
+                console.error("Network connectivity test failed:", error);
+                return true; // Assume network is OK if test fails
+            }
+        }
         
         // Initialize call
         async function initializeCall() {
             try {
+                // Test network connectivity first
+                document.getElementById('callStatus').textContent = 'Testing Network...';
+                const networkOk = await testNetworkConnectivity();
+                
+                if (!networkOk) {
+                    document.getElementById('callStatus').textContent = 'Poor Network Connection';
+                    document.getElementById('connectingMsg').innerHTML = '<div>🌐 Poor network detected</div><div style="font-size: 14px; margin-top: 10px;">Attempting connection anyway...</div>';
+                } else {
+                    document.getElementById('callStatus').textContent = 'Network OK - Connecting...';
+                }
+                
                 // Get media
                 localStream = await navigator.mediaDevices.getUserMedia({
                     video: {
@@ -237,41 +329,7 @@
                 });
                 
                 // Setup peer connection listeners
-                peerConnection.ontrack = event => {
-                    console.log("🎥 Remote stream received");
-                    const remoteVideo = document.getElementById('remoteVideo');
-                    remoteVideo.srcObject = event.streams[0];
-                    
-                    // Hide connecting message
-                    document.getElementById('connectingMsg').style.display = 'none';
-                    document.getElementById('callStatus').textContent = 'Connected';
-                    
-                    // Start call timer
-                    if (!callStartTime) {
-                        callStartTime = Date.now();
-                        startCallTimer();
-                    }
-                };
-                
-                peerConnection.onicecandidate = event => {
-                    if (event.candidate) {
-                        socket.emit("ice-candidate", {
-                            room: callData.room,
-                            candidate: event.candidate
-                        });
-                    }
-                };
-                
-                peerConnection.onconnectionstatechange = () => {
-                    const state = peerConnection.connectionState;
-                    console.log("WebRTC connection state:", state);
-                    
-                    if (state === 'connected') {
-                        document.getElementById('callStatus').textContent = 'Connected';
-                    } else if (state === 'failed' || state === 'disconnected') {
-                        document.getElementById('callStatus').textContent = 'Connection Lost';
-                    }
-                };
+                setupPeerConnectionListeners();
                 
                 // Handle incoming offer or create one
                 if (callData.offer) {
@@ -287,6 +345,111 @@
                 document.getElementById('callStatus').textContent = 'Failed: ' + error.message;
                 document.getElementById('connectingMsg').style.display = 'none';
             }
+        }
+        
+        async function restartConnection() {
+            try {
+                console.log("🔄 Restarting WebRTC connection...");
+                
+                // Close existing peer connection
+                if (peerConnection) {
+                    peerConnection.close();
+                }
+                
+                // Create new peer connection
+                peerConnection = new RTCPeerConnection(config);
+                
+                // Re-add local tracks
+                if (localStream) {
+                    localStream.getTracks().forEach(track => {
+                        peerConnection.addTrack(track, localStream);
+                    });
+                }
+                
+                // Re-setup event listeners
+                setupPeerConnectionListeners();
+                
+                // Restart the signaling process
+                if (callData.offer) {
+                    await handleIncomingOffer(callData.offer);
+                } else {
+                    await createAndSendOffer();
+                }
+                
+            } catch (error) {
+                console.error("❌ Failed to restart connection:", error);
+                document.getElementById('callStatus').textContent = 'Connection Failed';
+            }
+        }
+        
+        function setupPeerConnectionListeners() {
+            peerConnection.ontrack = event => {
+                console.log("🎥 Remote stream received");
+                const remoteVideo = document.getElementById('remoteVideo');
+                remoteVideo.srcObject = event.streams[0];
+                
+                // Hide connecting message
+                document.getElementById('connectingMsg').style.display = 'none';
+                document.getElementById('callStatus').textContent = 'Connected';
+                
+                // Start call timer
+                if (!callStartTime) {
+                    callStartTime = Date.now();
+                    startCallTimer();
+                }
+            };
+            
+            peerConnection.onicecandidate = event => {
+                if (event.candidate) {
+                    socket.emit("ice-candidate", {
+                        room: callData.room,
+                        candidate: event.candidate
+                    });
+                }
+            };
+            
+            peerConnection.onconnectionstatechange = () => {
+                const state = peerConnection.connectionState;
+                console.log("WebRTC connection state:", state);
+                
+                if (state === 'connected') {
+                    document.getElementById('callStatus').textContent = 'Connected';
+                    document.getElementById('connectingMsg').style.display = 'none';
+                } else if (state === 'failed' || state === 'disconnected') {
+                    document.getElementById('callStatus').textContent = 'Connection Lost - Retrying...';
+                    // Attempt to restart connection after delay
+                    setTimeout(() => {
+                        if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected') {
+                            console.log("🔄 Attempting to restart connection...");
+                            restartConnection();
+                        }
+                    }, 3000);
+                } else if (state === 'connecting') {
+                    document.getElementById('callStatus').textContent = 'Connecting...';
+                }
+            };
+            
+            peerConnection.oniceconnectionstatechange = () => {
+                const iceState = peerConnection.iceConnectionState;
+                console.log("ICE connection state:", iceState);
+                
+                if (iceState === 'failed') {
+                    document.getElementById('callStatus').textContent = 'ICE Connection Failed - Check Network';
+                } else if (iceState === 'disconnected') {
+                    document.getElementById('callStatus').textContent = 'Reconnecting...';
+                } else if (iceState === 'connected') {
+                    document.getElementById('callStatus').textContent = 'Connected';
+                }
+            };
+            
+            peerConnection.onicegatheringstatechange = () => {
+                const gatheringState = peerConnection.iceGatheringState;
+                console.log("ICE gathering state:", gatheringState);
+                
+                if (gatheringState === 'complete') {
+                    console.log("✅ ICE gathering complete");
+                }
+            };
         }
         
         async function handleIncomingOffer(offer) {
