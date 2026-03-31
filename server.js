@@ -1,9 +1,5 @@
 const io = require("socket.io")(3000, {
-    cors: { 
-        origin: "*",
-        methods: ["GET", "POST"],
-        credentials: true
-    }
+    cors: { origin: "*" }
 });
 
 io.engine.on("connection_error", (err) => {
@@ -11,12 +7,11 @@ io.engine.on("connection_error", (err) => {
 });
 
 io.on("connection", socket => {
-    console.log(" New socket connection:", socket.id, "from", socket.handshake.address);
-    
+
     // Join personal user room
     socket.on("join-user", userId => {
         socket.join("user-" + userId);
-        console.log("User joined:", "user-" + userId, "socket:", socket.id);
+        console.log("User joined:", "user-" + userId);
     });
 
     // Join chat room
