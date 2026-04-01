@@ -172,8 +172,8 @@ class ProjectResource extends Resource
                 Tables\Columns\TextColumn::make('cover')
                     ->label(__('Cover image'))
                     ->formatStateUsing(fn($state) => new HtmlString('
-                            <div style=\'background-image: url("' . $state . '")\'
-                                 class="w-8 h-8 bg-cover bg-center bg-no-repeat"></div>
+                            <div style=\'background-image: url("' . str_replace("http://localhost:8000", config("app.url"), $state) . '")\'
+                                  class="w-8 h-8 bg-cover bg-center bg-no-repeat"></div>
                         ')),
 
                 Tables\Columns\TextColumn::make('name')
