@@ -45,7 +45,9 @@ class ActivityResource extends Resource
                                 Forms\Components\TextInput::make('name')
                                     ->label(__('Activity name'))
                                     ->required()
-                                    ->maxLength(255),
+                                    ->maxLength(255)
+                                    ->rule('regex:/^[A-Za-z0-9\s]+$/')
+                                    ->unique(ignoreRecord: true),
 
                                 Forms\Components\RichEditor::make('description')
                                     ->label(__('Description'))

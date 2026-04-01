@@ -13,4 +13,11 @@ class CreateActivity extends CreateRecord
     {
         return ActivityResource::getUrl('index');
     }
+
+    protected function getFormValidationMessages(): array
+{
+    return [
+        'name.regex' => 'Activity name should contain only letters, numbers, and spaces.',
+    ];
+}
 }
