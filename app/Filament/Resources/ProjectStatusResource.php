@@ -48,10 +48,10 @@ class ProjectStatusResource extends Resource
                                     ->required()
                                     ->maxLength(255)
                                     ->rule(
-                                Rule::unique('project_statuses', 'name')
-                                    ->whereNull('deleted_at')
-                            ),
-
+                                    fn ($record) => Rule::unique('project_statuses', 'name')
+                                        ->whereNull('deleted_at')
+                                        ->ignore($record?->id)
+                                ),
                                 Forms\Components\ColorPicker::make('color')
                                     ->label(__('Status color'))
                                     ->required(),
