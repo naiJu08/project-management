@@ -80,10 +80,17 @@ class ProjectResource extends Resource
                                                     ->label(__('Ticket prefix'))
                                                     ->columnSpan(2)
                                                     ->maxLength(3)
+                                                     ->rules([
+                                                        'regex:/^[A-Za-z]+$/',
+                                                    ])
                                                     ->rule(
                                                         Rule::unique('projects', 'ticket_prefix')
                                                             ->whereNull('deleted_at')
-                                                    ),
+                                                            ->ignore(request()->route('record'))
+                                                    )
+                                                    ->extraAttributes([
+                                                        'pattern' => '[A-Za-z]+' 
+                                                    ]),
                                                    
                                             ]),
 
