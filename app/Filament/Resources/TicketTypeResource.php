@@ -49,10 +49,8 @@ class TicketTypeResource extends Resource
                                     ->label(__('Type name'))
                                     ->required()
                                     ->maxLength(255)
-                                    ->rule(
-                                Rule::unique('ticket_types', 'name')
-                                    ->whereNull('deleted_at')
-                            ),
+                                    ->unique(ignoreRecord: true)
+                                    ->rule('regex:/^[A-Za-z0-9\s]+$/'),
 
                                 Forms\Components\ColorPicker::make('color')
                                     ->label(__('Type color'))
