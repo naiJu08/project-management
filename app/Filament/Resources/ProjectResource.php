@@ -57,9 +57,10 @@ class ProjectResource extends Resource
                                 Forms\Components\SpatieMediaLibraryFileUpload::make('cover')
                                     ->label(__('Cover image'))
                                     ->image()
+                                    ->maxSize(5120)
                                     ->helperText(
-                                        __('If not selected, an image will be generated based on the project name')
-                                    )
+                                        __('Upload image (Max: 5MB). If not selected, an image will be generated based on the project name.')
+    )
                                     ->columnSpan(1),
 
                                 Forms\Components\Grid::make()
