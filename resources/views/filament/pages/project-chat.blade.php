@@ -48,9 +48,12 @@
                                     {{-- Actions --}}
                                     @if($msg['is_own'])
                                         <div class="flex space-x-2 mt-1">
-                                            <button wire:click="deleteMessage({{ $msg['id'] }})" 
-                                                    class="text-xs text-red-600 hover:text-red-800"
-                                                    onclick="return confirm('Are you sure you want to delete this message?')">
+                                            <button 
+                                                onclick="if(confirm('Are you sure you want to delete this message?')) { 
+                                                    @this.call('deleteMessage', {{ $msg['id'] }}) 
+                                                }"
+                                                class="text-xs text-red-600 hover:text-red-800"
+                                            >
                                                 Delete
                                             </button>
                                         </div>
