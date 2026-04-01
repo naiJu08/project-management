@@ -83,13 +83,13 @@ class ProjectResource extends Resource
                                                      ->rules([
                                                         'regex:/^[A-Za-z]+$/',
                                                     ])
-                                                    ->rule(
-                                                        Rule::unique('projects', 'ticket_prefix')
+                                                    ->rule(function ($record) {
+                                                        return Rule::unique('projects', 'ticket_prefix')
                                                             ->whereNull('deleted_at')
-                                                            ->ignore(request()->route('record'))
-                                                    )
+                                                            ->ignore($record?->id);
+                                                    })
                                                     ->extraAttributes([
-                                                        'pattern' => '[A-Za-z]+' 
+                                                        'pattern' => '[A-Za-z]+'
                                                     ]),
                                                    
                                             ]),
