@@ -173,7 +173,7 @@ class BacklogItem extends Model
         };
         
         // Find the highest number used for this type (including soft deleted)
-        $codePrefix = $project->ticket_prefix . '-' . $prefix . '-';
+        $codePrefix = ($project?->ticket_prefix ?? 'PRJ') . '-' . $prefix . '-';
         $maxCode = static::withTrashed()
             ->where('project_id', $item->project_id)
             ->where('type', $item->type)
