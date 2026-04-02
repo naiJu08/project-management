@@ -17,6 +17,7 @@ class EmployeeProfile extends Model
         'employee_code',
         'department_id',
         'position_id',
+        'level',
         'manager_id',
         'hire_date',
         'employment_type',

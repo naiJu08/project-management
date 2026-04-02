@@ -53,7 +53,8 @@ class EmployeeProfileResource extends Resource
                                 Forms\Components\Select::make('position_id')
                                     ->label('Position')
                                     ->relationship('position', 'title')
-                                    ->searchable(),
+                                    ->searchable()
+                                    ->getOptionLabelFromRecordUsing(fn (\App\Models\Position $record) => "{$record->title} - {$record->level}"),
 
                                 Forms\Components\Select::make('manager_id')
                                     ->label('Manager')
@@ -156,6 +157,12 @@ class EmployeeProfileResource extends Resource
 
                 Tables\Columns\TextColumn::make('position.title')
                     ->label('Position')
+                    ->searchable()
+                    ->sortable()
+                    ->default('—'),
+
+                Tables\Columns\TextColumn::make('position.level')
+                    ->label('Level')
                     ->searchable()
                     ->sortable()
                     ->default('—'),
