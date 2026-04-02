@@ -124,7 +124,9 @@ class EmployeeProfileResource extends Resource
                             ->schema([
                                 Forms\Components\TextInput::make('emergency_contact_name')
                                     ->label('Name')
-                                    ->maxLength(255),
+                                    ->maxLength(255)
+                                    ->rules(['regex:/^[A-Za-z\s\-\'\.]+$/'])
+                                    ->helperText('Only letters, spaces, hyphens, apostrophes, and periods allowed'),
 
                                 Forms\Components\TextInput::make('emergency_contact_phone')
                                     ->label('Phone')
@@ -135,7 +137,9 @@ class EmployeeProfileResource extends Resource
 
                                 Forms\Components\TextInput::make('emergency_contact_relationship')
                                     ->label('Relationship')
-                                    ->maxLength(255),
+                                    ->maxLength(255)
+                                    ->rules(['regex:/^[A-Za-z\s\-\'\.]+$/'])
+                                    ->helperText('Only letters, spaces, hyphens, apostrophes, and periods allowed'),
                             ])
                             ->columns(3),
                     ]),
