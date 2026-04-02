@@ -73,6 +73,12 @@ class ProjectChat extends Page
             return;
         }
 
+        // ✅ MARK AS SEEN
+        ProjectChatModel::where('project_id', $this->selectedProjectId)
+            ->where('user_id', '!=', Auth::id())
+            ->whereNull('seen_at')
+            ->update(['seen_at' => now()]);
+
         // Check access
         $project = Project::where('id', $this->selectedProjectId)
             ->where(function ($query) {
@@ -87,7 +93,7 @@ class ProjectChat extends Page
             $this->messages = [];
             return;
         }
-
+        
         $this->messages = ProjectChatModel::forProject($this->selectedProjectId)
             ->get()
             ->map(function ($chat) {
@@ -101,6 +107,7 @@ class ProjectChat extends Page
                     'created_at_full' => $chat->created_at->format('Y-m-d H:i:s'),
                     'is_own' => $chat->user_id === Auth::id(),
                     'is_edited' => $chat->is_edited,
+                    'seen_at' => $chat->seen_at,
                     'reply_to' => $chat->replyTo ? [
                         'user_name' => $chat->replyTo->user->name,
                         'message' => $chat->replyTo->message,
