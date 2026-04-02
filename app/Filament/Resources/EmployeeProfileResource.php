@@ -64,7 +64,8 @@ class EmployeeProfileResource extends Resource
                                 Forms\Components\DatePicker::make('hire_date')
                                     ->label('Hire Date')
                                     ->displayFormat('Y-m-d')
-                                    ->default(now()),
+                                    ->default(now())
+                                    ->maxDate(now()),
                             ])
                             ->columns(2),
 
