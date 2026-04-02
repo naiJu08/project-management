@@ -28,7 +28,11 @@ class PositionResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('title')
                             ->required()
-                            ->maxLength(255)
+                            ->maxLength(40)
+                            ->rules([
+                                'regex:/^[a-zA-Z0-9\s\-_.,()&]+$/',
+                                'unique:positions,title,' . request()->route('record'),
+                            ])
                             ->columnSpan(2),
 
                         Forms\Components\Textarea::make('description')
