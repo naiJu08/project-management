@@ -110,7 +110,9 @@ class EmployeeProfileResource extends Resource
 
                                 Forms\Components\TextInput::make('phone')
                                     ->tel()
-                                    ->maxLength(255),
+                                    ->maxLength(10)
+                                    ->rules(['regex:/^[0-9]{10}$/', 'min:10'])
+                                    ->helperText('phone number should be 10 digits'),
 
                                 Forms\Components\Textarea::make('address')
                                     ->maxLength(65535)
@@ -127,7 +129,9 @@ class EmployeeProfileResource extends Resource
                                 Forms\Components\TextInput::make('emergency_contact_phone')
                                     ->label('Phone')
                                     ->tel()
-                                    ->maxLength(255),
+                                    ->maxLength(10)
+                                    ->rules(['regex:/^[0-9]{10}$/', 'min:10'])
+                                    ->helperText('phone number should be 10 digits'),
 
                                 Forms\Components\TextInput::make('emergency_contact_relationship')
                                     ->label('Relationship')
