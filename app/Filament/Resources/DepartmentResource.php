@@ -31,6 +31,7 @@ class DepartmentResource extends Resource
                         Forms\Components\TextInput::make('name')
                             ->required()
                             ->maxLength(40)
+                            ->rules(['regex:/^[a-zA-Z0-9\s\-_.,()&]+$/'])
                             ->columnSpan(2),
 
                         Forms\Components\Textarea::make('description')
