@@ -31,7 +31,10 @@ class DepartmentResource extends Resource
                         Forms\Components\TextInput::make('name')
                             ->required()
                             ->maxLength(40)
-                            ->rules(['regex:/^[a-zA-Z0-9\s\-_.,()&]+$/'])
+                            ->rules([
+                                'regex:/^[a-zA-Z0-9\s\-_.,()&]+$/',
+                                'unique:departments,name,' . request()->route('record'),
+                            ])
                             ->columnSpan(2),
 
                         Forms\Components\Textarea::make('description')
@@ -46,7 +49,7 @@ class DepartmentResource extends Resource
 
                         Forms\Components\Select::make('manager_id')
                             ->label('Department Manager')
-                            ->options(User::all()->pluck('name', 'id'))
+                            ->relationship('manager', 'name')
                             ->searchable()
                             ->placeholder('Select a manager'),
 
