@@ -114,13 +114,39 @@
                             @endif
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            @if($ticket->responsible)
-                                <div class="flex items-center">
-                                    <div class="w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center text-white text-xs font-semibold mr-2">
-                                        {{ substr($ticket->responsible->name, 0, 1) }}
+                            @php
+                                $assignees = [];
+                                
+                                // Check for single assignee first
+                                if($ticket->responsible) {
+                                    $assignees = [$ticket->responsible];
+                                }
+                                // Check for multiple assignees
+                                elseif(!empty($ticket->responsible_ids)) {
+                                    $ids = is_array($ticket->responsible_ids)
+                                        ? $ticket->responsible_ids
+                                        : json_decode($ticket->responsible_ids, true);
+                                    $assignees = \App\Models\User::whereIn('id', $ids ?? [])->get();
+                                }
+                            @endphp
+                            
+                            @if(!empty($assignees))
+                                @if(count($assignees) === 1)
+                                    @php $user = $assignees[0]; @endphp
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center text-white text-xs font-semibold mr-2">
+                                            {{ substr($user->name, 0, 1) }}
+                                        </div>
+                                        <span class="text-sm text-gray-900 dark:text-white">{{ $user->name }}</span>
                                     </div>
-                                    <span class="text-sm text-gray-900 dark:text-white">{{ $ticket->responsible->name }}</span>
-                                </div>
+                                @else
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center text-white text-xs font-semibold mr-2">
+                                            {{ count($assignees) }}
+                                        </div>
+                                        <span class="text-sm text-gray-900 dark:text-white">{{ count($assignees) }} assignees</span>
+                                    </div>
+                                @endif
                             @else
                                 <span class="text-sm text-gray-400">Unassigned</span>
                             @endif
