@@ -30,7 +30,7 @@ class DepartmentResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('name')
                             ->required()
-                            ->maxLength(255)
+                            ->maxLength(40)
                             ->columnSpan(2),
 
                         Forms\Components\Textarea::make('description')
@@ -64,7 +64,11 @@ class DepartmentResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->limit(30)
+                    ->tooltip(function (Tables\Columns\TextColumn $column): ?string {
+                        return $column->getState();
+                    }),
 
                 Tables\Columns\TextColumn::make('parent.name')
                     ->label('Department')
