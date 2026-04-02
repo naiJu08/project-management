@@ -43,6 +43,7 @@ class EmployeeProfileResource extends Resource
                                     ->required()
                                     ->unique(ignoreRecord: true)
                                     ->maxLength(255)
+                                    ->rules(['regex:/^[A-Za-z0-9-]+$/'])
                                     ->default(fn () => 'EMP-' . strtoupper(uniqid())),
 
                                 Forms\Components\Select::make('department_id')
