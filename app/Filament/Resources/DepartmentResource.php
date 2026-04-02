@@ -38,7 +38,7 @@ class DepartmentResource extends Resource
                             ->columnSpan(2),
 
                         Forms\Components\Select::make('parent_id')
-                            ->label('Parent Department')
+                            ->label('Department')
                             ->relationship('parent', 'name')
                             ->searchable()
                             ->placeholder('None (Top-level department)'),
@@ -67,7 +67,7 @@ class DepartmentResource extends Resource
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('parent.name')
-                    ->label('Parent Department')
+                    ->label('Department')
                     ->searchable()
                     ->sortable()
                     ->default('—'),
@@ -101,7 +101,7 @@ class DepartmentResource extends Resource
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('parent_id')
-                    ->label('Parent Department')
+                    ->label('Department')
                     ->relationship('parent', 'name'),
 
                 Tables\Filters\TernaryFilter::make('is_active')
