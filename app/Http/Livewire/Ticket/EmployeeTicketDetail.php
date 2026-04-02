@@ -566,7 +566,7 @@ class EmployeeTicketDetail extends Component
         try {
             $this->validate([
                 'editStartDate' => 'nullable|date_format:Y-m-d',
-                'editDueDate' => 'nullable|date_format:Y-m-d',
+                'editDueDate' => 'nullable|date_format:Y-m-d|after_or_equal:today',
             ]);
 
             $updateData = [];
@@ -623,7 +623,7 @@ class EmployeeTicketDetail extends Component
                 'masterEditData.name' => 'required|string|max:255',
                 'masterEditData.content' => 'nullable|string|max:5000',
                 'masterEditData.start_date' => 'nullable|date_format:Y-m-d',
-                'masterEditData.due_date' => 'nullable|date_format:Y-m-d',
+                'masterEditData.due_date' => 'nullable|date_format:Y-m-d|after_or_equal:today',
                 'masterEditData.estimated_hours' => 'nullable|numeric|min:0|max:999',
                 'masterEditData.priority_id' => 'nullable|integer|exists:ticket_priorities,id',
                 'masterEditData.status_id' => 'required|integer|exists:ticket_statuses,id',
