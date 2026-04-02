@@ -14,13 +14,18 @@ class EmployeeTicketDetail extends Component
 {
     use \Livewire\WithFileUploads;
 
+    protected $casts = [
+        'hoursToLog' => 'float',
+        'minutesToLog' => 'integer',
+    ];
+
     // ==================== CORE PROPERTIES ====================
     public Ticket $ticket;
     public string $activeTab = 'overview';
     
     // ==================== TIME TRACKING PROPERTIES ====================
-    public float $hoursToLog = 0.0;
-    public int $minutesToLog = 0;
+    public $hoursToLog = 0.0;
+    public $minutesToLog = 0;
     public string $timeDescription = '';
     public bool $showTimeForm = false;
     public ?int $editingTimeId = null;
@@ -97,6 +102,16 @@ class EmployeeTicketDetail extends Component
 
     // ==================== TIME TRACKING ====================
     
+    public function updatedHoursToLog($value): void
+    {
+        $this->hoursToLog = (float)$value;
+    }
+
+    public function updatedMinutesToLog($value): void
+    {
+        $this->minutesToLog = (int)$value;
+    }
+    
     public function logTime(): void
     {
         $this->validate([
@@ -105,7 +120,10 @@ class EmployeeTicketDetail extends Component
             'timeDescription' => 'nullable|string|max:500',
         ]);
 
-        $totalHours = (float)$this->hoursToLog + ((int)$this->minutesToLog / 60);
+        $hours = (float)$this->hoursToLog;
+        $minutes = (int)$this->minutesToLog;
+        $totalHours = $hours + ($minutes / 60);
+        
         if ($totalHours <= 0) {
             $this->notify('error', 'Please enter at least 1 minute to log.');
             return;
@@ -147,7 +165,10 @@ class EmployeeTicketDetail extends Component
             'timeDescription' => 'nullable|string|max:500',
         ]);
 
-        $totalHours = (float)$this->hoursToLog + ((int)$this->minutesToLog / 60);
+        $hours = (float)$this->hoursToLog;
+        $minutes = (int)$this->minutesToLog;
+        $totalHours = $hours + ($minutes / 60);
+        
         if ($totalHours <= 0) {
             $this->notify('error', 'Please enter at least 1 minute to log.');
             return;
@@ -186,7 +207,7 @@ class EmployeeTicketDetail extends Component
 
     public function resetTimeForm(): void
     {
-        $this->hoursToLog = 0;
+        $this->hoursToLog = 0.0;
         $this->minutesToLog = 0;
         $this->timeDescription = '';
         $this->showTimeForm = false;
