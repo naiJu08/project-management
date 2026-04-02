@@ -640,14 +640,23 @@ class EmployeeTicketDetail extends Component
     public function saveMasterEdit()
     {
         try {
+            // Explicit check for zero estimated hours
+            if (isset($this->masterEditData['estimated_hours']) && (float)$this->masterEditData['estimated_hours'] <= 0) {
+                $this->addError('masterEditData.estimated_hours', 'Estimation time must be greater than 0.');
+                return;
+            }
+
             $this->validate([
                 'masterEditData.name' => 'required|string|max:255',
                 'masterEditData.content' => 'nullable|string|max:5000',
                 'masterEditData.start_date' => 'nullable|date_format:Y-m-d',
                 'masterEditData.due_date' => 'nullable|date_format:Y-m-d|after_or_equal:today',
-                'masterEditData.estimated_hours' => 'nullable|numeric|min:0|max:999',
+                'masterEditData.estimated_hours' => 'required|numeric|min:0.01|max:999',
                 'masterEditData.priority_id' => 'nullable|integer|exists:ticket_priorities,id',
                 'masterEditData.status_id' => 'required|integer|exists:ticket_statuses,id',
+            ], [
+                'masterEditData.estimated_hours.required' => 'Estimation time is required.',
+                'masterEditData.estimated_hours.min' => 'Estimation time must be greater than 0.',
             ]);
 
             $updateData = [];
