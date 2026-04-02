@@ -95,6 +95,7 @@ class EmployeeProfileResource extends Resource
                                     ->label('Salary')
                                     ->numeric()
                                     ->prefix('$')
+                                    ->maxValue(10000000) 
                                     ->visible(fn () => auth()->user()->can('Manage payroll') || auth()->user()->hasRole('HR Manager')),
                             ])
                             ->columns(3),
