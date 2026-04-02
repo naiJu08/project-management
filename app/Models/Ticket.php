@@ -55,12 +55,17 @@ class Ticket extends Model implements HasMedia
             $order = $project->tickets?->last()?->order ?? -1;
             $item->code = $project->ticket_prefix . '-' . ($count + 1);
             $item->order = $order + 1;
+            
+            // Set epic_id from sprint if sprint exists and has epic
+            if ($item->sprint_id) {
+                $sprint = Sprint::find($item->sprint_id);
+                if ($sprint && $sprint->epic_id) {
+                    $item->epic_id = $sprint->epic_id;
+                }
+            }
         });
 
         static::created(function (Ticket $item) {
-            if ($item->sprint_id && $item->sprint->epic_id) {
-                Ticket::where('id', $item->id)->update(['epic_id' => $item->sprint->epic_id]);
-            }
             foreach ($item->watchers as $user) {
                 $user->notify(new TicketCreated($item));
             }
@@ -86,9 +91,9 @@ class Ticket extends Model implements HasMedia
             // Ticket sprint update
             $oldSprint = $old->sprint_id;
             if ($oldSprint && !$item->sprint_id) {
-                Ticket::where('id', $item->id)->update(['epic_id' => null]);
+                $item->epic_id = null;
             } elseif ($item->sprint_id && $item->sprint->epic_id) {
-                Ticket::where('id', $item->id)->update(['epic_id' => $item->sprint->epic_id]);
+                $item->epic_id = $item->sprint->epic_id;
             }
         });
 

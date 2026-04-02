@@ -57,9 +57,10 @@ class ProjectResource extends Resource
                                 Forms\Components\SpatieMediaLibraryFileUpload::make('cover')
                                     ->label(__('Cover image'))
                                     ->image()
+                                    ->maxSize(5120)
                                     ->helperText(
-                                        __('If not selected, an image will be generated based on the project name')
-                                    )
+                                        __('Upload image (Max: 5MB). If not selected, an image will be generated based on the project name.')
+    )
                                     ->columnSpan(1),
 
                                 Forms\Components\Grid::make()
@@ -80,10 +81,17 @@ class ProjectResource extends Resource
                                                     ->label(__('Ticket prefix'))
                                                     ->columnSpan(2)
                                                     ->maxLength(3)
-                                                    ->rule(
-                                                        Rule::unique('projects', 'ticket_prefix')
+                                                     ->rules([
+                                                        'regex:/^[A-Za-z]+$/',
+                                                    ])
+                                                    ->rule(function ($record) {
+                                                        return Rule::unique('projects', 'ticket_prefix')
                                                             ->whereNull('deleted_at')
-                                                    ),
+                                                            ->ignore($record?->id);
+                                                    })
+                                                    ->extraAttributes([
+                                                        'pattern' => '[A-Za-z]+'
+                                                    ]),
                                                    
                                             ]),
 
@@ -165,8 +173,8 @@ class ProjectResource extends Resource
                 Tables\Columns\TextColumn::make('cover')
                     ->label(__('Cover image'))
                     ->formatStateUsing(fn($state) => new HtmlString('
-                            <div style=\'background-image: url("' . $state . '")\'
-                                 class="w-8 h-8 bg-cover bg-center bg-no-repeat"></div>
+                            <div style=\'background-image: url("' . str_replace("http://localhost:8000", config("app.url"), $state) . '")\'
+                                  class="w-8 h-8 bg-cover bg-center bg-no-repeat"></div>
                         ')),
 
                 Tables\Columns\TextColumn::make('name')

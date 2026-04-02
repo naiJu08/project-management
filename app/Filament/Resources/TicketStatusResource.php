@@ -47,10 +47,8 @@ class TicketStatusResource extends Resource
                                     ->label(__('Status name'))
                                     ->required()
                                     ->maxLength(255)
-                                    ->rule(
-                                Rule::unique('ticket_statuses', 'name')
-                                    ->whereNull('deleted_at')
-                            ),
+                                    ->unique(ignoreRecord: true)
+                                    ->rule('regex:/^[A-Za-z0-9\s]+$/'),
 
                                 Forms\Components\ColorPicker::make('color')
                                     ->label(__('Status color'))

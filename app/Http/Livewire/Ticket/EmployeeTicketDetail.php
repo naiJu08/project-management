@@ -14,13 +14,18 @@ class EmployeeTicketDetail extends Component
 {
     use \Livewire\WithFileUploads;
 
+    protected $casts = [
+        'hoursToLog' => 'float',
+        'minutesToLog' => 'integer',
+    ];
+
     // ==================== CORE PROPERTIES ====================
     public Ticket $ticket;
     public string $activeTab = 'overview';
     
     // ==================== TIME TRACKING PROPERTIES ====================
-    public float $hoursToLog = 0.0;
-    public int $minutesToLog = 0;
+    public $hoursToLog = 0.0;
+    public $minutesToLog = 0;
     public string $timeDescription = '';
     public bool $showTimeForm = false;
     public ?int $editingTimeId = null;
@@ -97,6 +102,16 @@ class EmployeeTicketDetail extends Component
 
     // ==================== TIME TRACKING ====================
     
+    public function updatedHoursToLog($value): void
+    {
+        $this->hoursToLog = (float)$value;
+    }
+
+    public function updatedMinutesToLog($value): void
+    {
+        $this->minutesToLog = (int)$value;
+    }
+    
     public function logTime(): void
     {
         $this->validate([
@@ -105,7 +120,10 @@ class EmployeeTicketDetail extends Component
             'timeDescription' => 'nullable|string|max:500',
         ]);
 
-        $totalHours = (float)$this->hoursToLog + ((int)$this->minutesToLog / 60);
+        $hours = (float)$this->hoursToLog;
+        $minutes = (int)$this->minutesToLog;
+        $totalHours = $hours + ($minutes / 60);
+        
         if ($totalHours <= 0) {
             $this->notify('error', 'Please enter at least 1 minute to log.');
             return;
@@ -147,7 +165,10 @@ class EmployeeTicketDetail extends Component
             'timeDescription' => 'nullable|string|max:500',
         ]);
 
-        $totalHours = (float)$this->hoursToLog + ((int)$this->minutesToLog / 60);
+        $hours = (float)$this->hoursToLog;
+        $minutes = (int)$this->minutesToLog;
+        $totalHours = $hours + ($minutes / 60);
+        
         if ($totalHours <= 0) {
             $this->notify('error', 'Please enter at least 1 minute to log.');
             return;
@@ -186,7 +207,7 @@ class EmployeeTicketDetail extends Component
 
     public function resetTimeForm(): void
     {
-        $this->hoursToLog = 0;
+        $this->hoursToLog = 0.0;
         $this->minutesToLog = 0;
         $this->timeDescription = '';
         $this->showTimeForm = false;
@@ -566,7 +587,7 @@ class EmployeeTicketDetail extends Component
         try {
             $this->validate([
                 'editStartDate' => 'nullable|date_format:Y-m-d',
-                'editDueDate' => 'nullable|date_format:Y-m-d',
+                'editDueDate' => 'nullable|date_format:Y-m-d|after_or_equal:today',
             ]);
 
             $updateData = [];
@@ -619,14 +640,23 @@ class EmployeeTicketDetail extends Component
     public function saveMasterEdit()
     {
         try {
+            // Explicit check for zero estimated hours
+            if (isset($this->masterEditData['estimated_hours']) && (float)$this->masterEditData['estimated_hours'] <= 0) {
+                $this->addError('masterEditData.estimated_hours', 'Estimation time must be greater than 0.');
+                return;
+            }
+
             $this->validate([
                 'masterEditData.name' => 'required|string|max:255',
                 'masterEditData.content' => 'nullable|string|max:5000',
                 'masterEditData.start_date' => 'nullable|date_format:Y-m-d',
-                'masterEditData.due_date' => 'nullable|date_format:Y-m-d',
-                'masterEditData.estimated_hours' => 'nullable|numeric|min:0|max:999',
+                'masterEditData.due_date' => 'nullable|date_format:Y-m-d|after_or_equal:today',
+                'masterEditData.estimated_hours' => 'required|numeric|min:0.01|max:999',
                 'masterEditData.priority_id' => 'nullable|integer|exists:ticket_priorities,id',
                 'masterEditData.status_id' => 'required|integer|exists:ticket_statuses,id',
+            ], [
+                'masterEditData.estimated_hours.required' => 'Estimation time is required.',
+                'masterEditData.estimated_hours.min' => 'Estimation time must be greater than 0.',
             ]);
 
             $updateData = [];

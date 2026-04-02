@@ -41,16 +41,66 @@
                                     @endif
 
                                     {{-- Message Content --}}
-                                    <div class="rounded-lg px-4 py-2 {{ $msg['is_own'] ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-800' }}">
-                                        <p class="text-sm whitespace-pre-wrap break-words">{{ $msg['message'] }}</p>
-                                    </div>
+                                        <div class="rounded-lg px-4 py-2 {{ $msg['is_own'] ? 'bg-primary-500 text-white' : 'bg-blue-500 text-white' }}" style="max-width: fit-content; overflow-wrap: break-word;">
+                                            <p class="text-sm break-words">
+                                                {{ $msg['message'] }}
+                                            </p>
+                                            
+                                            {{-- ✅ ADD THIS HERE --}}
+                                            @if($msg['is_own'])
+                                                <div class="flex items-center justify-end gap-1 mt-1">
+                                                    <span class="text-sm text-white opacity-70">
+                                                        {{ \Carbon\Carbon::parse($msg['created_at_full'])->timezone(config('app.timezone'))->format('h:i A') }}
+                                                    </span>
+
+                                                    @if($msg['seen_at'])
+                                                        <!-- Double tick (Seen) - WHITE -->
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
+                                                            fill="#ffffff">
+                                                            <path d="M1 14l5 5L15 6l-1.5-1.5L6 16 2.5 12.5z" />
+                                                            <path d="M7 14l5 5L23 6l-1.5-1.5L12 16 8.5 12.5z" />
+                                                        </svg>
+                                                    @else
+                                                        <!-- Single tick (Sent) - YELLOW/ORANGE -->
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
+                                                            fill="#eb9b08">
+                                                            <path d="M1 14l5 5L15 6l-1.5-1.5L6 16 2.5 12.5z" />
+                                                        </svg>
+                                                    @endif
+                                                </div>
+                                            @else
+                                                <div class="flex items-center justify-start gap-1 mt-1">
+                                                    @if($msg['seen_at'])
+                                                        <!-- Double tick (Seen) - WHITE -->
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
+                                                            fill="#ffffff">
+                                                            <path d="M1 14l5 5L15 6l-1.5-1.5L6 16 2.5 12.5z" />
+                                                            <path d="M7 14l5 5L23 6l-1.5-1.5L12 16 8.5 12.5z" />
+                                                        </svg>
+                                                    @else
+                                                        <!-- Single tick (Sent) - WHITE -->
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
+                                                            fill="#ffffff">
+                                                            <path d="M1 14l5 5L15 6l-1.5-1.5L6 16 2.5 12.5z" />
+                                                        </svg>
+                                                    @endif
+                                                    <span class="text-sm text-white opacity-70">
+                                                        {{ \Carbon\Carbon::parse($msg['created_at_full'])->timezone(config('app.timezone'))->format('h:i A') }}
+                                                    </span>
+                                                </div>
+                                            @endif
+                                        </div>
+
 
                                     {{-- Actions --}}
                                     @if($msg['is_own'])
                                         <div class="flex space-x-2 mt-1">
-                                            <button wire:click="deleteMessage({{ $msg['id'] }})" 
-                                                    class="text-xs text-red-600 hover:text-red-800"
-                                                    onclick="return confirm('Are you sure you want to delete this message?')">
+                                            <button 
+                                                onclick="if(confirm('Are you sure you want to delete this message?')) { 
+                                                    @this.call('deleteMessage', {{ $msg['id'] }}) 
+                                                }"
+                                                class="text-xs text-red-600 hover:text-red-800"
+                                            >
                                                 Delete
                                             </button>
                                         </div>

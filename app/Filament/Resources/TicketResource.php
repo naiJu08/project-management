@@ -95,12 +95,67 @@ class TicketResource extends Resource
                                     ->disabled(fn() => request()->has('project_id'))
                                     ->required(),
                                 Forms\Components\Select::make('epic_id')
-                                    ->label(__('Epic'))
-                                    ->searchable()
-                                    ->reactive()
-                                    ->options(function ($get,) {
-                                        return Epic::where('project_id', $get('project_id'))->pluck('name', 'id')->toArray();
-                                    }),
+                                ->label(__('Epic'))
+                                ->searchable()
+                                ->reactive()
+                                ->required()
+                                ->options(function ($get) {
+                                        $projectId = $get('project_id');
+
+                                        if (!$projectId) return [];
+
+                                        return \App\Models\BacklogItem::where('project_id', $projectId)
+                                            ->where('type', \App\Models\BacklogItem::TYPE_EPIC)
+                                            ->pluck('title', 'id')
+                                            ->toArray();
+                                    })
+                                ->getSearchResultsUsing(function ($search, $get) {
+                                    $projectId = $get('project_id');
+
+                                    if (!$projectId) return [];
+
+                                    return BacklogItem::where('project_id', $projectId)
+                                        ->where('type', BacklogItem::TYPE_EPIC)
+                                        ->where('title', 'like', "%{$search}%")
+                                        ->pluck('title', 'id')
+                                        ->toArray();
+                                })
+
+                                // ✅ CREATE EPIC UI
+                                ->createOptionForm([
+                                    Forms\Components\TextInput::make('title')
+                                        ->label('Epic Name')
+                                        ->required(),
+                                ])
+
+                                // ✅ SAVE EPIC
+                               ->createOptionUsing(function (array $data, $set, $get) {
+
+                                            $projectId = $get('project_id') 
+                                                ?? request()->get('project_id') 
+                                                ?? request()->get('project');
+
+                                            if (!$projectId) {
+                                                return null;
+                                            }
+
+                                            $epic = BacklogItem::create([
+                                                'title' => $data['title'],
+                                                'project_id' => $projectId,
+                                                'type' => BacklogItem::TYPE_EPIC,
+                                                'parent_id' => null,
+                                            ]);
+
+                                            // ✅ THIS IS THE KEY FIX
+                                            $set('epic_id', $epic->id);
+
+                                            return $epic->id;
+                                        })
+                                
+                                 ->getOptionLabelUsing(function ($value) {
+                                            return \App\Models\BacklogItem::find($value)?->title ?? $value;
+                                        })
+                            
                             ]),
                             
                         // Backlog Integration Section
