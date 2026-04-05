@@ -18,6 +18,7 @@ class ProjectChat extends Model
         'reply_to_id',
         'is_edited',
         'edited_at',
+        'attachments',
     ];
 
     protected $casts = [
