@@ -14,7 +14,7 @@ class ChatView extends Component
     use WithFileUploads;
 
     public $projectId;
-    public $messages = [];
+    public $chatMessages = [];
     public $newMessage = '';
     public $replyingTo = null;
     public $editingMessageId = null;
@@ -48,7 +48,7 @@ class ChatView extends Component
             $query->where('message', 'like', '%' . $this->searchQuery . '%');
         }
 
-        $this->messages = $query->get();
+        $this->chatMessages = $query->get();
     }
 
     public function sendMessage()
@@ -180,7 +180,7 @@ class ChatView extends Component
     public function render()
     {
         return view('livewire.project.chat-view', [
-            'messages' => $this->messages,
+            'messages' => $this->chatMessages,
         ]);
     }
 }

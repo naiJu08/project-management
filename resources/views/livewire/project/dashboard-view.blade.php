@@ -410,12 +410,38 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                @if($ticket->responsible)
-                                    <div class="flex items-center gap-2">
-                                        <img src="{{ $ticket->responsible->avatar_url }}" alt="{{ $ticket->responsible->name }}" 
-                                             class="w-6 h-6 rounded-full object-cover">
-                                        <span class="text-sm text-gray-900 dark:text-white">{{ $ticket->responsible->name }}</span>
-                                    </div>
+                                @php
+                                    $assignees = [];
+                                    
+                                    // Check for single assignee first
+                                    if($ticket->responsible) {
+                                        $assignees = [$ticket->responsible];
+                                    }
+                                    // Check for multiple assignees
+                                    elseif(!empty($ticket->responsible_ids)) {
+                                        $ids = is_array($ticket->responsible_ids)
+                                            ? $ticket->responsible_ids
+                                            : json_decode($ticket->responsible_ids, true);
+                                        $assignees = \App\Models\User::whereIn('id', $ids ?? [])->get();
+                                    }
+                                @endphp
+                                
+                                @if(!empty($assignees))
+                                    @if(count($assignees) === 1)
+                                        @php $user = $assignees[0]; @endphp
+                                        <div class="flex items-center gap-2">
+                                            <img src="{{ $user->avatar_url ?? 'https://ui-avatars.com/api/?name=' . urlencode($user->name) }}" alt="{{ $user->name }}" 
+                                                 class="w-6 h-6 rounded-full object-cover">
+                                            <span class="text-sm text-gray-900 dark:text-white">{{ $user->name }}</span>
+                                        </div>
+                                    @else
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                                                {{ count($assignees) }}
+                                            </div>
+                                            <span class="text-sm text-gray-900 dark:text-white">{{ count($assignees) }} assignees</span>
+                                        </div>
+                                    @endif
                                 @else
                                     <span class="text-sm text-gray-500 dark:text-gray-400">Unassigned</span>
                                 @endif

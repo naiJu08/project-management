@@ -40,13 +40,13 @@
                 </div>
                 
                 <div class="flex gap-2">
-                    <label class="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <button type="button" onclick="document.getElementById('commentAttachment').click()" class="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                         <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                         </svg>
                         <span class="text-sm text-gray-700 dark:text-gray-300">Attach File</span>
-                        <input type="file" wire:model="commentAttachment" class="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.png,.gif">
-                    </label>
+                    </button>
+                    <input type="file" id="commentAttachment" wire:model="commentAttachment" class="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.png,.gif">
                 </div>
                 
                 @if($commentAttachment)

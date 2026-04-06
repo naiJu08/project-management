@@ -43,6 +43,7 @@ class EmployeeProfileResource extends Resource
                                     ->required()
                                     ->unique(ignoreRecord: true)
                                     ->maxLength(255)
+                                    ->rules(['regex:/^[A-Za-z0-9-]+$/'])
                                     ->default(fn () => 'EMP-' . strtoupper(uniqid())),
 
                                 Forms\Components\Select::make('department_id')
@@ -53,7 +54,8 @@ class EmployeeProfileResource extends Resource
                                 Forms\Components\Select::make('position_id')
                                     ->label('Position')
                                     ->relationship('position', 'title')
-                                    ->searchable(),
+                                    ->searchable()
+                                    ->getOptionLabelFromRecordUsing(fn (\App\Models\Position $record) => "{$record->title} - {$record->level}"),
 
                                 Forms\Components\Select::make('manager_id')
                                     ->label('Manager')
@@ -63,7 +65,8 @@ class EmployeeProfileResource extends Resource
                                 Forms\Components\DatePicker::make('hire_date')
                                     ->label('Hire Date')
                                     ->displayFormat('Y-m-d')
-                                    ->default(now()),
+                                    ->default(now())
+                                    ->maxDate(now()),
                             ])
                             ->columns(2),
 
@@ -93,6 +96,7 @@ class EmployeeProfileResource extends Resource
                                     ->label('Salary')
                                     ->numeric()
                                     ->prefix('$')
+                                    ->maxValue(10000000) 
                                     ->visible(fn () => auth()->user()->can('Manage payroll') || auth()->user()->hasRole('HR Manager')),
                             ])
                             ->columns(3),
@@ -106,7 +110,9 @@ class EmployeeProfileResource extends Resource
 
                                 Forms\Components\TextInput::make('phone')
                                     ->tel()
-                                    ->maxLength(255),
+                                    ->maxLength(10)
+                                    ->rules(['regex:/^[0-9]{10}$/', 'min:10'])
+                                    ->helperText('phone number should be 10 digits'),
 
                                 Forms\Components\Textarea::make('address')
                                     ->maxLength(65535)
@@ -118,16 +124,22 @@ class EmployeeProfileResource extends Resource
                             ->schema([
                                 Forms\Components\TextInput::make('emergency_contact_name')
                                     ->label('Name')
-                                    ->maxLength(255),
+                                    ->maxLength(255)
+                                    ->rules(['regex:/^[A-Za-z\s\-\'\.]+$/'])
+                                    ->helperText('Only letters, spaces, hyphens, apostrophes, and periods allowed'),
 
                                 Forms\Components\TextInput::make('emergency_contact_phone')
                                     ->label('Phone')
                                     ->tel()
-                                    ->maxLength(255),
+                                    ->maxLength(10)
+                                    ->rules(['regex:/^[0-9]{10}$/', 'min:10'])
+                                    ->helperText('phone number should be 10 digits'),
 
                                 Forms\Components\TextInput::make('emergency_contact_relationship')
                                     ->label('Relationship')
-                                    ->maxLength(255),
+                                    ->maxLength(255)
+                                    ->rules(['regex:/^[A-Za-z\s\-\'\.]+$/'])
+                                    ->helperText('Only letters, spaces, hyphens, apostrophes, and periods allowed'),
                             ])
                             ->columns(3),
                     ]),
@@ -156,6 +168,12 @@ class EmployeeProfileResource extends Resource
 
                 Tables\Columns\TextColumn::make('position.title')
                     ->label('Position')
+                    ->searchable()
+                    ->sortable()
+                    ->default('—'),
+
+                Tables\Columns\TextColumn::make('position.level')
+                    ->label('Level')
                     ->searchable()
                     ->sortable()
                     ->default('—'),

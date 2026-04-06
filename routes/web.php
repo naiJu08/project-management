@@ -108,6 +108,80 @@ Route::post('/send-ice', function (Request $request) {
     return response()->json(['status' => 'ice sent']);
 })->middleware(['auth']);
 
+// ==================== BACKLOG EXPORT ROUTES ====================
+Route::get('/backlog/export/json', function (Request $request) {
+    $projectId = $request->get('project_id');
+    
+    if (!$projectId) {
+        return redirect()->back()->with('error', 'Project not found');
+    }
+    
+    $project = \App\Models\Project::findOrFail($projectId);
+    $query = $project->backlogItems()
+        ->with(['parent', 'children', 'assignee', 'sprint'])
+        ->whereNull('deleted_at');
+    
+    // Apply filters
+    if ($request->get('filterType') && $request->get('filterType') !== 'all') {
+        $query->where('type', $request->get('filterType'));
+    }
+    
+    if ($request->get('filterStatus') && $request->get('filterStatus') !== 'all') {
+        $query->where('status', $request->get('filterStatus'));
+    }
+    
+    if ($request->get('filterAssignee') && $request->get('filterAssignee') !== 'all') {
+        $query->where('assignee_id', $request->get('filterAssignee'));
+    }
+    
+    if ($request->get('filterSprint') && $request->get('filterSprint') !== 'all') {
+        if ($request->get('filterSprint') === 'backlog') {
+            $query->whereNull('sprint_id');
+        } else {
+            $query->where('sprint_id', $request->get('filterSprint'));
+        }
+    }
+    
+    if ($request->get('searchTerm')) {
+        $query->where(function($q) use ($request) {
+            $q->where('title', 'like', '%' . $request->get('searchTerm') . '%')
+              ->orWhere('description', 'like', '%' . $request->get('searchTerm') . '%')
+              ->orWhere('code', 'like', '%' . $request->get('searchTerm') . '%');
+        });
+    }
+    
+    $items = $query->get()->map(function($item) {
+        return [
+            'code' => $item->code,
+            'type' => $item->type,
+            'title' => $item->title,
+            'description' => $item->description,
+            'status' => $item->status,
+            'priority' => $item->priority,
+            'assignee' => $item->assignee ? $item->assignee->name : null,
+            'sprint' => $item->sprint ? $item->sprint->name : null,
+            'estimated_hours' => $item->estimated_hours,
+            'start_date' => $item->start_date ? $item->start_date->format('Y-m-d') : null,
+            'due_date' => $item->due_date ? $item->due_date->format('Y-m-d') : null,
+            'parent_code' => $item->parent ? $item->parent->code : null,
+            'children_count' => $item->children->count(),
+            'completion_percentage' => $item->getCompletionPercentage(),
+            'total_estimated_hours' => $item->getTotalEstimatedHours(),
+            'created_at' => $item->created_at->format('Y-m-d H:i:s'),
+            'updated_at' => $item->updated_at->format('Y-m-d H:i:s'),
+        ];
+    });
+    
+    $filename = 'backlog_export_' . date('Y-m-d_His') . '.json';
+    
+    return response()->stream(function() use ($items) {
+        echo json_encode($items, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    }, 200, [
+        'Content-Type' => 'application/json',
+        'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+    ]);
+    
+})->middleware(['auth'])->name('backlog.export.json');
 
 // Test broadcast endpoint
 Route::post('/api/test-broadcast', function (Request $request) {

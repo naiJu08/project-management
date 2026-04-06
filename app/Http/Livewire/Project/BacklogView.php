@@ -34,6 +34,9 @@ class BacklogView extends Component
     public $inlineCreateType = '';
     public $inlineCreateTitle = '';
     
+    // Menu state
+    public $showNewMenu = false;
+    
     // Edit properties
     public $editingItemId = null;
     public $editTitle = '';
@@ -252,6 +255,9 @@ class BacklogView extends Component
     // Quick add functionality
     public function showQuickAddForm($type = 'Epic', $parentId = null)
     {
+        // Close the menu
+        $this->showNewMenu = false;
+        
         // For header dropdown without parent, show the quick add panel with parent selection
         if ($parentId === null && $type !== 'Epic') {
             $this->showQuickAdd = true;
@@ -429,6 +435,8 @@ class BacklogView extends Component
                 BacklogItem::PRIORITY_LOW,
             ]),
             'editEstimatedHours' => 'nullable|numeric|min:0',
+            'editStartDate' => 'nullable|date',
+            'editDueDate' => 'nullable|date|after_or_equal:editStartDate',
         ]);
         
         $item = BacklogItem::find($this->editingItemId);
@@ -772,35 +780,27 @@ class BacklogView extends Component
     
     public function exportToJSON()
     {
-        $items = $this->backlogItems->map(function($item) {
-            return [
-                'code' => $item->code,
-                'type' => $item->type,
-                'title' => $item->title,
-                'description' => $item->description,
-                'status' => $item->status,
-                'priority' => $item->priority,
-                'assignee' => $item->assignee ? $item->assignee->name : null,
-                'sprint' => $item->sprint ? $item->sprint->name : null,
-                'estimated_hours' => $item->estimated_hours,
-                'start_date' => $item->start_date ? $item->start_date->format('Y-m-d') : null,
-                'due_date' => $item->due_date ? $item->due_date->format('Y-m-d') : null,
-                'parent_code' => $item->parent ? $item->parent->code : null,
-                'children_count' => $item->children->count(),
-                'completion_percentage' => $item->getCompletionPercentage(),
-                'total_estimated_hours' => $item->getTotalEstimatedHours(),
-                'created_at' => $item->created_at->format('Y-m-d H:i:s'),
-                'updated_at' => $item->updated_at->format('Y-m-d H:i:s'),
-            ];
-        });
-        
-        $filename = 'backlog_export_' . date('Y-m-d_His') . '.json';
-        $headers = [
-            'Content-Type' => 'application/json',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-        ];
-        
-        return response()->json($items, 200, $headers);
+        try {
+            // Store the current filters in session
+            session([
+                'backlog_export_filters' => [
+                    'filterType' => $this->filterType,
+                    'filterStatus' => $this->filterStatus,
+                    'filterAssignee' => $this->filterAssignee,
+                    'filterSprint' => $this->filterSprint,
+                    'searchTerm' => $this->searchTerm,
+                    'projectId' => $this->projectId,
+                ]
+            ]);
+            
+            // Redirect to dedicated download route
+            return redirect()->route('backlog.export.json');
+            
+        } catch (\Exception $e) {
+            \Log::error('Export JSON Error: ' . $e->getMessage());
+            session()->flash('error', 'Export failed: ' . $e->getMessage());
+            return null;
+        }
     }
 
     public function render()
