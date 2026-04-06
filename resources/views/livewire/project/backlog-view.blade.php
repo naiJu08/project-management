@@ -124,9 +124,9 @@
                         <button wire:click="exportToCSV()" @click="showExport = false" class="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600">
                             Export to CSV
                         </button>
-                        <button wire:click="exportToJSON()" @click="showExport = false" class="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600">
+                        <a href="{{ route('backlog.export.json') }}?project_id={{ $projectId }}&filterType={{ $filterType }}&filterStatus={{ $filterStatus }}&filterAssignee={{ $filterAssignee }}&filterSprint={{ $filterSprint }}&searchTerm={{ urlencode($searchTerm) }}" @click="showExport = false" class="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600">
                             Export to JSON
-                        </button>
+                        </a>
                     </div>
                 </div>
                 
