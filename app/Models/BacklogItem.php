@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Validation\ValidationException;
 
 class BacklogItem extends Model
 {
@@ -69,6 +70,14 @@ class BacklogItem extends Model
             }
             if (!$item->order_index) {
                 $item->order_index = static::getNextOrderIndex($item->project_id, $item->parent_id);
+            }
+        });
+
+        static::saving(function ($item) {
+            if ($item->start_date && $item->due_date && $item->due_date < $item->start_date) {
+                throw ValidationException::withMessages([
+                    'due_date' => 'Due date cannot be before start date'
+                ]);
             }
         });
 

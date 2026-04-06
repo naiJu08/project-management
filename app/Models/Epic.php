@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Validation\ValidationException;
 
 class Epic extends Model
 {
@@ -22,6 +23,19 @@ class Epic extends Model
         'starts_at' => 'date',
         'ends_at' => 'date'
     ];
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::saving(function (Epic $epic) {
+            if ($epic->starts_at && $epic->ends_at && $epic->ends_at < $epic->starts_at) {
+                throw ValidationException::withMessages([
+                    'ends_at' => 'End date cannot be before start date'
+                ]);
+            }
+        });
+    }
 
     public function project(): BelongsTo
     {

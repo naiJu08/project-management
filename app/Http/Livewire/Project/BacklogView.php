@@ -429,6 +429,8 @@ class BacklogView extends Component
                 BacklogItem::PRIORITY_LOW,
             ]),
             'editEstimatedHours' => 'nullable|numeric|min:0',
+            'editStartDate' => 'nullable|date',
+            'editDueDate' => 'nullable|date|after_or_equal:editStartDate',
         ]);
         
         $item = BacklogItem::find($this->editingItemId);

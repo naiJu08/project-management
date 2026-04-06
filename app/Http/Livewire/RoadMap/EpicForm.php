@@ -62,11 +62,16 @@ class EpicForm extends Component implements HasForms
                 ->schema([
                     DatePicker::make('starts_at')
                         ->label(__('Starts at'))
-                        ->required(),
+                        ->required()
+                        ->reactive()
+                        ->afterStateUpdated(fn ($state, callable $set) => $set('ends_at', null)),
 
                     DatePicker::make('ends_at')
                         ->label(__('Ends at'))
-                        ->required(),
+                        ->required()
+                        ->rules([
+                            'after_or_equal:starts_at'
+                        ]),
                 ]),
         ];
     }
@@ -74,6 +79,13 @@ class EpicForm extends Component implements HasForms
     public function submit(): void
     {
         $data = $this->form->getState();
+        
+        // Validate that end date is not before start date
+        if ($data['starts_at'] && $data['ends_at'] && $data['ends_at'] < $data['starts_at']) {
+            Filament::notify('error', __('End date cannot be before start date'));
+            return;
+        }
+        
         $this->epic->project_id = $data['project_id'];
         $this->epic->parent_id = $data['parent_id'];
         $this->epic->name = $data['name'];

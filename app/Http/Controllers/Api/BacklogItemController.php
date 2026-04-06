@@ -170,7 +170,7 @@ class BacklogItemController extends Controller
             'sprint_id' => 'nullable|exists:sprints,id',
             'estimated_hours' => 'nullable|numeric|min:0',
             'start_date' => 'nullable|date',
-            'due_date' => 'nullable|date',
+            'due_date' => 'nullable|date|after_or_equal:start_date',
         ]);
 
         // Track changes for history
