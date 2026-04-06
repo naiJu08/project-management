@@ -112,7 +112,8 @@
         @endif
 
         {{-- Quick Actions (visible on hover) --}}
-        <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2" x-data="{ showMenu: false }">
+        <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2" x-data="{ showMenu: false }" 
+             x-on:close-inline-menus.window="showMenu = false">
             {{-- Add Child Button --}}
             @if($item->canHaveChildren())
                 <div class="relative">
@@ -148,8 +149,8 @@
                                 </a>
                             @else
                                 {{-- Epic, Feature, User Story: Use inline creation --}}
-                                <button wire:click="showInlineCreate({{ $item->id }}, '{{ $childType }})" 
-                                        @click="showMenu = false"
+                                <button wire:click="showInlineCreate({{ $item->id }}, '{{ $childType }}')" 
+                                        x-on:click="$dispatch('close-inline-menus')"
                                         class="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                                     <span class="text-base mr-2">
                                         @if($childType === 'Feature') 🔷

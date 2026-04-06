@@ -34,6 +34,9 @@ class BacklogView extends Component
     public $inlineCreateType = '';
     public $inlineCreateTitle = '';
     
+    // Menu state
+    public $showNewMenu = false;
+    
     // Edit properties
     public $editingItemId = null;
     public $editTitle = '';
@@ -252,6 +255,9 @@ class BacklogView extends Component
     // Quick add functionality
     public function showQuickAddForm($type = 'Epic', $parentId = null)
     {
+        // Close the menu
+        $this->showNewMenu = false;
+        
         // For header dropdown without parent, show the quick add panel with parent selection
         if ($parentId === null && $type !== 'Epic') {
             $this->showQuickAdd = true;

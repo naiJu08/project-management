@@ -131,7 +131,7 @@
                 </div>
                 
                 {{-- New Item Dropdown --}}
-                <div class="relative" x-data="{ showNewMenu: false }">
+                <div class="relative" x-data="{ showNewMenu: @entangle('showNewMenu') }">
                     <button @click="showNewMenu = !showNewMenu" 
                             class="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 flex items-center text-sm font-medium shadow-sm transition-colors">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -152,7 +152,6 @@
                          x-transition:leave-end="transform opacity-0 scale-95"
                          class="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-20 border border-gray-200 dark:border-gray-700 py-1">
                         <button wire:click="showInlineCreate(null, 'Epic')" 
-                                @click="showNewMenu = false"
                                 class="flex items-center w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">
                             <span class="text-lg mr-3">🎯</span>
                             <div>
@@ -161,7 +160,6 @@
                             </div>
                         </button>
                         <button wire:click="showQuickAddForm('Feature', null)" 
-                                @click="showNewMenu = false"
                                 class="flex items-center w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
                             <span class="text-lg mr-3">🔷</span>
                             <div>
@@ -170,7 +168,6 @@
                             </div>
                         </button>
                         <button wire:click="showQuickAddForm('UserStory', null)" 
-                                @click="showNewMenu = false"
                                 class="flex items-center w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
                             <span class="text-lg mr-3">📖</span>
                             <div>
