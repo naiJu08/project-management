@@ -297,80 +297,64 @@
                    }
                ]; */
 
-            // ==================== WORKING ICE SERVERS (CROSS-NETWORK FIX) ====================
+            // ==================== ENHANCED ICE SERVERS FOR CROSS-NETWORK CONNECTIVITY ====================
             const iceServers = [
-                // === STUN servers for NAT discovery ===
+                // Primary Google STUN servers (most reliable)
                 { urls: "stun:stun.l.google.com:19302" },
                 { urls: "stun:stun1.l.google.com:19302" },
                 { urls: "stun:stun2.l.google.com:19302" },
                 { urls: "stun:stun3.l.google.com:19302" },
                 { urls: "stun:stun4.l.google.com:19302" },
+                
+                // Additional STUN servers for better NAT discovery
                 { urls: "stun:stun.stunprotocol.org:3478" },
                 { urls: "stun:stun.ekiga.net:3478" },
                 { urls: "stun:stun.ideasip.com:3478" },
+                { urls: "stun:stun.rixtelecom.se:3478" },
+                { urls: "stun:stun.schlund.de:3478" },
 
-                // === Your own TURN server (PRIMARY) ===
+                // Your own TURN server (primary relay for cross-network)
                 {
                     urls: [
                         "turn:pm.inovace.in:3478?transport=udp",
-                        "turn:pm.inovace.in:3478?transport=tcp"
+                        "turn:pm.inovace.in:3478?transport=tcp",
+                        "turn:pm.inovace.in:443?transport=tcp"
                     ],
                     username: "webrtcuser",
                     credential: "strongpassword123"
                 },
 
-                // === METERED TURN (Reliable commercial) ===
-                {
-                    urls: [
-                        "turn:a.relay.metered.ca:80",
-                        "turn:a.relay.metered.ca:443",
-                        "turn:a.relay.metered.ca:443?transport=tcp"
-                    ],
-                    username: "d863b5f9e8c5f0e42c1b2d3a",
-                    credential: "rQXj+OxgPZGtl+pB"
-                },
-                {
-                    urls: [
-                        "turn:b.relay.metered.ca:80",
-                        "turn:b.relay.metered.ca:443",
-                        "turn:b.relay.metered.ca:443?transport=tcp"
-                    ],
-                    username: "d863b5f9e8c5f0e42c1b2d3a",
-                    credential: "rQXj+OxgPZGtl+pB"
-                },
-
-                // === Cloudflare TURN (Highly reliable) ===
-                {
-                    urls: "turn:turn.cloudflare.com:3478",
-                    username: "cloudflare",
-                    credential: "cloudflare"
-                },
-
-                // === Free TURN from Twilio (backup) ===
-                {
-                    urls: [
-                        "turn:global.turn.twilio.com:3478?transport=udp",
-                        "turn:global.turn.twilio.com:3478?transport=tcp"
-                    ],
-                    username: "f4c32c7e9d9c5b6a8e1f2d3c4b5a6e7f",
-                    credential: "abc123xyz789samplecredential"
-                },
-
-                // === Open Relay TURN (backup) ===
+                // Public TURN servers (backup for cross-network connectivity)
                 {
                     urls: [
                         "turn:openrelay.metered.ca:80",
-                        "turn:openrelay.metered.ca:443"
+                        "turn:openrelay.metered.ca:443",
+                        "turn:openrelay.metered.ca:443?transport=tcp"
                     ],
                     username: "openrelayproject",
                     credential: "openrelayproject"
                 },
-
-                // === Viagenie TURN (backup) ===
+                {
+                    urls: [
+                        "turn:turn.anyfirewall.com:3478?transport=udp",
+                        "turn:turn.anyfirewall.com:3478?transport=tcp"
+                    ],
+                    username: "anyfirewall",
+                    credential: "anyfirewall"
+                },
+                // Additional reliable TURN servers
                 {
                     urls: "turn:numb.viagenie.ca:3478",
                     username: "webrtc@live.com",
                     credential: "muazkh"
+                },
+                {
+                    urls: [
+                        "turn:turn.p2pshare.com:3478?transport=udp",
+                        "turn:turn.p2pshare.com:3478?transport=tcp"
+                    ],
+                    username: "p2pshare",
+                    credential: "p2pshare"
                 }
             ];
 
@@ -715,10 +699,11 @@
 
                 peerConnection = new RTCPeerConnection({
                     iceServers: iceServers,
-                    iceCandidatePoolSize: 20,        // More candidates for better connectivity
-                    iceTransportPolicy: 'all',       // Use all: host, srflx, and relay
-                    bundlePolicy: 'max-bundle',      // Bundle audio/video on same transport
-                    rtcpMuxPolicy: 'require'       // Require RTCP mux for efficiency
+                    iceCandidatePoolSize: 20,  // Increased to gather more candidates
+                    iceTransportPolicy: 'all',   // Use all candidates including relay
+                    bundlePolicy: 'max-bundle',
+                    rtcpMuxPolicy: 'require',
+                    sdpSemantics: 'unified-plan'
                 });
 
                 peerConnection.onconnectionstatechange = () => {
@@ -820,17 +805,110 @@
                 };
             }
 
-            // ==================== ICE RESTART ====================
+            // ==================== NETWORK CONNECTIVITY TEST ====================
+            async function testNetworkConnectivity() {
+                try {
+                    debug("Testing network connectivity for cross-network calls...");
+                    updateStatus("Testing network connectivity...");
+                    
+                    // Test connectivity to multiple STUN servers
+                    const stunServers = [
+                        'stun:stun.l.google.com:19302',
+                        'stun:stun.stunprotocol.org:3478',
+                        'stun:stun.ekiga.net:3478'
+                    ];
+                    
+                    let connectivityScore = 0;
+                    let workingServers = [];
+                    
+                    for (const stunServer of stunServers) {
+                        try {
+                            const pc = new RTCPeerConnection({
+                                iceServers: [{ urls: stunServer }]
+                            });
+                            
+                            const promise = new Promise((resolve, reject) => {
+                                const timeout = setTimeout(() => {
+                                    pc.close();
+                                    reject(new Error('STUN timeout'));
+                                }, 5000);
+                                
+                                pc.onicecandidate = (e) => {
+                                    if (e.candidate && e.candidate.type === 'srflx') {
+                                        clearTimeout(timeout);
+                                        pc.close();
+                                        resolve(true);
+                                    }
+                                };
+                                
+                                pc.createDataChannel('test');
+                                pc.createOffer().then(offer => {
+                                    return pc.setLocalDescription(offer);
+                                }).catch(reject);
+                            });
+                            
+                            await promise;
+                            connectivityScore++;
+                            workingServers.push(stunServer);
+                            debug(`STUN server ${stunServer} working`);
+                        } catch (error) {
+                            debug(`STUN server ${stunServer} failed:`, error.message);
+                        }
+                    }
+                    
+                    debug(`Network connectivity score: ${connectivityScore}/${stunServers.length}`);
+                    debug(`Working STUN servers:`, workingServers);
+                    
+                    if (connectivityScore === 0) {
+                        updateStatus("Poor network connectivity - using TURN servers");
+                        return false;
+                    } else if (connectivityScore < stunServers.length / 2) {
+                        updateStatus("Limited network connectivity - may need TURN servers");
+                        return true;
+                    } else {
+                        updateStatus("Good network connectivity");
+                        return true;
+                    }
+                    
+                } catch (error) {
+                    debug("Network connectivity test failed:", error);
+                    updateStatus("Network test failed - proceeding anyway");
+                    return true;
+                }
+            }
+
+            // ==================== IMPROVED ICE RESTART ====================
             async function restartIce() {
                 if (!peerConnection || iceRestartPending) return;
                 iceRestartPending = true;
-                debug("Attempting ICE restart...");
+                debug("Attempting ICE restart for cross-network connectivity...");
                 updateStatus("Reconnecting...");
+                
                 try {
-                    const offer = await peerConnection.createOffer({ iceRestart: true });
+                    // Test network connectivity first
+                    const networkOk = await testNetworkConnectivity();
+                    
+                    // Create new peer connection with fresh ICE candidates
+                    const oldPeerConnection = peerConnection;
+                    createPeer();
+                    
+                    // Re-add local stream if available
+                    if (localStream) {
+                        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                    }
+                    
+                    // Create new offer with ICE restart
+                    const offer = await peerConnection.createOffer({ 
+                        iceRestart: true,
+                        offerToReceiveAudio: true
+                    });
                     await peerConnection.setLocalDescription(offer);
+                    
+                    // Close old connection
+                    oldPeerConnection.close();
+                    
                     // Send the new offer to the other peer
-                    await fetch('/send-offer', {
+                    const response = await fetch('/send-offer', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -838,12 +916,27 @@
                         },
                         body: JSON.stringify({
                             offer: { type: offer.type, sdp: offer.sdp },
-                            receiverId: incomingCallerId ?? otherUserId
+                            receiverId: incomingCallerId ?? otherUserId,
+                            iceRestart: true
                         })
                     });
-                    debug("ICE restart offer sent");
+                    
+                    if (!response.ok) throw new Error('Failed to send ICE restart offer');
+                    debug("ICE restart offer sent successfully");
+                    updateStatus("Reconnection initiated...");
+                    
                 } catch (err) {
                     debug("ICE restart failed:", err);
+                    updateStatus("Reconnection failed - try again");
+                    
+                    // Fallback: try to restart with just ICE restart on existing connection
+                    try {
+                        const offer = await peerConnection.createOffer({ iceRestart: true });
+                        await peerConnection.setLocalDescription(offer);
+                        debug("Fallback ICE restart attempted");
+                    } catch (fallbackErr) {
+                        debug("Fallback ICE restart also failed:", fallbackErr);
+                    }
                 } finally {
                     iceRestartPending = false;
                 }
@@ -856,6 +949,14 @@
                 if (callActive) return;
                 callActive = true;
                 hideAllButtons();
+                updateStatus('<span class="spinner"></span> Testing network...');
+                
+                // Test network connectivity first for cross-network calls
+                const networkOk = await testNetworkConnectivity();
+                if (!networkOk) {
+                    debug("Poor network connectivity detected, but proceeding with TURN servers");
+                }
+                
                 updateStatus('<span class="spinner"></span> Requesting microphone...');
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -866,12 +967,12 @@
                     if (!playbackAudioContext) {
                         playbackAudioContext = new (window.AudioContext || window.webkitAudioContext)();
                         await playbackAudioContext.resume();
-                        debug("✅ Playback AudioContext resumed (caller side)");
+                        debug("Playback AudioContext resumed (caller side)");
                     }
                 } catch (err) {
                     debug("Microphone error:", err);
                     alert("Microphone access is required for calls");
-                    updateStatus("❌ Microphone access denied");
+                    updateStatus("Microphone access denied");
                     callActive = false;
                     showStartMode();
                     return;
