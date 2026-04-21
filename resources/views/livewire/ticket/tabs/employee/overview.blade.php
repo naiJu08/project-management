@@ -83,8 +83,8 @@
             <div>
                 <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Epic</label>
                 <p class="text-gray-900 dark:text-white mt-1">
-                    @if($ticket->epic)
-                        <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">{{ $ticket->epic->name }}</a>
+                    @if($ticket->backlogItem && $ticket->backlogItem->type === 'Epic')
+                        <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">{{ $ticket->backlogItem->title }}</a>
                     @else
                         <span class="text-gray-500">Not assigned</span>
                     @endif

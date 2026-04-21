@@ -94,18 +94,18 @@ class TicketResource extends Resource
                                     ->default(fn ($livewire) => request()->get('project_id'))
                                     ->disabled(fn() => request()->has('project_id'))
                                     ->required(),
-                                Forms\Components\Select::make('epic_id')
+                                Forms\Components\Select::make('backlog_item_id')
                                 ->label(__('Epic'))
                                 ->searchable()
                                 ->reactive()
-                                ->required()
+                                ->nullable()
                                 ->options(function ($get) {
                                         $projectId = $get('project_id');
 
                                         if (!$projectId) return [];
 
                                         return \App\Models\BacklogItem::where('project_id', $projectId)
-                                            ->where('type', \App\Models\BacklogItem::TYPE_EPIC)
+                                            ->where('type', 'Epic')
                                             ->pluck('title', 'id')
                                             ->toArray();
                                     })
@@ -114,21 +114,21 @@ class TicketResource extends Resource
 
                                     if (!$projectId) return [];
 
-                                    return BacklogItem::where('project_id', $projectId)
-                                        ->where('type', BacklogItem::TYPE_EPIC)
+                                    return \App\Models\BacklogItem::where('project_id', $projectId)
+                                        ->where('type', 'Epic')
                                         ->where('title', 'like', "%{$search}%")
                                         ->pluck('title', 'id')
                                         ->toArray();
                                 })
 
-                                // ✅ CREATE EPIC UI
+                                // CREATE EPIC UI
                                 ->createOptionForm([
                                     Forms\Components\TextInput::make('title')
                                         ->label('Epic Name')
                                         ->required(),
                                 ])
 
-                                // ✅ SAVE EPIC
+                                // SAVE EPIC
                                ->createOptionUsing(function (array $data, $set, $get) {
 
                                             $projectId = $get('project_id') 
@@ -139,15 +139,17 @@ class TicketResource extends Resource
                                                 return null;
                                             }
 
-                                            $epic = BacklogItem::create([
+                                            $epic = \App\Models\BacklogItem::create([
                                                 'title' => $data['title'],
                                                 'project_id' => $projectId,
-                                                'type' => BacklogItem::TYPE_EPIC,
-                                                'parent_id' => null,
+                                                'type' => 'Epic',
+                                                'status' => 'To Do',
+                                                'priority' => 'Medium',
+                                                'created_by' => auth()->user()->id,
                                             ]);
 
-                                            // ✅ THIS IS THE KEY FIX
-                                            $set('epic_id', $epic->id);
+                                            // THIS IS THE KEY FIX
+                                            $set('backlog_item_id', $epic->id);
 
                                             return $epic->id;
                                         })
