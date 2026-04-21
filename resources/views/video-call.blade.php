@@ -189,17 +189,22 @@
         let callTimer = null;
         
         const iceServers = [
-            // === STUN servers for NAT discovery ===
+            // Google STUN servers (primary)
             { urls: "stun:stun.l.google.com:19302" },
             { urls: "stun:stun1.l.google.com:19302" },
             { urls: "stun:stun2.l.google.com:19302" },
             { urls: "stun:stun3.l.google.com:19302" },
             { urls: "stun:stun4.l.google.com:19302" },
+            
+            // Public STUN servers (backup)
             { urls: "stun:stun.stunprotocol.org:3478" },
             { urls: "stun:stun.ekiga.net:3478" },
             { urls: "stun:stun.ideasip.com:3478" },
-
-            // === Your own TURN server (PRIMARY) ===
+            { urls: "stun:stun.rixtelecom.se:3478" },
+            { urls: "stun:stun.schlund.de:3478" },
+            { urls: "stun:stun.internetcalls.com:3478" },
+            
+            // TURN servers (for NAT traversal)
             {
                 urls: [
                     "turn:pm.inovace.in:3478?transport=udp",
@@ -208,49 +213,16 @@
                 username: "webrtcuser",
                 credential: "strongpassword123"
             },
-
-            // === METERED TURN (Reliable commercial) ===
+            // Backup TURN servers (public)
             {
-                urls: [
-                    "turn:a.relay.metered.ca:80",
-                    "turn:a.relay.metered.ca:443",
-                    "turn:a.relay.metered.ca:443?transport=tcp"
-                ],
-                username: "d863b5f9e8c5f0e42c1b2d3a",
-                credential: "rQXj+OxgPZGtl+pB"
-            },
-            {
-                urls: [
-                    "turn:b.relay.metered.ca:80",
-                    "turn:b.relay.metered.ca:443",
-                    "turn:b.relay.metered.ca:443?transport=tcp"
-                ],
-                username: "d863b5f9e8c5f0e42c1b2d3a",
-                credential: "rQXj+OxgPZGtl+pB"
-            },
-
-            // === Cloudflare TURN (Highly reliable) ===
-            {
-                urls: "turn:turn.cloudflare.com:3478",
-                username: "cloudflare",
-                credential: "cloudflare"
-            },
-
-            // === Open Relay TURN (backup) ===
-            {
-                urls: [
-                    "turn:openrelay.metered.ca:80",
-                    "turn:openrelay.metered.ca:443"
-                ],
+                urls: "turn:openrelay.metered.ca:80",
                 username: "openrelayproject",
                 credential: "openrelayproject"
             },
-
-            // === Viagenie TURN (backup) ===
             {
-                urls: "turn:numb.viagenie.ca:3478",
-                username: "webrtc@live.com",
-                credential: "muazkh"
+                urls: "turn:openrelay.metered.ca:443",
+                username: "openrelayproject",
+                credential: "openrelayproject"
             }
         ];
         
