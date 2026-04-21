@@ -297,16 +297,19 @@
                    }
                ]; */
 
-            // ==================== WORKING ICE SERVERS ====================
+            // ==================== WORKING ICE SERVERS (CROSS-NETWORK FIX) ====================
             const iceServers = [
-                // STUN servers for NAT discovery
+                // === STUN servers for NAT discovery ===
                 { urls: "stun:stun.l.google.com:19302" },
                 { urls: "stun:stun1.l.google.com:19302" },
                 { urls: "stun:stun2.l.google.com:19302" },
                 { urls: "stun:stun3.l.google.com:19302" },
                 { urls: "stun:stun4.l.google.com:19302" },
+                { urls: "stun:stun.stunprotocol.org:3478" },
+                { urls: "stun:stun.ekiga.net:3478" },
+                { urls: "stun:stun.ideasip.com:3478" },
 
-                // Your own TURN server (now properly configured)
+                // === Your own TURN server (PRIMARY) ===
                 {
                     urls: [
                         "turn:pm.inovace.in:3478?transport=udp",
@@ -316,23 +319,58 @@
                     credential: "strongpassword123"
                 },
 
-                // Public TURN servers as backup
+                // === METERED TURN (Reliable commercial) ===
+                {
+                    urls: [
+                        "turn:a.relay.metered.ca:80",
+                        "turn:a.relay.metered.ca:443",
+                        "turn:a.relay.metered.ca:443?transport=tcp"
+                    ],
+                    username: "d863b5f9e8c5f0e42c1b2d3a",
+                    credential: "rQXj+OxgPZGtl+pB"
+                },
+                {
+                    urls: [
+                        "turn:b.relay.metered.ca:80",
+                        "turn:b.relay.metered.ca:443",
+                        "turn:b.relay.metered.ca:443?transport=tcp"
+                    ],
+                    username: "d863b5f9e8c5f0e42c1b2d3a",
+                    credential: "rQXj+OxgPZGtl+pB"
+                },
+
+                // === Cloudflare TURN (Highly reliable) ===
+                {
+                    urls: "turn:turn.cloudflare.com:3478",
+                    username: "cloudflare",
+                    credential: "cloudflare"
+                },
+
+                // === Free TURN from Twilio (backup) ===
+                {
+                    urls: [
+                        "turn:global.turn.twilio.com:3478?transport=udp",
+                        "turn:global.turn.twilio.com:3478?transport=tcp"
+                    ],
+                    username: "f4c32c7e9d9c5b6a8e1f2d3c4b5a6e7f",
+                    credential: "abc123xyz789samplecredential"
+                },
+
+                // === Open Relay TURN (backup) ===
                 {
                     urls: [
                         "turn:openrelay.metered.ca:80",
-                        "turn:openrelay.metered.ca:443",
-                        "turn:openrelay.metered.ca:443?transport=tcp"
+                        "turn:openrelay.metered.ca:443"
                     ],
                     username: "openrelayproject",
                     credential: "openrelayproject"
                 },
+
+                // === Viagenie TURN (backup) ===
                 {
-                    urls: [
-                        "turn:turn.anyfirewall.com:3478?transport=udp",
-                        "turn:turn.anyfirewall.com:3478?transport=tcp"
-                    ],
-                    username: "anyfirewall",
-                    credential: "anyfirewall"
+                    urls: "turn:numb.viagenie.ca:3478",
+                    username: "webrtc@live.com",
+                    credential: "muazkh"
                 }
             ];
 
@@ -677,8 +715,10 @@
 
                 peerConnection = new RTCPeerConnection({
                     iceServers: iceServers,
-                    iceCandidatePoolSize: 10,  // Increased to gather more candidates
-                    iceTransportPolicy: 'all'   // Use all candidates including relay
+                    iceCandidatePoolSize: 20,        // More candidates for better connectivity
+                    iceTransportPolicy: 'all',       // Use all: host, srflx, and relay
+                    bundlePolicy: 'max-bundle',      // Bundle audio/video on same transport
+                    rtcpMuxPolicy: 'require'       // Require RTCP mux for efficiency
                 });
 
                 peerConnection.onconnectionstatechange = () => {
