@@ -164,6 +164,11 @@ class MilestonesView extends Component
         $this->resetDeleteConfirmation();
     }
 
+    public function updatedFilterStatus()
+    {
+        $this->loadMilestones();
+    }
+
     public function render()
     {
         return view('livewire.project.milestones-view', [
