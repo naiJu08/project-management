@@ -33,6 +33,28 @@ class CalendarView extends Component
         return Project::findOrFail($this->projectId);
     }
 
+    public function previousPeriod()
+    {
+        if ($this->viewMode === 'month') {
+            $this->previousMonth();
+        } elseif ($this->viewMode === 'week') {
+            $this->previousWeek();
+        } elseif ($this->viewMode === 'day') {
+            $this->previousDay();
+        }
+    }
+
+    public function nextPeriod()
+    {
+        if ($this->viewMode === 'month') {
+            $this->nextMonth();
+        } elseif ($this->viewMode === 'week') {
+            $this->nextWeek();
+        } elseif ($this->viewMode === 'day') {
+            $this->nextDay();
+        }
+    }
+
     public function previousMonth()
     {
         if ($this->currentMonth === 1) {
@@ -53,10 +75,50 @@ class CalendarView extends Component
         }
     }
 
+    public function previousWeek()
+    {
+        if ($this->selectedDate) {
+            $date = Carbon::parse($this->selectedDate);
+            $date->subWeek();
+            $this->selectedDate = $date->toDateString();
+        }
+    }
+
+    public function nextWeek()
+    {
+        if ($this->selectedDate) {
+            $date = Carbon::parse($this->selectedDate);
+            $date->addWeek();
+            $this->selectedDate = $date->toDateString();
+        }
+    }
+
+    public function previousDay()
+    {
+        if ($this->selectedDate) {
+            $date = Carbon::parse($this->selectedDate);
+            $date->subDay();
+            $this->selectedDate = $date->toDateString();
+        }
+    }
+
+    public function nextDay()
+    {
+        if ($this->selectedDate) {
+            $date = Carbon::parse($this->selectedDate);
+            $date->addDay();
+            $this->selectedDate = $date->toDateString();
+        }
+    }
+
     public function goToToday()
     {
-        $this->currentMonth = now()->month;
-        $this->currentYear = now()->year;
+        if ($this->viewMode === 'month') {
+            $this->currentMonth = now()->month;
+            $this->currentYear = now()->year;
+        } else {
+            $this->selectedDate = now()->toDateString();
+        }
     }
 
     public function setViewMode($mode)
@@ -99,25 +161,30 @@ class CalendarView extends Component
             $dateStr = $date->toDateString();
             $events = [];
 
-            // Get tickets with due dates
+            // Get tickets that are relevant to this specific date
             $tickets = Ticket::where('project_id', $this->projectId)
-                ->whereDate('created_at', '<=', $dateStr)
-                ->get()
-                ->filter(function ($ticket) use ($dateStr) {
-                    return $ticket->created_at->toDateString() === $dateStr ||
-                           ($ticket->updated_at && $ticket->updated_at->toDateString() === $dateStr);
-                });
-
+                ->where(function ($query) use ($dateStr) {
+                    // Show tickets with start date on this day
+                    $query->whereDate('start_date', $dateStr)
+                          // Or tickets with due date on this day
+                          ->orWhereDate('due_date', $dateStr)
+                          // Or tickets created on this day (as fallback)
+                          ->orWhereDate('created_at', $dateStr);
+                })
+                ->get();
+            
+            // Only add events for tickets found for this specific date
             foreach ($tickets as $ticket) {
                 $events[] = [
                     'id' => 'ticket-' . $ticket->id,
-                    'title' => $ticket->title,
+                    'title' => $ticket->name ?? 'Untitled Ticket',
                     'type' => 'ticket',
                     'color' => 'blue',
                     'data' => $ticket
                 ];
             }
 
+            
             // Get sprints
             $sprints = Sprint::where('project_id', $this->projectId)
                 ->where(function ($query) use ($dateStr) {

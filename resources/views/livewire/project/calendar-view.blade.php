@@ -61,7 +61,7 @@
 
     {{-- Calendar Controls --}}
     <div class="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <button wire:click="previousMonth()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+        <button wire:click="previousPeriod()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
             <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
             </svg>
@@ -69,11 +69,24 @@
 
         <div class="text-center flex-1">
             <h3 class="text-xl font-bold text-gray-900 dark:text-white">
-                {{ \Carbon\Carbon::createFromDate($currentYear, $currentMonth, 1)->format('F Y') }}
+                @if($viewMode === 'month')
+                    {{ \Carbon\Carbon::createFromDate($currentYear, $currentMonth, 1)->format('F Y') }}
+                @elseif($viewMode === 'week' && $selectedDate)
+                    @php
+                        $date = \Carbon\Carbon::parse($selectedDate);
+                        $startOfWeek = $date->copy()->startOfWeek();
+                        $endOfWeek = $date->copy()->endOfWeek();
+                    @endphp
+                    Week of {{ $startOfWeek->format('M j') }} - {{ $endOfWeek->format('M j, Y') }}
+                @elseif($viewMode === 'day' && $selectedDate)
+                    {{ \Carbon\Carbon::parse($selectedDate)->format('F j, Y') }}
+                @else
+                    {{ \Carbon\Carbon::createFromDate($currentYear, $currentMonth, 1)->format('F Y') }}
+                @endif
             </h3>
         </div>
 
-        <button wire:click="nextMonth()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+        <button wire:click="nextPeriod()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
             <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
             </svg>
@@ -117,7 +130,11 @@
                         {{-- Events --}}
                         <div class="space-y-1">
                             @forelse($events as $event)
-                                <div class="text-xs p-1 rounded truncate {{ $event['type'] === 'sprint' ? 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200' : 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' }}" title="{{ $event['title'] }}">
+                                <div class="text-xs p-1 rounded truncate 
+                                    {{ $event['type'] === 'sprint' ? 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200' : 
+                                       ($event['type'] === 'test' ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' : 
+                                       'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200') }}" 
+                                     title="{{ $event['title'] }}">
                                     {{ $event['title'] }}
                                 </div>
                             @empty
