@@ -28,6 +28,8 @@ class WikiView extends Component
     public $parentId = null;
     public $showDeleteConfirm = false;
     public $pageToDelete = null;
+    public $showCommentDeleteConfirm = false;
+    public $commentToDelete = null;
     public $clientVisible = false;
     public $newComment = '';
     public $replyToCommentId = null;
@@ -273,9 +275,21 @@ class WikiView extends Component
         $this->replyToCommentId = null;
     }
 
-    public function deleteComment($commentId)
+    public function confirmDeleteComment($commentId)
     {
         $comment = \App\Models\WikiComment::find($commentId);
+        
+        if ($comment && $comment->canDelete()) {
+            $this->commentToDelete = $commentId;
+            $this->showCommentDeleteConfirm = true;
+        } else {
+            session()->flash('error', 'You cannot delete this comment.');
+        }
+    }
+
+    public function deleteComment()
+    {
+        $comment = \App\Models\WikiComment::find($this->commentToDelete);
         
         if ($comment && $comment->canDelete()) {
             $comment->delete();
@@ -284,6 +298,15 @@ class WikiView extends Component
         } else {
             session()->flash('error', 'You cannot delete this comment.');
         }
+
+        $this->showCommentDeleteConfirm = false;
+        $this->commentToDelete = null;
+    }
+
+    public function cancelDeleteComment()
+    {
+        $this->showCommentDeleteConfirm = false;
+        $this->commentToDelete = null;
     }
 
     public function signOffPage()
