@@ -82,18 +82,27 @@ class SprintView extends Component
 
     public function loadSprints()
     {
-        $query = $this->project->sprints();
-
-        if ($this->filterStatus !== 'all') {
-            $query->where('status', $this->filterStatus);
+        $allSprints = $this->project->sprints()->with(['backlogItems'])->orderBy('starts_at', 'desc')->get();
+        
+        if ($this->filterStatus === 'all') {
+            $this->sprints = $allSprints;
+        } else {
+            $statusCalculator = $this->getSprintStatusProperty();
+            $this->sprints = $allSprints->filter(function ($sprint) use ($statusCalculator) {
+                return $statusCalculator($sprint) === $this->filterStatus;
+            })->values();
         }
-
-        $this->sprints = $query->with(['backlogItems'])->orderBy('starts_at', 'desc')->get();
     }
 
     public function getSprintStatusProperty()
     {
         return function ($sprint) {
+            // If sprint has a manually set status, use it
+            if ($sprint->status && in_array($sprint->status, ['upcoming', 'active', 'completed'])) {
+                return $sprint->status;
+            }
+            
+            // Fall back to date-based calculation
             $now = now()->toDateString();
             if ($sprint->ends_at < $now) {
                 return 'completed';
@@ -151,6 +160,8 @@ class SprintView extends Component
             'status' => $this->sprintStatus,
         ]);
 
+        // Set filter to show the newly created sprint in its correct status tab
+        $this->filterStatus = $this->sprintStatus;
         $this->resetForm();
         $this->loadSprints();
         session()->flash('success', 'Sprint created successfully!');
