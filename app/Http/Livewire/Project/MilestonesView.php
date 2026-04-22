@@ -14,6 +14,8 @@ class MilestonesView extends Component
     public $showForm = false;
     public $editingMilestoneId = null;
     public $filterStatus = 'all';
+    public $showDeleteConfirm = false;
+    public $milestoneToDelete = null;
 
     // Form fields
     public $name = '';
@@ -32,9 +34,16 @@ class MilestonesView extends Component
         'releaseNotes' => 'nullable|string|max:5000',
     ];
 
+    // Ensure these properties are excluded from validation and don't cause hydration issues
+    protected $except = [
+        'showDeleteConfirm',
+        'milestoneToDelete',
+    ];
+
     public function mount($projectId)
     {
         $this->projectId = $projectId;
+        $this->targetDate = now()->toDateString();
         $this->loadMilestones();
     }
 
@@ -113,23 +122,46 @@ class MilestonesView extends Component
         session()->flash('success', 'Milestone updated successfully!');
     }
 
-    public function deleteMilestone($milestoneId)
+    public function confirmDeleteMilestone($milestoneId)
     {
-        Milestone::find($milestoneId)->delete();
+        $this->milestoneToDelete = $milestoneId;
+        $this->showDeleteConfirm = true;
+    }
+
+    public function deleteMilestone()
+    {
+        Milestone::find($this->milestoneToDelete)->delete();
         $this->loadMilestones();
         session()->flash('success', 'Milestone deleted successfully!');
+
+        $this->showDeleteConfirm = false;
+        $this->milestoneToDelete = null;
+    }
+
+    public function cancelDeleteMilestone()
+    {
+        $this->showDeleteConfirm = false;
+        $this->milestoneToDelete = null;
+    }
+
+    // Reset delete confirmation properties when form is reset
+    protected function resetDeleteConfirmation()
+    {
+        $this->showDeleteConfirm = false;
+        $this->milestoneToDelete = null;
     }
 
     public function resetForm()
     {
         $this->name = '';
         $this->description = '';
-        $this->targetDate = '';
+        $this->targetDate = now()->toDateString();
         $this->status = 'planned';
         $this->version = 1;
         $this->releaseNotes = '';
         $this->showForm = false;
         $this->editingMilestoneId = null;
+        $this->resetDeleteConfirmation();
     }
 
     public function render()
