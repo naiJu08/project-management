@@ -150,7 +150,7 @@
                         <button wire:click.stop="showEdit({{ $sprint->id }})" class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">
                             Edit
                         </button>
-                        <button wire:click.stop="deleteSprint({{ $sprint->id }})" onclick="return confirm('Are you sure?')" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors">
+                        <button onclick="if(confirm('Are you sure?')) { @this.call('deleteSprint', {{ $sprint->id }}) }" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors">
                             Delete
                         </button>
                     </div>
