@@ -31,6 +31,12 @@ class ChatView extends Component
         'attachedImage' => 'nullable|image|max:5120',
     ];
 
+    protected $messages = [
+        'attachedImage.max' => 'The attached image must not be larger than 5 MB.',
+        'attachedFile.max' => 'The attached file must not be larger than 10 MB.',
+        'attachedImage.image' => 'The attached file must be an image.',
+    ];
+
     public function mount($projectId)
     {
         $this->projectId = $projectId;
@@ -59,6 +65,16 @@ class ChatView extends Component
             session()->flash('error', 'Please enter a message or attach a file/image');
             return;
         }
+
+        // Validate attachments with custom messages
+        $this->validate([
+            'attachedImage' => 'nullable|image|max:5120',
+            'attachedFile' => 'nullable|file|max:10240',
+        ], [
+            'attachedImage.max' => 'The attached image must not be larger than 5 MB.',
+            'attachedFile.max' => 'The attached file must not be larger than 10 MB.',
+            'attachedImage.image' => 'The attached file must be an image.',
+        ]);
 
         $messageText = $this->newMessage;
         $attachments = [];
