@@ -22,6 +22,8 @@ class ChatView extends Component
     public $searchQuery = '';
     public $attachedFile = null;
     public $attachedImage = null;
+    public $showDeleteConfirm = false;
+    public $messageToDelete = null;
 
     protected $rules = [
         'newMessage' => 'nullable|string|max:5000',
@@ -143,7 +145,7 @@ class ChatView extends Component
         $this->editingText = '';
     }
 
-    public function deleteMessage($messageId)
+    public function confirmDeleteMessage($messageId)
     {
         $message = ProjectChat::find($messageId);
         
@@ -152,8 +154,31 @@ class ChatView extends Component
             return;
         }
 
+        $this->messageToDelete = $messageId;
+        $this->showDeleteConfirm = true;
+    }
+
+    public function deleteMessage()
+    {
+        $message = ProjectChat::find($this->messageToDelete);
+        
+        if ($message->user_id !== Auth::id()) {
+            session()->flash('error', 'You can only delete your own messages');
+            return;
+        }
+
         $message->delete();
         $this->loadMessages();
+        session()->flash('success', 'Message deleted successfully!');
+
+        $this->showDeleteConfirm = false;
+        $this->messageToDelete = null;
+    }
+
+    public function cancelDeleteMessage()
+    {
+        $this->showDeleteConfirm = false;
+        $this->messageToDelete = null;
     }
 
     public function search()
