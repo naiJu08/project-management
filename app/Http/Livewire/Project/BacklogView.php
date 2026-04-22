@@ -67,6 +67,10 @@ class BacklogView extends Component
     public $bulkSprintId = null;
     public $showBulkPanel = false;
     
+    // Delete confirmation
+    public $showDeleteConfirm = false;
+    public $itemToDelete = null;
+    
     protected $listeners = [
         'itemMoved' => 'handleItemMoved',
         'refreshBacklog' => 'loadData',
@@ -491,20 +495,40 @@ class BacklogView extends Component
     }
 
     // Delete functionality
-    public function deleteItem($itemId)
+    public function confirmDeleteItem($itemId)
     {
         $item = BacklogItem::find($itemId);
         if (!$item || $item->project_id !== $this->projectId) {
             return;
         }
         
+        $this->itemToDelete = $itemId;
+        $this->showDeleteConfirm = true;
+    }
+    
+    public function deleteItem()
+    {
+        $item = BacklogItem::find($this->itemToDelete);
+        if (!$item || $item->project_id !== $this->projectId) {
+            return;
+        }
+        
         $item->delete();
         
-        if ($this->selectedItemId === $itemId) {
+        if ($this->selectedItemId === $this->itemToDelete) {
             $this->selectedItemId = null;
         }
         
         session()->flash('success', 'Item deleted successfully!');
+        
+        $this->showDeleteConfirm = false;
+        $this->itemToDelete = null;
+    }
+    
+    public function cancelDeleteItem()
+    {
+        $this->showDeleteConfirm = false;
+        $this->itemToDelete = null;
     }
 
     // Comment functionality
