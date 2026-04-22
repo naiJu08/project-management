@@ -200,7 +200,22 @@
             </div>
 
             <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Hours Distribution</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Hours Distribution</h3>
+                    @if($overviewStats['total_hours'] > 0)
+                        <button 
+                            wire:click="$toggle('showHoursDetails')" 
+                            class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
+                            aria-expanded="{{ $showHoursDetails ?? 'false' }}"
+                        >
+                            <span>Details</span>
+                            <svg class="w-4 h-4 transition-transform {{ $showHoursDetails ?? false ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                    @endif
+                </div>
+                
                 <div class="space-y-3">
                     @if($overviewStats['total_hours'] > 0)
                         <div>
@@ -234,6 +249,92 @@
                         </div>
                     @endif
                 </div>
+
+                {{-- Detailed Breakdown Section --}}
+                @if($showHoursDetails && $overviewStats['total_hours'] > 0)
+                    <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 space-y-6">
+                        {{-- Team Member Breakdown --}}
+                        <div>
+                            <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 8.646 4 4 0 010-8.646M12 14.5a8 8 0 100 3.5"></path>
+                                </svg>
+                                By Team Member
+                            </h4>
+                            <div class="space-y-2">
+                                @forelse($hoursDistributionDetails['by_team_member']->take(5) as $member)
+                                    <div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                        <div class="flex-1">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $member['name'] }}</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                                {{ $member['billable_hours'] }}h billable / {{ $member['non_billable_hours'] }}h non-billable
+                                            </p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ $member['total_hours'] }}h</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ $member['billable_percentage'] }}% billable</p>
+                                        </div>
+                                    </div>
+                                @empty
+                                    <p class="text-sm text-gray-500 dark:text-gray-400 italic">No team member data available</p>
+                                @endforelse
+                            </div>
+                        </div>
+
+                        {{-- Category Breakdown --}}
+                        <div>
+                            <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                                </svg>
+                                By Category
+                            </h4>
+                            <div class="space-y-2">
+                                @forelse($hoursDistributionDetails['by_category'] as $category => $data)
+                                    <div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                        <div class="flex-1">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ ucfirst($category ?: 'Uncategorized') }}</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                                {{ $data['billable_hours'] }}h billable / {{ $data['non_billable_hours'] }}h non-billable
+                                            </p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ $data['total_hours'] }}h</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ $data['billable_percentage'] }}% billable</p>
+                                        </div>
+                                    </div>
+                                @empty
+                                    <p class="text-sm text-gray-500 dark:text-gray-400 italic">No category data available</p>
+                                @endforelse
+                            </div>
+                        </div>
+
+                        {{-- Daily Trend --}}
+                        @if($hoursDistributionDetails['by_date']->count() > 1)
+                            <div>
+                                <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                    </svg>
+                                    Recent Daily Trend
+                                </h4>
+                                <div class="space-y-1 max-h-32 overflow-y-auto">
+                                    @foreach($hoursDistributionDetails['by_date']->take(-7)->reverse() as $date => $data)
+                                        <div class="flex items-center justify-between text-xs">
+                                            <span class="text-gray-600 dark:text-gray-400">{{ \Carbon\Carbon::parse($date)->format('M j') }}</span>
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-green-600 dark:text-green-400">{{ $data['billable_hours'] }}h</span>
+                                                <span class="text-gray-400">/</span>
+                                                <span class="text-orange-600 dark:text-orange-400">{{ $data['non_billable_hours'] }}h</span>
+                                                <span class="text-gray-500 dark:text-gray-400">({{ $data['total_hours'] }}h total)</span>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                @endif
             </div>
         </div>
     @endif

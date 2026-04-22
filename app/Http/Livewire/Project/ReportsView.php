@@ -16,6 +16,7 @@ class ReportsView extends Component
     public $dateRange = '30'; // days
     public $startDate = '';
     public $endDate = '';
+    public $showHoursDetails = false;
 
     protected $reportTypes = [
         'overview' => 'Project Overview',
@@ -59,11 +60,12 @@ class ReportsView extends Component
         // Get time logs with fallback for date range issues
         $timeLogs = TimeLog::forProject($this->projectId)
             ->dateRange($this->startDate, $this->endDate)
+            ->with('user')
             ->get();
         
         // If no time logs in date range, try getting all time logs for this project
         if ($timeLogs->isEmpty()) {
-            $allTimeLogs = TimeLog::forProject($this->projectId)->get();
+            $allTimeLogs = TimeLog::forProject($this->projectId)->with('user')->get();
             if ($allTimeLogs->isNotEmpty()) {
                 $timeLogs = $allTimeLogs;
             }
@@ -90,6 +92,62 @@ class ReportsView extends Component
             'total_hours' => round($totalHours, 2),
             'billable_hours' => round($billableHours, 2),
             'team_members' => $teamMembersCount,
+        ];
+    }
+
+    public function getHoursDistributionDetailsProperty()
+    {
+        $timeLogs = TimeLog::forProject($this->projectId)
+            ->dateRange($this->startDate, $this->endDate)
+            ->with('user')
+            ->get();
+
+        // If no time logs in date range, try getting all time logs for this project
+        if ($timeLogs->isEmpty()) {
+            $allTimeLogs = TimeLog::forProject($this->projectId)->with('user')->get();
+            if ($allTimeLogs->isNotEmpty()) {
+                $timeLogs = $allTimeLogs;
+            }
+        }
+
+        // Detailed breakdown by team member
+        $byTeamMember = $timeLogs->groupBy('user_id')->map(function($group) {
+            $user = $group->first()->user;
+            return [
+                'name' => $user ? $user->name : 'Unknown',
+                'total_hours' => round($group->sum('hours'), 2),
+                'billable_hours' => round($group->where('is_billable', true)->sum('hours'), 2),
+                'non_billable_hours' => round($group->where('is_billable', false)->sum('hours'), 2),
+                'billable_percentage' => $group->sum('hours') > 0 ? round(($group->where('is_billable', true)->sum('hours') / $group->sum('hours')) * 100) : 0,
+            ];
+        })->sortByDesc('total_hours');
+
+        // Detailed breakdown by category
+        $byCategory = $timeLogs->groupBy('category')->map(function($group) {
+            return [
+                'total_hours' => round($group->sum('hours'), 2),
+                'billable_hours' => round($group->where('is_billable', true)->sum('hours'), 2),
+                'non_billable_hours' => round($group->where('is_billable', false)->sum('hours'), 2),
+                'billable_percentage' => $group->sum('hours') > 0 ? round(($group->where('is_billable', true)->sum('hours') / $group->sum('hours')) * 100) : 0,
+            ];
+        })->sortByDesc('total_hours');
+
+        // Daily breakdown for trend analysis
+        $byDate = $timeLogs->groupBy('logged_date')->map(function($group) {
+            return [
+                'total_hours' => round($group->sum('hours'), 2),
+                'billable_hours' => round($group->where('is_billable', true)->sum('hours'), 2),
+                'non_billable_hours' => round($group->where('is_billable', false)->sum('hours'), 2),
+            ];
+        })->sortKeys();
+
+        return [
+            'by_team_member' => $byTeamMember,
+            'by_category' => $byCategory,
+            'by_date' => $byDate,
+            'total_hours' => round($timeLogs->sum('hours'), 2),
+            'billable_hours' => round($timeLogs->where('is_billable', true)->sum('hours'), 2),
+            'non_billable_hours' => round($timeLogs->where('is_billable', false)->sum('hours'), 2),
         ];
     }
 
@@ -227,6 +285,7 @@ class ReportsView extends Component
             'hoursStats' => $this->getHoursStatsProperty(),
             'teamStats' => $this->getTeamStatsProperty(),
             'sprintStats' => $this->getSprintStatsProperty(),
+            'hoursDistributionDetails' => $this->getHoursDistributionDetailsProperty(),
         ]);
     }
 }
