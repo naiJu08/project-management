@@ -73,6 +73,52 @@ class BacklogItem extends Model
             }
         });
 
+        static::created(function ($item) {
+            // Log creation
+            BacklogItemHistory::create([
+                'backlog_item_id' => $item->id,
+                'user_id' => $item->created_by ?? auth()->id(),
+                'action' => 'created',
+                'new_value' => ['title' => $item->title],
+            ]);
+        });
+
+        static::updated(function ($item) {
+            // Track changes for history
+            $original = $item->getOriginal();
+            $changes = [];
+            
+            $trackableFields = [
+                'title', 'description', 'status', 'priority', 'assignee_id',
+                'sprint_id', 'estimated_hours', 'start_date', 'due_date'
+            ];
+            
+            foreach ($trackableFields as $field) {
+                if ($item->isDirty($field)) {
+                    $oldValue = $original[$field] ?? null;
+                    $newValue = $item->$field;
+                    if ($oldValue != $newValue) {
+                        $changes[$field] = [
+                            'old' => $oldValue,
+                            'new' => $newValue,
+                        ];
+                    }
+                }
+            }
+            
+            // Log changes
+            foreach ($changes as $field => $change) {
+                BacklogItemHistory::create([
+                    'backlog_item_id' => $item->id,
+                    'user_id' => $item->updated_by ?? auth()->id(),
+                    'field' => $field,
+                    'old_value' => [$field => $change['old']],
+                    'new_value' => [$field => $change['new']],
+                    'action' => 'updated',
+                ]);
+            }
+        });
+
         static::saving(function ($item) {
             if ($item->start_date && $item->due_date && $item->due_date < $item->start_date) {
                 throw ValidationException::withMessages([
@@ -82,6 +128,14 @@ class BacklogItem extends Model
         });
 
         static::deleting(function ($item) {
+            // Log deletion
+            BacklogItemHistory::create([
+                'backlog_item_id' => $item->id,
+                'user_id' => auth()->id(),
+                'action' => 'deleted',
+                'old_value' => ['title' => $item->title],
+            ]);
+            
             // Delete all children recursively
             $item->children()->each(function ($child) {
                 $child->delete();
