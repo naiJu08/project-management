@@ -28,7 +28,7 @@ class OverviewView extends Component
         // Calculate completion percentage
         $totalTickets = $tickets->count();
         $completedTickets = $tickets->filter(function($ticket) {
-            return $ticket->status && (stripos($ticket->status->name, 'done') !== false || stripos($ticket->status->name, 'closed') !== false);
+            return $ticket->status && (stripos($ticket->status->name, 'Done') !== false || stripos($ticket->status->name, 'Archived') !== false);
         })->count();
         
         $completionPercentage = $totalTickets > 0 ? round(($completedTickets / $totalTickets) * 100) : 0;

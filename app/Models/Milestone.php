@@ -65,7 +65,7 @@ class Milestone extends Model
             return 0;
         }
 
-        $completed = $tickets->where('status.name', 'Completed')->count();
+        $completed = $tickets->where('status.name', 'Done')->count();
         return round(($completed / $tickets->count()) * 100);
     }
 

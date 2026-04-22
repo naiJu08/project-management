@@ -51,13 +51,66 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date Range</label>
-                <div class="flex gap-2">
-                    <button wire:click="setDateRange(7)" class="px-3 py-2 text-sm {{ $dateRange === '7' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300' }} rounded-lg transition-colors">7d</button>
-                    <button wire:click="setDateRange(30)" class="px-3 py-2 text-sm {{ $dateRange === '30' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300' }} rounded-lg transition-colors">30d</button>
-                    <button wire:click="setDateRange(90)" class="px-3 py-2 text-sm {{ $dateRange === '90' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300' }} rounded-lg transition-colors">90d</button>
-                    <button wire:click="setDateRange(365)" class="px-3 py-2 text-sm {{ $dateRange === '365' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300' }} rounded-lg transition-colors">1y</button>
+                <label for="date-range" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date Range</label>
+                <div class="flex gap-2" role="group" aria-label="Date range selection">
+                    <button 
+                        wire:click="setDateRange(7)" 
+                        type="button"
+                        role="button"
+                        aria-pressed="{{ $dateRange === '7' ? 'true' : 'false' }}"
+                        aria-label="Last 7 days"
+                        tabindex="0"
+                        class="px-3 py-2 text-sm {{ $dateRange === '7' ? 'bg-blue-600 text-white ring-2 ring-blue-600 ring-offset-2' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }} rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        @keydown.enter="$wire.call('setDateRange', 7)"
+                        @keydown.space.prevent="$wire.call('setDateRange', 7)"
+                    >
+                        7d
+                    </button>
+                    <button 
+                        wire:click="setDateRange(30)" 
+                        type="button"
+                        role="button"
+                        aria-pressed="{{ $dateRange === '30' ? 'true' : 'false' }}"
+                        aria-label="Last 30 days"
+                        tabindex="0"
+                        class="px-3 py-2 text-sm {{ $dateRange === '30' ? 'bg-blue-600 text-white ring-2 ring-blue-600 ring-offset-2' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }} rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        @keydown.enter="$wire.call('setDateRange', 30)"
+                        @keydown.space.prevent="$wire.call('setDateRange', 30)"
+                    >
+                        30d
+                    </button>
+                    <button 
+                        wire:click="setDateRange(90)" 
+                        type="button"
+                        role="button"
+                        aria-pressed="{{ $dateRange === '90' ? 'true' : 'false' }}"
+                        aria-label="Last 90 days"
+                        tabindex="0"
+                        class="px-3 py-2 text-sm {{ $dateRange === '90' ? 'bg-blue-600 text-white ring-2 ring-blue-600 ring-offset-2' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }} rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        @keydown.enter="$wire.call('setDateRange', 90)"
+                        @keydown.space.prevent="$wire.call('setDateRange', 90)"
+                    >
+                        90d
+                    </button>
+                    <button 
+                        wire:click="setDateRange(365)" 
+                        type="button"
+                        role="button"
+                        aria-pressed="{{ $dateRange === '365' ? 'true' : 'false' }}"
+                        aria-label="Last 365 days"
+                        tabindex="0"
+                        class="px-3 py-2 text-sm {{ $dateRange === '365' ? 'bg-blue-600 text-white ring-2 ring-blue-600 ring-offset-2' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }} rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        @keydown.enter="$wire.call('setDateRange', 365)"
+                        @keydown.space.prevent="$wire.call('setDateRange', 365)"
+                    >
+                        1y
+                    </button>
                 </div>
+                @if($startDate && $endDate)
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" aria-live="polite">
+                        Showing data from {{ \Carbon\Carbon::parse($startDate)->format('M j, Y') }} to {{ \Carbon\Carbon::parse($endDate)->format('M j, Y') }}
+                    </p>
+                @endif
             </div>
         </div>
     </div>
@@ -94,8 +147,16 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-600 dark:text-gray-400">Total Hours</p>
-                        <p class="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{{ $overviewStats['total_hours'] }}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Billable: {{ $overviewStats['billable_hours'] }}</p>
+                        <p class="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">
+                            {{ $overviewStats['total_hours'] > 0 ? number_format($overviewStats['total_hours'], 1) : '0' }}
+                        </p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            @if($overviewStats['total_hours'] > 0)
+                                Billable: {{ number_format($overviewStats['billable_hours'], 1) }}
+                            @else
+                                No hours logged
+                            @endif
+                        </p>
                     </div>
                     <svg class="w-12 h-12 text-blue-500 opacity-20" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -108,7 +169,13 @@
                     <div>
                         <p class="text-sm text-gray-600 dark:text-gray-400">Team Members</p>
                         <p class="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-2">{{ $overviewStats['team_members'] }}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Active</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            @if($overviewStats['team_members'] > 0)
+                                {{ $overviewStats['team_members'] }} member{{ $overviewStats['team_members'] > 1 ? 's' : '' }}
+                            @else
+                                No members assigned
+                            @endif
+                        </p>
                     </div>
                     <svg class="w-12 h-12 text-purple-500 opacity-20" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M12 4.354a4 4 0 110 8.646 4 4 0 010-8.646M12 14.5a8 8 0 100 3.5"></path>
@@ -135,15 +202,37 @@
             <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Hours Distribution</h3>
                 <div class="space-y-3">
-                    <div>
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-sm text-gray-600 dark:text-gray-400">Billable</span>
-                            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ $overviewStats['total_hours'] > 0 ? round(($overviewStats['billable_hours'] / $overviewStats['total_hours']) * 100) : 0 }}%</span>
+                    @if($overviewStats['total_hours'] > 0)
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-sm text-gray-600 dark:text-gray-400">Billable</span>
+                                <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ round(($overviewStats['billable_hours'] / $overviewStats['total_hours']) * 100) }}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div class="bg-green-500 h-2 rounded-full transition-all duration-300" style="width: {{ round(($overviewStats['billable_hours'] / $overviewStats['total_hours']) * 100) }}%"></div>
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {{ $overviewStats['billable_hours'] }} of {{ $overviewStats['total_hours'] }} hours
+                            </p>
                         </div>
-                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                            <div class="bg-green-500 h-2 rounded-full" style="width: {{ $overviewStats['total_hours'] > 0 ? round(($overviewStats['billable_hours'] / $overviewStats['total_hours']) * 100) : 0 }}%"></div>
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-sm text-gray-600 dark:text-gray-400">Non-Billable</span>
+                                <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ round((($overviewStats['total_hours'] - $overviewStats['billable_hours']) / $overviewStats['total_hours']) * 100) }}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div class="bg-orange-500 h-2 rounded-full transition-all duration-300" style="width: {{ round((($overviewStats['total_hours'] - $overviewStats['billable_hours']) / $overviewStats['total_hours']) * 100) }}%"></div>
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {{ round($overviewStats['total_hours'] - $overviewStats['billable_hours'], 2) }} of {{ $overviewStats['total_hours'] }} hours
+                            </p>
                         </div>
-                    </div>
+                    @else
+                        <div class="text-center py-4">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">No hours logged in the selected period</p>
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Try adjusting the date range or log some time entries</p>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>

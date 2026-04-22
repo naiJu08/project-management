@@ -112,7 +112,7 @@ class GanttView extends Component
 
     public function getTicketProgress($ticket)
     {
-        if ($ticket->status->name === 'Completed' || $ticket->status->name === 'Closed') {
+        if ($ticket->status->name === 'Done' || $ticket->status->name === 'Archived') {
             return 100;
         } elseif ($ticket->status->name === 'In Progress') {
             return 50;

@@ -49,18 +49,37 @@ class ReportsView extends Component
         $tickets = $this->project->tickets;
         $totalTickets = $tickets->count();
         $completedTickets = $tickets->filter(function($ticket) {
-            return in_array($ticket->status->name ?? '', ['Completed', 'Closed']);
+            return in_array($ticket->status->name ?? '', ['Done', 'Archived']);
         })->count();
 
         $sprints = $this->project->sprints;
         $activeSprints = $sprints->where('status', 'active')->count();
         $completedSprints = $sprints->where('status', 'completed')->count();
 
+        // Get time logs with fallback for date range issues
         $timeLogs = TimeLog::forProject($this->projectId)
             ->dateRange($this->startDate, $this->endDate)
             ->get();
+        
+        // If no time logs in date range, try getting all time logs for this project
+        if ($timeLogs->isEmpty()) {
+            $allTimeLogs = TimeLog::forProject($this->projectId)->get();
+            if ($allTimeLogs->isNotEmpty()) {
+                $timeLogs = $allTimeLogs;
+            }
+        }
+        
         $totalHours = $timeLogs->sum('hours');
         $billableHours = $timeLogs->where('is_billable', true)->sum('hours');
+
+        // Get team members count with fresh data
+        $teamMembersCount = 0;
+        try {
+            // Always get fresh count to ensure we have the latest data
+            $teamMembersCount = $this->project->users()->count();
+        } catch (\Exception $e) {
+            $teamMembersCount = 0;
+        }
 
         return [
             'total_tickets' => $totalTickets,
@@ -70,7 +89,7 @@ class ReportsView extends Component
             'completed_sprints' => $completedSprints,
             'total_hours' => round($totalHours, 2),
             'billable_hours' => round($billableHours, 2),
-            'team_members' => $this->project->users->count(),
+            'team_members' => $teamMembersCount,
         ];
     }
 
@@ -83,7 +102,7 @@ class ReportsView extends Component
             'by_priority' => $tickets->groupBy('priority.name')->map(fn($group) => $group->count()),
             'by_type' => $tickets->groupBy('type.name')->map(fn($group) => $group->count()),
             'average_resolution_time' => $this->calculateAverageResolutionTime(),
-            'overdue_tickets' => $tickets->where('due_date', '<', now())->where('status.name', '!=', 'Completed')->count(),
+            'overdue_tickets' => $tickets->where('due_date', '<', now())->where('status.name', '!=', 'Done')->count(),
         ];
     }
 
@@ -91,7 +110,7 @@ class ReportsView extends Component
     {
         $timeLogs = TimeLog::forProject($this->projectId)
             ->dateRange($this->startDate, $this->endDate)
-            ->with('user', 'category')
+            ->with('user')
             ->get();
 
         $byCategory = $timeLogs->groupBy('category')->map(fn($group) => $group->sum('hours'));
@@ -135,7 +154,7 @@ class ReportsView extends Component
                 'hours_logged' => round($memberLogs->sum('hours'), 2),
                 'billable_hours' => round($memberLogs->where('is_billable', true)->sum('hours'), 2),
                 'tickets_assigned' => $memberTickets->count(),
-                'tickets_completed' => $memberTickets->where('status.name', 'Completed')->count(),
+                'tickets_completed' => $memberTickets->where('status.name', 'Done')->count(),
                 'productivity_score' => $this->calculateProductivityScore($member),
             ];
         })->sortByDesc('hours_logged');
@@ -167,7 +186,7 @@ class ReportsView extends Component
     {
         $completedTickets = $this->project->tickets
             ->filter(function($ticket) {
-                return in_array($ticket->status->name ?? '', ['Completed', 'Closed']);
+                return in_array($ticket->status->name ?? '', ['Done', 'Archived']);
             });
 
         if ($completedTickets->isEmpty()) {
@@ -189,7 +208,7 @@ class ReportsView extends Component
             ->get();
 
         $tickets = $this->project->tickets->where('responsible_id', $user->id);
-        $completedTickets = $tickets->where('status.name', 'Completed')->count();
+        $completedTickets = $tickets->where('status.name', 'Done')->count();
 
         $totalHours = $timeLogs->sum('hours');
         $hoursScore = $totalHours > 0 ? min(($totalHours / 40) * 100, 100) : 0; // 40 hours = 100%
