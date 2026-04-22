@@ -128,11 +128,16 @@
                 $completedCount = $sprint->backlogItems()->where('status', 'Done')->count();
                 $completionPercent = $itemCount > 0 ? round(($completedCount / $itemCount) * 100) : 0;
             @endphp
-            <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow cursor-pointer">
+            <div class="bg-white dark:bg-gray-800 rounded-lg border {{ $selectedSprintId === $sprint->id ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800' : 'border-gray-200 dark:border-gray-700' }} p-6 hover:shadow-lg transition-shadow cursor-pointer">
                 <div class="flex items-start justify-between mb-4">
                     <div class="flex-1 cursor-pointer"
                          wire:click="selectSprint({{ $sprint->id }})">
                         <div class="flex items-center gap-3 mb-2">
+                            @if($selectedSprintId === $sprint->id)
+                                <svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                            @endif
                             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ $sprint->name }}</h3>
                             <span class="px-2 py-1 text-xs font-medium rounded-full" style="background-color: {{ $statusColor === 'green' ? '#dcfce7' : ($statusColor === 'purple' ? '#f3e8ff' : '#fef3c7') }}; color: {{ $statusColor === 'green' ? '#166534' : ($statusColor === 'purple' ? '#581c87' : '#92400e') }}">
                                 {{ ucfirst($status) }}
@@ -210,6 +215,49 @@
             </div>
         @endforelse
     </div>
+
+    {{-- Selected Sprint Details --}}
+    @if($selectedSprintId)
+        @php
+            $selectedSprint = $sprints->where('id', $selectedSprintId)->first();
+        @endphp
+        @if($selectedSprint)
+            <div class="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-6 mt-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-blue-900 dark:text-blue-100">Selected Sprint Details</h3>
+                    <button wire:click="selectSprint(null)" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-blue-700 dark:text-blue-300 font-medium">Sprint Name</p>
+                        <p class="text-blue-900 dark:text-blue-100">{{ $selectedSprint->name }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-blue-700 dark:text-blue-300 font-medium">Status</p>
+                        <p class="text-blue-900 dark:text-blue-100">{{ ucfirst(($this->getSprintStatusProperty())($selectedSprint)) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-blue-700 dark:text-blue-300 font-medium">Duration</p>
+                        <p class="text-blue-900 dark:text-blue-100">{{ $selectedSprint->starts_at->format('M d, Y') }} - {{ $selectedSprint->ends_at->format('M d, Y') }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-blue-700 dark:text-blue-300 font-medium">Backlog Items</p>
+                        <p class="text-blue-900 dark:text-blue-100">{{ $selectedSprint->backlogItems()->count() }} items</p>
+                    </div>
+                </div>
+                @if($selectedSprint->goal)
+                    <div class="mt-4">
+                        <p class="text-sm text-blue-700 dark:text-blue-300 font-medium">Goal</p>
+                        <p class="text-blue-900 dark:text-blue-100">{{ $selectedSprint->goal }}</p>
+                    </div>
+                @endif
+            </div>
+        @endif
+    @endif
 
     {{-- Sprint Delete Confirmation Modal --}}
     @if($showDeleteConfirm)
