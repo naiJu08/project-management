@@ -71,6 +71,8 @@ class CalendarView extends Component
     public function selectDate($date)
     {
         $this->selectedDate = $date;
+        // Automatically switch to day view when a date is selected
+        $this->viewMode = 'day';
     }
 
     public function getCalendarDaysProperty()
