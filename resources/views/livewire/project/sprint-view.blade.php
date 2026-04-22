@@ -73,9 +73,19 @@
                         @error('sprintName') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sprint Goal</label>
-                        <input type="text" wire:model="sprintGoal" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="e.g., Implement user login and registration">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
+                        <select wire:model="sprintStatus" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <option value="upcoming">Upcoming</option>
+                            <option value="active">Active</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                        @error('sprintStatus') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
                     </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sprint Goal</label>
+                    <input type="text" wire:model="sprintGoal" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="e.g., Implement user login and registration">
                 </div>
 
                 <div>
@@ -150,7 +160,7 @@
                         <button wire:click.stop="showEdit({{ $sprint->id }})" class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">
                             Edit
                         </button>
-                        <button onclick="if(confirm('Are you sure?')) { @this.call('deleteSprint', {{ $sprint->id }}) }" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors">
+                        <button wire:click.stop="confirmDeleteSprint({{ $sprint->id }})" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors">
                             Delete
                         </button>
                     </div>
@@ -200,4 +210,40 @@
             </div>
         @endforelse
     </div>
+
+    {{-- Sprint Delete Confirmation Modal --}}
+    @if($showDeleteConfirm)
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+                <div class="flex items-center mb-4">
+                    <div class="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Delete Sprint</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Are you sure you want to delete this sprint?</p>
+                    </div>
+                </div>
+                
+                <div class="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-md p-3 mb-4">
+                    <p class="text-sm text-yellow-800 dark:text-yellow-200">
+                        <strong>Warning:</strong> All items in this sprint will be moved back to the backlog. This action cannot be undone.
+                    </p>
+                </div>
+
+                <div class="flex justify-end space-x-3">
+                    <button wire:click="cancelDeleteSprint" 
+                            class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        Cancel
+                    </button>
+                    <button wire:click="deleteSprint" 
+                            class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
+                        Delete Sprint
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>
