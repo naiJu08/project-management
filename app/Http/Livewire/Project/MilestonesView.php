@@ -34,6 +34,26 @@ class MilestonesView extends Component
         'releaseNotes' => 'nullable|string|max:5000',
     ];
 
+    protected function rules()
+    {
+        $rules = $this->rules;
+        
+        // Add conditional validation for completed milestones
+        if ($this->status === 'completed') {
+            $rules['targetDate'] = 'required|date|before_or_equal:today';
+        }
+        
+        return $rules;
+    }
+
+    protected function messages()
+    {
+        return [
+            'targetDate.before_or_equal' => 'The target date must be today or in the past when the milestone status is completed.',
+            'targetDate.after_or_equal' => 'The target date must be today or in the future.',
+        ];
+    }
+
     // Ensure these properties are excluded from validation and don't cause hydration issues
     protected $except = [
         'showDeleteConfirm',
