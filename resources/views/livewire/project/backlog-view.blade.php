@@ -772,6 +772,8 @@
 function backlogDragDrop() {
     return {
         sortableInstances: [],
+        _livewireHookCleanup: null,
+        _visibilityHandler: null,
         
         init() {
             // Wait for Livewire to finish rendering
@@ -781,13 +783,39 @@ function backlogDragDrop() {
                 }, 100);
             });
             
-            // Reinitialize after Livewire updates
-            Livewire.hook('message.processed', () => {
+            // Reinitialize after Livewire updates — store cleanup to avoid duplicate hooks
+            const livewireHandler = () => {
                 setTimeout(() => {
                     this.destroyAllInstances();
                     this.initializeSortable();
                 }, 100);
-            });
+            };
+            if (typeof Livewire.hook === 'function') {
+                this._livewireHookCleanup = Livewire.hook('message.processed', livewireHandler);
+            }
+            
+            // Reinitialize when user returns to this browser tab
+            this._visibilityHandler = () => {
+                if (document.visibilityState === 'visible') {
+                    setTimeout(() => {
+                        this.destroyAllInstances();
+                        this.initializeSortable();
+                    }, 150);
+                }
+            };
+            document.addEventListener('visibilitychange', this._visibilityHandler);
+        },
+        
+        destroy() {
+            // Clean up Livewire hook to prevent duplicates on re-mount
+            if (typeof this._livewireHookCleanup === 'function') {
+                this._livewireHookCleanup();
+            }
+            // Clean up visibility listener
+            if (this._visibilityHandler) {
+                document.removeEventListener('visibilitychange', this._visibilityHandler);
+            }
+            this.destroyAllInstances();
         },
         
         destroyAllInstances() {

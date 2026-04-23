@@ -56,18 +56,30 @@
 
     </div>
 
-    @push('scripts')
-        <script src="{{ asset('js/Sortable.js') }}"></script>
-        <script>
+    <script>
+        (function () {
+            var _kanbanSortableInstances = [];
+            var _kanbanVisibilityHandler = null;
+            var _kanbanLivewireCleanup = null;
 
-            (() => {
-                let record;
+            function destroyKanbanInstances() {
+                _kanbanSortableInstances.forEach(function (inst) {
+                    if (inst && typeof inst.destroy === 'function') {
+                        inst.destroy();
+                    }
+                });
+                _kanbanSortableInstances = [];
+            }
+
+            function initKanbanSortable() {
+                destroyKanbanInstances();
+
                 @foreach($this->getStatuses() as $status)
-                    record = document.querySelector('#status-records-{{ $status['id'] }}');
-
-                    Sortable.create(record, {
+                var el{{ $status['id'] }} = document.querySelector('#status-records-{{ $status['id'] }}');
+                if (el{{ $status['id'] }}) {
+                    _kanbanSortableInstances.push(Sortable.create(el{{ $status['id'] }}, {
                         group: {
-                            name: 'status-{{ $status['id'] }}',
+                            name: 'kanban-board',
                             pull: true,
                             put: true
                         },
@@ -75,15 +87,62 @@
                         animation: 100,
                         onEnd: function (evt) {
                             Livewire.emit('recordUpdated',
-                                +evt.clone.dataset.id, // id
-                                +evt.newIndex, // newIndex
-                                +evt.to.dataset.status, // newStatus
+                                +evt.clone.dataset.id,
+                                +evt.newIndex,
+                                +evt.to.dataset.status
                             );
-                        },
-                    })
+                        }
+                    }));
+                }
                 @endforeach
-            })();
-        </script>
-    @endpush
+            }
+
+            function setupKanban() {
+                if (typeof Sortable === 'undefined') {
+                    return;
+                }
+
+                initKanbanSortable();
+
+                // Reinitialize after every Livewire re-render (register only once)
+                if (typeof Livewire !== 'undefined' && typeof Livewire.hook === 'function' && !window._kanbanBoardLivewireCleanup) {
+                    window._kanbanBoardLivewireCleanup = Livewire.hook('message.processed', function () {
+                        initKanbanSortable();
+                    });
+                }
+
+                // Reinitialize when user returns to this browser tab (register only once)
+                if (!window._kanbanBoardVisibilityHandler) {
+                    window._kanbanBoardVisibilityHandler = function () {
+                        if (document.visibilityState === 'visible') {
+                            initKanbanSortable();
+                        }
+                    };
+                    document.addEventListener('visibilitychange', window._kanbanBoardVisibilityHandler);
+                }
+            }
+
+            function loadSortableAndSetup() {
+                if (typeof Sortable !== 'undefined') {
+                    setupKanban();
+                    return;
+                }
+                // Load Sortable.js if not already present
+                if (!document.querySelector('script[data-sortable-board]')) {
+                    var s = document.createElement('script');
+                    s.src = '{{ asset('js/Sortable.js') }}';
+                    s.setAttribute('data-sortable-board', '1');
+                    s.onload = setupKanban;
+                    document.head.appendChild(s);
+                }
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', loadSortableAndSetup);
+            } else {
+                setTimeout(loadSortableAndSetup, 50);
+            }
+        })();
+    </script>
 
 </div>
