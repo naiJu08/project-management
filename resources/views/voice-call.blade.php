@@ -707,19 +707,28 @@
                     debug("🎵 Remote audio track received - ICE state:", peerConnection.iceConnectionState);
                     debug("🎵 Connection state:", peerConnection.connectionState);
                     
-                    // Only set up audio if ICE connection is actually connected or completed
-                    if (peerConnection.iceConnectionState !== 'connected' && peerConnection.iceConnectionState !== 'completed') {
-                        debug("⏳ Track received but ICE not connected yet - waiting...");
+                    // Set up audio if ICE is connected, completed, or checking (checking means ICE negotiation is in progress)
+                    if (peerConnection.iceConnectionState === 'connected' || peerConnection.iceConnectionState === 'completed' || peerConnection.iceConnectionState === 'checking') {
+                        setupRemoteAudio(event);
+                    } else {
+                        debug("⏳ Track received but ICE not ready yet - waiting...");
                         // Store the event for later when ICE connects
                         window.pendingTrackEvent = event;
-                        return;
+                        
+                        // Fallback: process after 5 seconds even if ICE doesn't connect
+                        setTimeout(() => {
+                            if (window.pendingTrackEvent === event) {
+                                debug("⚠️ Timeout: processing audio even though ICE not fully connected");
+                                setupRemoteAudio(event);
+                                window.pendingTrackEvent = null;
+                            }
+                        }, 5000);
                     }
-
-                    setupRemoteAudio(event);
                 };
 
                 function setupRemoteAudio(event) {
                     debug("🔊 Setting up remote audio playback");
+                    debug("🔊 Stream tracks:", event.streams[0].getTracks().map(t => `${t.kind} (${t.enabled ? 'enabled' : 'disabled'})`));
                     updateStatus("Audio connected - Call active");
 
                     currentRemoteStream = event.streams[0];
@@ -734,8 +743,10 @@
                     remoteAudioElement.muted = false;
                     remoteAudioElement.volume = 1;
                     remoteAudioElement.srcObject = event.streams[0];
+                    debug("🔊 Audio element configured, srcObject set");
 
                     const played = attemptPlayRemoteAudio();
+                    debug("🔊 attemptPlayRemoteAudio returned:", played);
                     if (!played) {
                         const msgDiv = document.getElementById('audioMessage');
                         if (msgDiv) msgDiv.style.display = 'block';
