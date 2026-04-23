@@ -59,6 +59,50 @@ Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $requ
     return redirect('/');
 })->middleware(['auth', 'signed'])->name('verification.verify');
 
+// ==================== ICE SERVER CREDENTIALS ====================
+Route::get('/get-ice-servers', function () {
+    $servers = [];
+
+    // Google STUN
+    $servers[] = ['urls' => 'stun:stun.l.google.com:19302'];
+    $servers[] = ['urls' => 'stun:stun1.l.google.com:19302'];
+
+    // Your own TURN server with time-limited HMAC credentials (coturn REST API)
+    $ttl = 86400; // 24 hours
+    $timestamp = time() + $ttl;
+    $username = $timestamp . ':webrtcuser';
+    $secret = 'strongpassword123'; // Must match coturn use-auth-secret value
+    $credential = base64_encode(hash_hmac('sha1', $username, $secret, true));
+
+    $servers[] = [
+        'urls' => [
+            'turn:pm.inovace.in:3478?transport=udp',
+            'turn:pm.inovace.in:3478?transport=tcp',
+            'turn:pm.inovace.in:443?transport=tcp',
+        ],
+        'username' => $username,
+        'credential' => $credential,
+    ];
+
+    // Also include static credentials as fallback (in case coturn uses static auth)
+    $servers[] = [
+        'urls' => [
+            'turn:pm.inovace.in:3478?transport=udp',
+            'turn:pm.inovace.in:3478?transport=tcp',
+        ],
+        'username' => 'webrtcuser',
+        'credential' => 'strongpassword123',
+    ];
+
+    // OpenRelay free TURN (no account needed)
+    $servers[] = ['urls' => 'turn:openrelay.metered.ca:80', 'username' => 'openrelayproject', 'credential' => 'openrelayproject'];
+    $servers[] = ['urls' => 'turn:openrelay.metered.ca:443', 'username' => 'openrelayproject', 'credential' => 'openrelayproject'];
+    $servers[] = ['urls' => 'turn:openrelay.metered.ca:443?transport=tcp', 'username' => 'openrelayproject', 'credential' => 'openrelayproject'];
+    $servers[] = ['urls' => 'turn:openrelay.metered.ca:80?transport=tcp', 'username' => 'openrelayproject', 'credential' => 'openrelayproject'];
+
+    return response()->json(['iceServers' => $servers]);
+})->middleware(['auth']);
+
 // ==================== VOICE CALL ROUTES ====================
 Route::get('/voice-call/{id}', function ($id) {
     $user = App\Models\User::findOrFail($id);
