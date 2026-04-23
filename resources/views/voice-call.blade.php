@@ -255,96 +255,11 @@
                 }
             }
 
-            /*   // ==================== IMPROVED ICE SERVERS (with more reliable TURN) ====================
-               const iceServers = [
-                   // STUN servers
-                   { urls: "stun:stun.l.google.com:19302" },
-                   { urls: "stun:stun1.l.google.com:19302" },
-                   { urls: "stun:stun2.l.google.com:19302" },
-                   { urls: "stun:stun3.l.google.com:19302" },
-                   { urls: "stun:stun4.l.google.com:19302" },
-                   { urls: "stun:stun.stunprotocol.org:3478" },
-                   
-                   // Your own TURN server
-                   {
-                       urls: [
-                           "turn:pm.inovace.in:3478?transport=udp",
-                           "turn:pm.inovace.in:3478?transport=tcp"
-                       ],
-                       username: "webrtcuser",
-                       credential: "strongpassword123"
-                   },
-                   
-                   // Public TURN servers (fallback)
-                   {
-                       urls: [
-                           "turn:openrelay.metered.ca:80",
-                           "turn:openrelay.metered.ca:443",
-                           "turn:openrelay.metered.ca:443?transport=tcp"
-                       ],
-                       username: "openrelayproject",
-                       credential: "openrelayproject"
-                   },
-                   {
-                       urls: "turn:turn.anyfirewall.com:3478?transport=udp",
-                       username: "anyfirewall",
-                       credential: "anyfirewall"
-                   },
-                   {
-                       urls: "turn:turn.nextcloud.com:3478",
-                       username: "nextcloud",
-                       credential: "nextcloud"
-                   }
-               ]; */
-
-            // ==================== ENHANCED ICE SERVERS FOR CROSS-NETWORK CONNECTIVITY ====================
-            const iceServers = [
-                // Primary Google STUN servers (most reliable)
+            // ==================== ICE SERVERS ====================
+            // Will be populated dynamically via /get-ice-servers
+            let iceServers = [
                 { urls: "stun:stun.l.google.com:19302" },
-                { urls: "stun:stun1.l.google.com:19302" },
-                { urls: "stun:stun2.l.google.com:19302" },
-                { urls: "stun:stun3.l.google.com:19302" },
-                { urls: "stun:stun4.l.google.com:19302" },
-                
-                // Additional STUN servers for better NAT discovery
-                { urls: "stun:stun.stunprotocol.org:3478" },
-                { urls: "stun:stun.ekiga.net:3478" },
-                { urls: "stun:stun.ideasip.com:3478" },
-                { urls: "stun:stun.rixtelecom.se:3478" },
-                { urls: "stun:stun.schlund.de:3478" },
-
-                // Your own TURN server (primary relay for cross-network)
-                {
-                    urls: [
-                        "turn:pm.inovace.in:3478?transport=udp",
-                        "turn:pm.inovace.in:3478?transport=tcp",
-                        "turn:pm.inovace.in:443?transport=tcp"
-                    ],
-                    username: "webrtcuser",
-                    credential: "strongpassword123"
-                },
-
-                // Open Relay - reliable free TURN
-                {
-                    urls: "turn:openrelay.metered.ca:80",
-                    username: "openrelayproject",
-                    credential: "openrelayproject"
-                },
-                {
-                    urls: "turn:openrelay.metered.ca:443",
-                    username: "openrelayproject",
-                    credential: "openrelayproject"
-                },
-                {
-                    urls: "turn:openrelay.metered.ca:443?transport=tcp",
-                    username: "openrelayproject",
-                    credential: "openrelayproject"
-                },
-                {
-                    urls: "turn:openrelay.metered.ca:80?transport=tcp",
-                    username: "openrelayproject",
-                    credential: "openrelayproject"
-                }
+                { urls: "stun:stun1.l.google.com:19302" }
             ];
 
             // ==================== SDP CLEANER (improved) ====================
@@ -913,9 +828,6 @@
                 updateStatus("Reconnecting...");
                 
                 try {
-                    // Test network connectivity first
-                    const networkOk = await testNetworkConnectivity();
-                    
                     // Create new peer connection with fresh ICE candidates
                     const oldPeerConnection = peerConnection;
                     createPeer();
@@ -977,14 +889,6 @@
                 if (callActive) return;
                 callActive = true;
                 hideAllButtons();
-                updateStatus('<span class="spinner"></span> Testing network...');
-                
-                // Test network connectivity first for cross-network calls
-                const networkOk = await testNetworkConnectivity();
-                if (!networkOk) {
-                    debug("Poor network connectivity detected, but proceeding with TURN servers");
-                }
-                
                 updateStatus('<span class="spinner"></span> Requesting microphone...');
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1293,12 +1197,31 @@
             }
 
             // ==================== INIT ====================
-            document.addEventListener("DOMContentLoaded", function () {
+            document.addEventListener("DOMContentLoaded", async function () {
                 debug("Voice call page loaded");
                 debug("User ID:", userId, "Other User ID:", otherUserId);
                 debug("URL params:", window.location.search);
                 const token = document.querySelector('meta[name="csrf-token"]')?.content;
                 debug("CSRF token present:", !!token);
+
+                // Fetch fresh ICE server credentials from backend
+                try {
+                    const resp = await fetch('/get-ice-servers', {
+                        headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' }
+                    });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data.iceServers && data.iceServers.length) {
+                            iceServers = data.iceServers;
+                            debug("✅ ICE servers loaded:", iceServers.length, "servers");
+                        }
+                    } else {
+                        debug("⚠️ Failed to fetch ICE servers, using defaults");
+                    }
+                } catch (e) {
+                    debug("⚠️ ICE server fetch error:", e.message, "- using defaults");
+                }
+
                 initPusher();
             });
         })();
