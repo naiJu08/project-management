@@ -543,19 +543,31 @@
             // ==================== ICE CANDIDATE DEDUPLICATION ====================
             const seenCandidates = new Set();
             function addIceCandidate(candidate, source) {
-                if (!candidate || !candidate.candidate) return;
+                if (!candidate || !candidate.candidate) {
+                    debug(`❄️ Received empty/null candidate from ${source}`);
+                    return;
+                }
                 const key = candidate.candidate;
                 if (seenCandidates.has(key)) {
                     debug(`❄️ Skipping duplicate ICE from ${source}`);
                     return;
                 }
                 seenCandidates.add(key);
-                debug(`❄️ Adding ICE candidate from ${source}`);
+                
+                const candidateStr = candidate.candidate;
+                let type = "unknown";
+                if (candidateStr.includes("typ host")) type = "host";
+                else if (candidateStr.includes("typ srflx")) type = "srflx (STUN)";
+                else if (candidateStr.includes("typ relay")) type = "relay (TURN)";
+                debug(`❄️ Received ICE [${type}] from ${source}:`, candidateStr.substring(0, 80) + "...");
+                
                 if (!peerConnection || !isRemoteSet) {
+                    debug(`❄️ Buffering candidate (peerConnection=${!!peerConnection}, isRemoteSet=${isRemoteSet})`);
                     pendingCandidates.push(candidate);
                 } else {
                     peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-                        .catch(err => debug("Error adding ICE:", err));
+                        .then(() => debug(`✅ ICE candidate added successfully`))
+                        .catch(err => debug("❌ Error adding ICE:", err));
                 }
             }
 
@@ -621,7 +633,7 @@
                 peerConnection = new RTCPeerConnection({
                     iceServers: iceServers,
                     iceCandidatePoolSize: 10,
-                    iceTransportPolicy: 'relay',  // Force TURN-only for cross-network calls
+                    iceTransportPolicy: 'all',  // Allow STUN + TURN for better connectivity
                     bundlePolicy: 'max-bundle',
                     rtcpMuxPolicy: 'require',
                     sdpSemantics: 'unified-plan'
@@ -685,7 +697,7 @@
                         if (candidateStr.includes("typ host")) type = "host";
                         else if (candidateStr.includes("typ srflx")) type = "srflx (STUN)";
                         else if (candidateStr.includes("typ relay")) type = "relay (TURN)";
-                        debug(`ICE candidate [${type}]:`, event.candidate);
+                        debug(`❄️ ICE candidate [${type}]:`, candidateStr.substring(0, 100) + "...");
 
                         fetch('/send-ice', {
                             method: 'POST',
@@ -698,9 +710,10 @@
                                 senderId: userId,
                                 receiverId: incomingCallerId ?? otherUserId
                             })
-                        }).catch(err => debug("Error sending ICE:", err));
+                        }).then(() => debug("✅ ICE candidate sent"))
+                          .catch(err => debug("❌ Error sending ICE:", err));
                     } else {
-                        debug("ICE candidate gathering completed.");
+                        debug("✅ ICE candidate gathering completed (null = done)");
                     }
                 };
                 peerConnection.ontrack = (event) => {
