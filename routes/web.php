@@ -100,6 +100,11 @@ Route::get('/get-ice-servers', function () {
     $servers[] = ['urls' => 'turn:openrelay.metered.ca:443?transport=tcp', 'username' => 'openrelayproject', 'credential' => 'openrelayproject'];
     $servers[] = ['urls' => 'turn:openrelay.metered.ca:80?transport=tcp', 'username' => 'openrelayproject', 'credential' => 'openrelayproject'];
 
+    // FreeSun free TURN (no account needed, well-maintained)
+    $servers[] = ['urls' => 'turn:freestun.net:3478', 'username' => 'free', 'credential' => 'free'];
+    $servers[] = ['urls' => 'turn:freestun.net:3479?transport=tcp', 'username' => 'free', 'credential' => 'free'];
+    $servers[] = ['urls' => 'turns:freestun.net:5350', 'username' => 'free', 'credential' => 'free'];
+
     return response()->json(['iceServers' => $servers]);
 })->middleware(['auth']);
 
