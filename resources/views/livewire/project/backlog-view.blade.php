@@ -285,7 +285,7 @@
                         </select>
                     </div>
                     <div class="flex justify-end space-x-2">
-                        <button wire:click="bulkDelete()" onclick="return confirm('Are you sure? This will delete all selected items and their children.')" class="px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                        <button onclick="if(confirm('Are you sure? This will delete all selected items and their children.')) { @this.call('bulkDelete') }" class="px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
                             Delete Selected
                         </button>
                         <button wire:click="applyBulkAction()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
@@ -542,7 +542,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                                 </svg>
                             </button>
-                            <button wire:click="deleteItem({{ $this->selectedItem->id }})" onclick="return confirm('Are you sure? This will delete all child items too.')" class="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                            <button onclick="if(confirm('Are you sure? This will delete all child items too.')) { @this.call('deleteItem', {{ $this->selectedItem->id }}) }" class="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                                 </svg>
@@ -908,3 +908,40 @@ function backlogDragDrop() {
     }
 }
 </script>
+
+{{-- Delete Confirmation Modal --}}
+@if($this->showDeleteConfirm)
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <div class="flex items-center mb-4">
+                <div class="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
+                    <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Delete Backlog Item</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Are you sure you want to delete this backlog item?</p>
+                </div>
+            </div>
+            
+            <div class="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-md p-3 mb-4">
+                <p class="text-sm text-yellow-800 dark:text-yellow-200">
+                    <strong>Warning:</strong> This action cannot be undone. All child items will also be deleted.
+                </p>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button wire:click="cancelDeleteItem" 
+                        class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    Cancel
+                </button>
+                <button wire:click="deleteItem" 
+                        class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
+                    Delete Item
+                </button>
+            </div>
+        </div>
+    </div>
+@endif
+</div>

@@ -48,12 +48,12 @@ class Milestone extends Model
 
     public function scopeUpcoming($query)
     {
-        return $query->where('target_date', '>=', now())->orderBy('target_date');
+        return $query->where('target_date', '>=', now()->startOfDay())->orderBy('target_date');
     }
 
     public function scopeOverdue($query)
     {
-        return $query->where('target_date', '<', now())
+        return $query->where('target_date', '<', now()->startOfDay())
             ->where('status', '!=', 'completed')
             ->where('status', '!=', 'cancelled');
     }
@@ -65,17 +65,17 @@ class Milestone extends Model
             return 0;
         }
 
-        $completed = $tickets->where('status.name', 'Completed')->count();
+        $completed = $tickets->where('status.name', 'Done')->count();
         return round(($completed / $tickets->count()) * 100);
     }
 
     public function getDaysUntilTargetAttribute()
     {
-        return $this->target_date->diffInDays(now());
+        return $this->target_date->diffInDays(now()->startOfDay());
     }
 
     public function getIsOverdueAttribute()
     {
-        return $this->target_date < now() && $this->status !== 'completed' && $this->status !== 'cancelled';
+        return $this->target_date->lt(now()->startOfDay()) && $this->status !== 'completed' && $this->status !== 'cancelled';
     }
 }

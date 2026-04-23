@@ -22,11 +22,19 @@ class ChatView extends Component
     public $searchQuery = '';
     public $attachedFile = null;
     public $attachedImage = null;
+    public $showDeleteConfirm = false;
+    public $messageToDelete = null;
 
     protected $rules = [
         'newMessage' => 'nullable|string|max:5000',
         'attachedFile' => 'nullable|file|max:10240',
         'attachedImage' => 'nullable|image|max:5120',
+    ];
+
+    protected $messages = [
+        'attachedImage.max' => 'The attached image must not be larger than 5 MB.',
+        'attachedFile.max' => 'The attached file must not be larger than 10 MB.',
+        'attachedImage.image' => 'The attached file must be an image.',
     ];
 
     public function mount($projectId)
@@ -57,6 +65,16 @@ class ChatView extends Component
             session()->flash('error', 'Please enter a message or attach a file/image');
             return;
         }
+
+        // Validate attachments with custom messages
+        $this->validate([
+            'attachedImage' => 'nullable|image|max:5120',
+            'attachedFile' => 'nullable|file|max:10240',
+        ], [
+            'attachedImage.max' => 'The attached image must not be larger than 5 MB.',
+            'attachedFile.max' => 'The attached file must not be larger than 10 MB.',
+            'attachedImage.image' => 'The attached file must be an image.',
+        ]);
 
         $messageText = $this->newMessage;
         $attachments = [];
@@ -143,7 +161,7 @@ class ChatView extends Component
         $this->editingText = '';
     }
 
-    public function deleteMessage($messageId)
+    public function confirmDeleteMessage($messageId)
     {
         $message = ProjectChat::find($messageId);
         
@@ -152,8 +170,31 @@ class ChatView extends Component
             return;
         }
 
+        $this->messageToDelete = $messageId;
+        $this->showDeleteConfirm = true;
+    }
+
+    public function deleteMessage()
+    {
+        $message = ProjectChat::find($this->messageToDelete);
+        
+        if ($message->user_id !== Auth::id()) {
+            session()->flash('error', 'You can only delete your own messages');
+            return;
+        }
+
         $message->delete();
         $this->loadMessages();
+        session()->flash('success', 'Message deleted successfully!');
+
+        $this->showDeleteConfirm = false;
+        $this->messageToDelete = null;
+    }
+
+    public function cancelDeleteMessage()
+    {
+        $this->showDeleteConfirm = false;
+        $this->messageToDelete = null;
     }
 
     public function search()

@@ -88,7 +88,8 @@ class EmployeeTicketDetail extends Component
             'owner',
             'responsible',
             'sprint',
-            'project'
+            'project',
+            'backlogItem'
         ]);
 
         // Initialize tracking state from cache so it survives reloads/logouts

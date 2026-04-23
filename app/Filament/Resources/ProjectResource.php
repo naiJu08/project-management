@@ -120,13 +120,16 @@ class ProjectResource extends Resource
                                     ->helperText(__('When enabled, tasks and subtasks will be generated from the project description after creation.'))
                                     ->default(false)
                                     ->dehydrated(false)
+                                    ->reactive()
                                     ->columnSpan(1),
 
                                 Forms\Components\Textarea::make('ai_context')
-                                    ->label(__('Additional AI context (optional)'))
+                                    ->label(__('Additional AI context'))
                                     ->helperText(__('Provide extra details or goals to guide AI task generation. Not stored in the project.'))
                                     ->rows(3)
                                     ->dehydrated(false)
+                                    ->required(fn ($get) => $get('ai_autogenerate'))
+                                    ->hidden(fn ($get) => !$get('ai_autogenerate'))
                                     ->columnSpan(2),
 
                                 Forms\Components\Select::make('type')

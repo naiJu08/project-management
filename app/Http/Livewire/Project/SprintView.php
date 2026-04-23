@@ -23,6 +23,11 @@ class SprintView extends Component
     public $sprintStartDate = '';
     public $sprintEndDate = '';
     public $sprintGoal = '';
+    public $sprintStatus = 'upcoming';
+
+    // Delete confirmation
+    public $showDeleteConfirm = false;
+    public $sprintToDelete = null;
 
     // Filters
     public $filterStatus = 'all'; // all, active, upcoming, completed
@@ -30,14 +35,43 @@ class SprintView extends Component
     protected $rules = [
         'sprintName' => 'required|string|max:255',
         'sprintDescription' => 'nullable|string',
-        'sprintStartDate' => 'required|date',
+        'sprintStartDate' => 'required|date|after_or_equal:today',
         'sprintEndDate' => 'required|date|after:sprintStartDate',
         'sprintGoal' => 'nullable|string|max:500',
+        'sprintStatus' => 'required|in:upcoming,active,completed',
+    ];
+
+    protected function rules()
+    {
+        $rules = $this->rules;
+        
+        // Add conditional validation for completed sprints
+        if ($this->sprintStatus === 'completed') {
+            $rules['sprintEndDate'] = 'required|date|before_or_equal:today';
+        }
+        
+        return $rules;
+    }
+
+    protected function messages()
+    {
+        return [
+            'sprintEndDate.before_or_equal' => 'The end date must be today or in the past when the sprint status is completed.',
+            'sprintStartDate.after_or_equal' => 'The start date must be today or in the future.',
+        ];
+    }
+
+    // Ensure these properties are excluded from validation and don't cause hydration issues
+    protected $except = [
+        'showDeleteConfirm',
+        'sprintToDelete',
     ];
 
     public function mount($projectId)
     {
         $this->projectId = $projectId;
+        $this->sprintStartDate = now()->toDateString();
+        $this->sprintEndDate = now()->addDays(14)->toDateString();
         $this->loadSprints();
     }
 
@@ -48,18 +82,27 @@ class SprintView extends Component
 
     public function loadSprints()
     {
-        $query = $this->project->sprints();
-
-        if ($this->filterStatus !== 'all') {
-            $query->where('status', $this->filterStatus);
+        $allSprints = $this->project->sprints()->with(['backlogItems'])->orderBy('starts_at', 'desc')->get();
+        
+        if ($this->filterStatus === 'all') {
+            $this->sprints = $allSprints;
+        } else {
+            $statusCalculator = $this->getSprintStatusProperty();
+            $this->sprints = $allSprints->filter(function ($sprint) use ($statusCalculator) {
+                return $statusCalculator($sprint) === $this->filterStatus;
+            })->values();
         }
-
-        $this->sprints = $query->with(['backlogItems'])->orderBy('starts_at', 'desc')->get();
     }
 
     public function getSprintStatusProperty()
     {
         return function ($sprint) {
+            // If sprint has a manually set status, use it
+            if ($sprint->status && in_array($sprint->status, ['upcoming', 'active', 'completed'])) {
+                return $sprint->status;
+            }
+            
+            // Fall back to date-based calculation
             $now = now()->toDateString();
             if ($sprint->ends_at < $now) {
                 return 'completed';
@@ -98,6 +141,7 @@ class SprintView extends Component
         $this->sprintStartDate = $sprint->starts_at->format('Y-m-d');
         $this->sprintEndDate = $sprint->ends_at->format('Y-m-d');
         $this->sprintGoal = $sprint->goal ?? '';
+        $this->sprintStatus = $sprint->status;
         $this->showEditForm = true;
         $this->showCreateForm = false;
     }
@@ -113,9 +157,11 @@ class SprintView extends Component
             'starts_at' => $this->sprintStartDate,
             'ends_at' => $this->sprintEndDate,
             'goal' => $this->sprintGoal,
-            'status' => 'upcoming',
+            'status' => $this->sprintStatus,
         ]);
 
+        // Set filter to show the newly created sprint in its correct status tab
+        $this->filterStatus = $this->sprintStatus;
         $this->resetForm();
         $this->loadSprints();
         session()->flash('success', 'Sprint created successfully!');
@@ -132,6 +178,7 @@ class SprintView extends Component
             'starts_at' => $this->sprintStartDate,
             'ends_at' => $this->sprintEndDate,
             'goal' => $this->sprintGoal,
+            'status' => $this->sprintStatus,
         ]);
 
         $this->resetForm();
@@ -139,17 +186,36 @@ class SprintView extends Component
         session()->flash('success', 'Sprint updated successfully!');
     }
 
-    public function deleteSprint($sprintId)
+    public function confirmDeleteSprint($sprintId)
     {
-        $sprint = Sprint::findOrFail($sprintId);
+        $this->sprintToDelete = $sprintId;
+        $this->showDeleteConfirm = true;
+    }
+
+    public function cancelDeleteSprint()
+    {
+        $this->showDeleteConfirm = false;
+        $this->sprintToDelete = null;
+    }
+
+    public function deleteSprint()
+    {
+        if (!$this->sprintToDelete) {
+            return;
+        }
+
+        $sprint = Sprint::findOrFail($this->sprintToDelete);
         
         // Move backlog items back to backlog
-        BacklogItem::where('sprint_id', $sprintId)->update(['sprint_id' => null]);
+        BacklogItem::where('sprint_id', $this->sprintToDelete)->update(['sprint_id' => null]);
         
         $sprint->delete();
         $this->resetForm();
         $this->loadSprints();
         session()->flash('success', 'Sprint deleted successfully!');
+        
+        $this->showDeleteConfirm = false;
+        $this->sprintToDelete = null;
     }
 
     public function startSprint($sprintId)
@@ -174,16 +240,30 @@ class SprintView extends Component
         session()->flash('success', 'Sprint completed!');
     }
 
+    // Reset delete confirmation properties when form is reset
+    protected function resetDeleteConfirmation()
+    {
+        $this->showDeleteConfirm = false;
+        $this->sprintToDelete = null;
+    }
+
     public function resetForm()
     {
         $this->sprintName = '';
         $this->sprintDescription = '';
-        $this->sprintStartDate = '';
-        $this->sprintEndDate = '';
+        $this->sprintStartDate = now()->toDateString();
+        $this->sprintEndDate = now()->addDays(14)->toDateString();
         $this->sprintGoal = '';
+        $this->sprintStatus = 'upcoming';
         $this->showCreateForm = false;
         $this->showEditForm = false;
         $this->editingSprintId = null;
+        $this->resetDeleteConfirmation();
+    }
+
+    public function updatedFilterStatus()
+    {
+        $this->loadSprints();
     }
 
     public function render()

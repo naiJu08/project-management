@@ -107,7 +107,7 @@ trait KanbanScrumHelper
     public function getRecords(): Collection
     {
         $query = Ticket::query();
-        if ($this->project->type === 'scrum') {
+        if ($this->project->type === 'scrum' && $this->project->currentSprint) {
             $query->where('sprint_id', $this->project->currentSprint->id);
         }
         $query->with(['project', 'owner', 'responsible', 'status', 'type', 'priority', 'epic']);

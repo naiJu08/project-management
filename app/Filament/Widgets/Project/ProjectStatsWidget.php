@@ -21,7 +21,7 @@ class ProjectStatsWidget extends BaseWidget
             $query->where('name', 'Open');
         })->count();
         $completedTickets = $this->project->tickets()->whereHas('status', function ($query) {
-            $query->where('name', 'Completed');
+            $query->where('name', 'Done');
         })->count();
         $teamMembers = $this->project->users()->count() + 1; // +1 for owner
 

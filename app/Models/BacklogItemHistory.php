@@ -38,10 +38,31 @@ class BacklogItemHistory extends Model
     {
         return match($this->action) {
             'created' => "Created {$this->backlogItem->type}",
-            'updated' => "Updated {$this->field} from '{$this->old_value}' to '{$this->new_value}'",
-            'moved' => "Moved to {$this->new_value}",
+            'updated' => "Updated {$this->field} from '{$this->getOldValueDisplay()}' to '{$this->getNewValueDisplay()}'",
+            'moved' => "Moved item in hierarchy",
             'deleted' => "Deleted {$this->backlogItem->type}",
             default => $this->action,
         };
+    }
+    
+    public function getOldValueDisplay(): string
+    {
+        if (is_array($this->old_value)) {
+            return implode(', ', array_values($this->old_value));
+        }
+        return (string) $this->old_value;
+    }
+    
+    public function getNewValueDisplay(): string
+    {
+        if (is_array($this->new_value)) {
+            return implode(', ', array_values($this->new_value));
+        }
+        return (string) $this->new_value;
+    }
+    
+    public function getFieldNameAttribute(): string
+    {
+        return $this->field ?? '';
     }
 }

@@ -217,8 +217,7 @@
                     @endif
                     
                     <div class="border-t border-gray-200 dark:border-gray-600 my-1"></div>
-                    <button wire:click="deleteItem({{ $item->id }})" 
-                            onclick="return confirm('Are you sure? This will delete all child items too.')"
+                    <button wire:click="confirmDeleteItem({{ $item->id }})" 
                             @click="showActions = false"
                             class="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
                         Delete

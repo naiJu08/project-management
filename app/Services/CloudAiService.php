@@ -15,8 +15,15 @@ class CloudAiService
     public function __construct()
     {
         $this->provider = config('services.cloud_ai.provider', 'deepseek'); // deepseek, groq, openai, cohere
-        $this->apiKey = config('services.cloud_ai.api_key');
-        $this->model = config('services.cloud_ai.model');
+        $this->apiKey = config('services.cloud_ai.api_key', '');
+        $this->model = config('services.cloud_ai.model', '');
+        
+        // Log configuration for debugging
+        Log::info('CloudAiService initialized', [
+            'provider' => $this->provider,
+            'api_key_set' => !empty($this->apiKey),
+            'model' => $this->model,
+        ]);
         
         // Set base URL based on provider
         $this->baseUrl = match($this->provider) {

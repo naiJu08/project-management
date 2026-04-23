@@ -63,8 +63,7 @@
                         </button>
                         
                         @if($comment->user_id === auth()->id() || auth()->user()->can('Delete backlog item'))
-                            <button wire:click="deleteComment({{ $comment->id }})" 
-                                    onclick="return confirm('Are you sure you want to delete this comment?')"
+                            <button onclick="if(confirm('Are you sure you want to delete this comment?')) { @this.call('deleteComment', {{ $comment->id }}) }"
                                     class="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200">
                                 Delete
                             </button>
@@ -94,8 +93,7 @@
                                     </div>
                                     
                                     @if($reply->user_id === auth()->id() || auth()->user()->can('Delete backlog item'))
-                                        <button wire:click="deleteComment({{ $reply->id }})" 
-                                                onclick="return confirm('Are you sure you want to delete this reply?')"
+                                        <button onclick="if(confirm('Are you sure you want to delete this reply?')) { @this.call('deleteComment', {{ $reply->id }}) }"
                                                 class="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200">
                                             Delete
                                         </button>

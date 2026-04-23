@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\Sprint;
 use App\Models\BacklogItem;
 use App\Models\BacklogItemComment;
+use App\Models\BacklogItemHistory;
 use App\Models\User;
 use App\Models\Ticket;
 use App\Models\TicketStatus;
@@ -66,6 +67,10 @@ class BacklogView extends Component
     public $bulkPriority = '';
     public $bulkSprintId = null;
     public $showBulkPanel = false;
+    
+    // Delete confirmation
+    public $showDeleteConfirm = false;
+    public $itemToDelete = null;
     
     protected $listeners = [
         'itemMoved' => 'handleItemMoved',
@@ -330,6 +335,14 @@ class BacklogView extends Component
             'updated_by' => Auth::id(),
         ]);
         
+        // Log creation
+        BacklogItemHistory::create([
+            'backlog_item_id' => $item->id,
+            'user_id' => Auth::id(),
+            'action' => 'created',
+            'new_value' => ['title' => $item->title],
+        ]);
+        
         // Auto-create linked Ticket for Task and Subtask types
         if (in_array($this->inlineCreateType, ['Task', 'Subtask'])) {
             $this->createLinkedTicket($item);
@@ -373,6 +386,14 @@ class BacklogView extends Component
             'updated_by' => Auth::id(),
         ]);
         
+        // Log creation
+        BacklogItemHistory::create([
+            'backlog_item_id' => $item->id,
+            'user_id' => Auth::id(),
+            'action' => 'created',
+            'new_value' => ['title' => $item->title],
+        ]);
+        
         // Auto-create linked Ticket for Task and Subtask types
         if (in_array($this->quickAddType, ['Task', 'Subtask'])) {
             $this->createLinkedTicket($item);
@@ -394,6 +415,9 @@ class BacklogView extends Component
     {
         $item = BacklogItem::find($itemId);
         if (!$item) return;
+        
+        // Select the item first so the edit form will be visible
+        $this->selectItem($itemId);
         
         $this->editingItemId = $itemId;
         $this->editTitle = $item->title;
@@ -442,6 +466,29 @@ class BacklogView extends Component
         $item = BacklogItem::find($this->editingItemId);
         if (!$item) return;
         
+        // Track changes for history
+        $changes = [];
+        $fields = [
+            'title' => $this->editTitle,
+            'description' => $this->editDescription,
+            'status' => $this->editStatus,
+            'priority' => $this->editPriority,
+            'assignee_id' => $this->editAssigneeId,
+            'sprint_id' => $this->editSprintId,
+            'estimated_hours' => $this->editEstimatedHours,
+            'start_date' => $this->editStartDate,
+            'due_date' => $this->editDueDate,
+        ];
+        
+        foreach ($fields as $field => $newValue) {
+            if ($item->$field != $newValue) {
+                $changes[$field] = [
+                    'old' => $item->$field,
+                    'new' => $newValue,
+                ];
+            }
+        }
+        
         $item->update([
             'title' => $this->editTitle,
             'description' => $this->editDescription,
@@ -454,6 +501,18 @@ class BacklogView extends Component
             'due_date' => $this->editDueDate,
             'updated_by' => Auth::id(),
         ]);
+        
+        // Log changes
+        foreach ($changes as $field => $change) {
+            BacklogItemHistory::create([
+                'backlog_item_id' => $item->id,
+                'user_id' => Auth::id(),
+                'field' => $field,
+                'old_value' => [$field => $change['old']],
+                'new_value' => [$field => $change['new']],
+                'action' => 'updated',
+            ]);
+        }
         
         $this->selectedItemId = $item->id;
         $this->resetEditForm();
@@ -468,10 +527,24 @@ class BacklogView extends Component
             return;
         }
         
-        $item->update([
-            $field => $value,
-            'updated_by' => Auth::id(),
-        ]);
+        // Track change for history
+        $oldValue = $item->$field;
+        if ($oldValue != $value) {
+            $item->update([
+                $field => $value,
+                'updated_by' => Auth::id(),
+            ]);
+            
+            // Log change
+            BacklogItemHistory::create([
+                'backlog_item_id' => $item->id,
+                'user_id' => Auth::id(),
+                'field' => $field,
+                'old_value' => [$field => $oldValue],
+                'new_value' => [$field => $value],
+                'action' => 'updated',
+            ]);
+        }
         
         $this->emit('itemUpdated', $itemId);
     }
@@ -491,20 +564,48 @@ class BacklogView extends Component
     }
 
     // Delete functionality
-    public function deleteItem($itemId)
+    public function confirmDeleteItem($itemId)
     {
         $item = BacklogItem::find($itemId);
         if (!$item || $item->project_id !== $this->projectId) {
             return;
         }
         
+        $this->itemToDelete = $itemId;
+        $this->showDeleteConfirm = true;
+    }
+    
+    public function deleteItem()
+    {
+        $item = BacklogItem::find($this->itemToDelete);
+        if (!$item || $item->project_id !== $this->projectId) {
+            return;
+        }
+        
+        // Log deletion
+        BacklogItemHistory::create([
+            'backlog_item_id' => $item->id,
+            'user_id' => Auth::id(),
+            'action' => 'deleted',
+            'old_value' => ['title' => $item->title],
+        ]);
+        
         $item->delete();
         
-        if ($this->selectedItemId === $itemId) {
+        if ($this->selectedItemId === $this->itemToDelete) {
             $this->selectedItemId = null;
         }
         
         session()->flash('success', 'Item deleted successfully!');
+        
+        $this->showDeleteConfirm = false;
+        $this->itemToDelete = null;
+    }
+    
+    public function cancelDeleteItem()
+    {
+        $this->showDeleteConfirm = false;
+        $this->itemToDelete = null;
     }
 
     // Comment functionality
@@ -568,7 +669,28 @@ class BacklogView extends Component
         }
         
         try {
+            $oldOrderIndex = $item->order_index;
+            $oldParentId = $item->parent_id;
+            
             $item->reorder($newOrderIndex, $newParentId);
+            
+            // Log move if position or parent changed
+            if ($oldOrderIndex != $newOrderIndex || $oldParentId != $newParentId) {
+                BacklogItemHistory::create([
+                    'backlog_item_id' => $item->id,
+                    'user_id' => Auth::id(),
+                    'action' => 'moved',
+                    'old_value' => [
+                        'order_index' => $oldOrderIndex,
+                        'parent_id' => $oldParentId,
+                    ],
+                    'new_value' => [
+                        'order_index' => $newOrderIndex,
+                        'parent_id' => $newParentId,
+                    ],
+                ]);
+            }
+            
             session()->flash('success', 'Item moved successfully!');
         } catch (\Exception $e) {
             session()->flash('error', 'Failed to move item: ' . $e->getMessage());
@@ -583,7 +705,21 @@ class BacklogView extends Component
             return;
         }
         
+        $oldSprintId = $item->sprint_id;
         $item->moveToSprint($sprintId);
+        
+        // Log sprint assignment change
+        if ($oldSprintId != $sprintId) {
+            BacklogItemHistory::create([
+                'backlog_item_id' => $item->id,
+                'user_id' => Auth::id(),
+                'field' => 'sprint_id',
+                'old_value' => ['sprint_id' => $oldSprintId],
+                'new_value' => ['sprint_id' => $sprintId],
+                'action' => 'updated',
+            ]);
+        }
+        
         session()->flash('success', 'Item assigned to sprint!');
     }
     
@@ -594,7 +730,21 @@ class BacklogView extends Component
             return;
         }
         
+        $oldSprintId = $item->sprint_id;
         $item->update(['sprint_id' => null, 'updated_by' => Auth::id()]);
+        
+        // Log sprint removal change
+        if ($oldSprintId !== null) {
+            BacklogItemHistory::create([
+                'backlog_item_id' => $item->id,
+                'user_id' => Auth::id(),
+                'field' => 'sprint_id',
+                'old_value' => ['sprint_id' => $oldSprintId],
+                'new_value' => ['sprint_id' => null],
+                'action' => 'updated',
+            ]);
+        }
+        
         session()->flash('success', 'Item removed from sprint!');
     }
 
@@ -648,21 +798,39 @@ class BacklogView extends Component
             }
             
             $updates = ['updated_by' => Auth::id()];
+            $changes = [];
             
-            if ($this->bulkStatus) {
+            if ($this->bulkStatus && $item->status != $this->bulkStatus) {
                 $updates['status'] = $this->bulkStatus;
+                $changes['status'] = ['old' => $item->status, 'new' => $this->bulkStatus];
             }
             
-            if ($this->bulkPriority) {
+            if ($this->bulkPriority && $item->priority != $this->bulkPriority) {
                 $updates['priority'] = $this->bulkPriority;
+                $changes['priority'] = ['old' => $item->priority, 'new' => $this->bulkPriority];
             }
             
-            if ($this->bulkSprintId !== null) {
-                $updates['sprint_id'] = $this->bulkSprintId === '' ? null : $this->bulkSprintId;
+            $newSprintId = $this->bulkSprintId === '' ? null : $this->bulkSprintId;
+            if ($this->bulkSprintId !== null && $item->sprint_id != $newSprintId) {
+                $updates['sprint_id'] = $newSprintId;
+                $changes['sprint_id'] = ['old' => $item->sprint_id, 'new' => $newSprintId];
             }
             
             if (count($updates) > 1) { // More than just updated_by
                 $item->update($updates);
+                
+                // Log changes for this item
+                foreach ($changes as $field => $change) {
+                    BacklogItemHistory::create([
+                        'backlog_item_id' => $item->id,
+                        'user_id' => Auth::id(),
+                        'field' => $field,
+                        'old_value' => [$field => $change['old']],
+                        'new_value' => [$field => $change['new']],
+                        'action' => 'updated',
+                    ]);
+                }
+                
                 $count++;
             }
         }

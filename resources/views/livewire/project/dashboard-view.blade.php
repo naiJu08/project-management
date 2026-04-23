@@ -39,7 +39,7 @@
         @php
             $totalTickets = $this->project->tickets()->count();
             $openTickets = $this->project->tickets()->whereHas('status', function ($q) { $q->where('name', 'Open'); })->count();
-            $completedTickets = $this->project->tickets()->whereHas('status', function ($q) { $q->where('name', 'Completed'); })->count();
+            $completedTickets = $this->project->tickets()->whereHas('status', function ($q) { $q->where('name', 'Done'); })->count();
             $teamMembers = $this->project->users()->count() + 1;
             $completionPercentage = $totalTickets > 0 ? round(($completedTickets / $totalTickets) * 100) : 0;
             $activeSprints = $this->project->sprints()
@@ -294,7 +294,7 @@
         <div class="space-y-3">
             @php
                 $weeklyCompleted = $this->project->tickets()
-                    ->whereHas('status', function ($q) { $q->where('name', 'Completed'); })
+                    ->whereHas('status', function ($q) { $q->where('name', 'Done'); })
                     ->where('updated_at', '>=', now()->subDays(7))
                     ->count();
                 $criticalTickets = $this->project->tickets()

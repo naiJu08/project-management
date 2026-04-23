@@ -16,6 +16,7 @@ class ReportsView extends Component
     public $dateRange = '30'; // days
     public $startDate = '';
     public $endDate = '';
+    public $showHoursDetails = false;
 
     protected $reportTypes = [
         'overview' => 'Project Overview',
@@ -49,18 +50,38 @@ class ReportsView extends Component
         $tickets = $this->project->tickets;
         $totalTickets = $tickets->count();
         $completedTickets = $tickets->filter(function($ticket) {
-            return in_array($ticket->status->name ?? '', ['Completed', 'Closed']);
+            return in_array($ticket->status->name ?? '', ['Done', 'Archived']);
         })->count();
 
         $sprints = $this->project->sprints;
         $activeSprints = $sprints->where('status', 'active')->count();
         $completedSprints = $sprints->where('status', 'completed')->count();
 
+        // Get time logs with fallback for date range issues
         $timeLogs = TimeLog::forProject($this->projectId)
             ->dateRange($this->startDate, $this->endDate)
+            ->with('user')
             ->get();
+        
+        // If no time logs in date range, try getting all time logs for this project
+        if ($timeLogs->isEmpty()) {
+            $allTimeLogs = TimeLog::forProject($this->projectId)->with('user')->get();
+            if ($allTimeLogs->isNotEmpty()) {
+                $timeLogs = $allTimeLogs;
+            }
+        }
+        
         $totalHours = $timeLogs->sum('hours');
         $billableHours = $timeLogs->where('is_billable', true)->sum('hours');
+
+        // Get team members count with fresh data
+        $teamMembersCount = 0;
+        try {
+            // Always get fresh count to ensure we have the latest data
+            $teamMembersCount = $this->project->users()->count();
+        } catch (\Exception $e) {
+            $teamMembersCount = 0;
+        }
 
         return [
             'total_tickets' => $totalTickets,
@@ -70,7 +91,63 @@ class ReportsView extends Component
             'completed_sprints' => $completedSprints,
             'total_hours' => round($totalHours, 2),
             'billable_hours' => round($billableHours, 2),
-            'team_members' => $this->project->users->count(),
+            'team_members' => $teamMembersCount,
+        ];
+    }
+
+    public function getHoursDistributionDetailsProperty()
+    {
+        $timeLogs = TimeLog::forProject($this->projectId)
+            ->dateRange($this->startDate, $this->endDate)
+            ->with('user')
+            ->get();
+
+        // If no time logs in date range, try getting all time logs for this project
+        if ($timeLogs->isEmpty()) {
+            $allTimeLogs = TimeLog::forProject($this->projectId)->with('user')->get();
+            if ($allTimeLogs->isNotEmpty()) {
+                $timeLogs = $allTimeLogs;
+            }
+        }
+
+        // Detailed breakdown by team member
+        $byTeamMember = $timeLogs->groupBy('user_id')->map(function($group) {
+            $user = $group->first()->user;
+            return [
+                'name' => $user ? $user->name : 'Unknown',
+                'total_hours' => round($group->sum('hours'), 2),
+                'billable_hours' => round($group->where('is_billable', true)->sum('hours'), 2),
+                'non_billable_hours' => round($group->where('is_billable', false)->sum('hours'), 2),
+                'billable_percentage' => $group->sum('hours') > 0 ? round(($group->where('is_billable', true)->sum('hours') / $group->sum('hours')) * 100) : 0,
+            ];
+        })->sortByDesc('total_hours');
+
+        // Detailed breakdown by category
+        $byCategory = $timeLogs->groupBy('category')->map(function($group) {
+            return [
+                'total_hours' => round($group->sum('hours'), 2),
+                'billable_hours' => round($group->where('is_billable', true)->sum('hours'), 2),
+                'non_billable_hours' => round($group->where('is_billable', false)->sum('hours'), 2),
+                'billable_percentage' => $group->sum('hours') > 0 ? round(($group->where('is_billable', true)->sum('hours') / $group->sum('hours')) * 100) : 0,
+            ];
+        })->sortByDesc('total_hours');
+
+        // Daily breakdown for trend analysis
+        $byDate = $timeLogs->groupBy('logged_date')->map(function($group) {
+            return [
+                'total_hours' => round($group->sum('hours'), 2),
+                'billable_hours' => round($group->where('is_billable', true)->sum('hours'), 2),
+                'non_billable_hours' => round($group->where('is_billable', false)->sum('hours'), 2),
+            ];
+        })->sortKeys();
+
+        return [
+            'by_team_member' => $byTeamMember,
+            'by_category' => $byCategory,
+            'by_date' => $byDate,
+            'total_hours' => round($timeLogs->sum('hours'), 2),
+            'billable_hours' => round($timeLogs->where('is_billable', true)->sum('hours'), 2),
+            'non_billable_hours' => round($timeLogs->where('is_billable', false)->sum('hours'), 2),
         ];
     }
 
@@ -83,7 +160,7 @@ class ReportsView extends Component
             'by_priority' => $tickets->groupBy('priority.name')->map(fn($group) => $group->count()),
             'by_type' => $tickets->groupBy('type.name')->map(fn($group) => $group->count()),
             'average_resolution_time' => $this->calculateAverageResolutionTime(),
-            'overdue_tickets' => $tickets->where('due_date', '<', now())->where('status.name', '!=', 'Completed')->count(),
+            'overdue_tickets' => $tickets->where('due_date', '<', now())->where('status.name', '!=', 'Done')->count(),
         ];
     }
 
@@ -91,7 +168,7 @@ class ReportsView extends Component
     {
         $timeLogs = TimeLog::forProject($this->projectId)
             ->dateRange($this->startDate, $this->endDate)
-            ->with('user', 'category')
+            ->with('user')
             ->get();
 
         $byCategory = $timeLogs->groupBy('category')->map(fn($group) => $group->sum('hours'));
@@ -135,7 +212,7 @@ class ReportsView extends Component
                 'hours_logged' => round($memberLogs->sum('hours'), 2),
                 'billable_hours' => round($memberLogs->where('is_billable', true)->sum('hours'), 2),
                 'tickets_assigned' => $memberTickets->count(),
-                'tickets_completed' => $memberTickets->where('status.name', 'Completed')->count(),
+                'tickets_completed' => $memberTickets->where('status.name', 'Done')->count(),
                 'productivity_score' => $this->calculateProductivityScore($member),
             ];
         })->sortByDesc('hours_logged');
@@ -167,7 +244,7 @@ class ReportsView extends Component
     {
         $completedTickets = $this->project->tickets
             ->filter(function($ticket) {
-                return in_array($ticket->status->name ?? '', ['Completed', 'Closed']);
+                return in_array($ticket->status->name ?? '', ['Done', 'Archived']);
             });
 
         if ($completedTickets->isEmpty()) {
@@ -189,7 +266,7 @@ class ReportsView extends Component
             ->get();
 
         $tickets = $this->project->tickets->where('responsible_id', $user->id);
-        $completedTickets = $tickets->where('status.name', 'Completed')->count();
+        $completedTickets = $tickets->where('status.name', 'Done')->count();
 
         $totalHours = $timeLogs->sum('hours');
         $hoursScore = $totalHours > 0 ? min(($totalHours / 40) * 100, 100) : 0; // 40 hours = 100%
@@ -208,6 +285,7 @@ class ReportsView extends Component
             'hoursStats' => $this->getHoursStatsProperty(),
             'teamStats' => $this->getTeamStatsProperty(),
             'sprintStats' => $this->getSprintStatsProperty(),
+            'hoursDistributionDetails' => $this->getHoursDistributionDetailsProperty(),
         ]);
     }
 }

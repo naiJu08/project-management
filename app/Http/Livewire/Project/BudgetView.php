@@ -21,6 +21,8 @@ class BudgetView extends Component
     public $editingExpenseId = null;
     public $filterStatus = 'all';
     public $filterCategory = 'all';
+    public $showDeleteConfirm = false;
+    public $expenseToDelete = null;
 
     // Budget form fields
     public $totalBudget = '';
@@ -154,12 +156,27 @@ class BudgetView extends Component
         session()->flash('success', 'Expense updated successfully!');
     }
 
-    public function deleteExpense($expenseId)
+    public function confirmDeleteExpense($expenseId)
     {
-        BudgetExpense::find($expenseId)->delete();
+        $this->expenseToDelete = $expenseId;
+        $this->showDeleteConfirm = true;
+    }
+
+    public function deleteExpense()
+    {
+        BudgetExpense::find($this->expenseToDelete)->delete();
         $this->updateBudgetSpent();
         $this->loadBudgetData();
         session()->flash('success', 'Expense deleted successfully!');
+
+        $this->showDeleteConfirm = false;
+        $this->expenseToDelete = null;
+    }
+
+    public function cancelDeleteExpense()
+    {
+        $this->showDeleteConfirm = false;
+        $this->expenseToDelete = null;
     }
 
     public function approveExpense($expenseId)

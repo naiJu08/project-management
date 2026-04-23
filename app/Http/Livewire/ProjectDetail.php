@@ -74,6 +74,10 @@ class ProjectDetail extends Component implements HasForms
     public $bulkSprintId = null;
     public $showBulkPanel = false;
     public $bulkRemoveSprint = false;
+    
+    // Delete confirmation
+    public $showDeleteConfirm = false;
+    public $itemToDelete = null;
 
     protected $queryString = ['activeTab' => ['except' => 'board']];
     
@@ -480,20 +484,40 @@ class ProjectDetail extends Component implements HasForms
     }
 
     // Delete functionality
-    public function deleteItem($itemId)
+    public function confirmDeleteItem($itemId)
     {
         $item = BacklogItem::find($itemId);
         if (!$item || $item->project_id !== $this->projectId) {
             return;
         }
         
+        $this->itemToDelete = $itemId;
+        $this->showDeleteConfirm = true;
+    }
+    
+    public function deleteItem()
+    {
+        $item = BacklogItem::find($this->itemToDelete);
+        if (!$item || $item->project_id !== $this->projectId) {
+            return;
+        }
+        
         $item->delete();
         
-        if ($this->selectedItemId === $itemId) {
+        if ($this->selectedItemId === $this->itemToDelete) {
             $this->selectedItemId = null;
         }
         
         session()->flash('success', 'Item deleted successfully!');
+        
+        $this->showDeleteConfirm = false;
+        $this->itemToDelete = null;
+    }
+    
+    public function cancelDeleteItem()
+    {
+        $this->showDeleteConfirm = false;
+        $this->itemToDelete = null;
     }
 
     // Comment functionality
