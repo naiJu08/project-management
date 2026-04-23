@@ -608,19 +608,18 @@
     let isRemoteDescriptionSet = false;
 
     const iceServers = [
-        // STUN servers for NAT discovery
+        // Primary STUN servers for NAT discovery
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
         { urls: "stun:stun2.l.google.com:19302" },
         { urls: "stun:stun3.l.google.com:19302" },
         { urls: "stun:stun4.l.google.com:19302" },
         
-        // Additional STUN servers
-        { urls: "stun:stun.stunprotocol.org:3478" },
-        { urls: "stun:stun.l.google.com:5229" },
+        // Additional reliable STUN servers
         { urls: "stun:stun.services.mozilla.com:3478" },
+        { urls: "stun:stun.ekiga.net:3478" },
 
-        // Your TURN server (updated configuration)
+        // Your TURN server (if available)
         {
             urls: [
                 "turn:pm.inovace.in:3478?transport=udp",
@@ -630,35 +629,35 @@
             credential: "strongpassword123"
         },
 
-        // Public TURN servers as backup
+        // Reliable public TURN servers
         {
             urls: [
                 "turn:openrelay.metered.ca:80",
-                "turn:openrelay.metered.ca:443",
-                "turn:openrelay.metered.ca:443?transport=tcp"
+                "turn:openrelay.metered.ca:443"
             ],
             username: "openrelayproject",
             credential: "openrelayproject"
         },
+        
+        // Twilio TURN servers (very reliable)
         {
             urls: [
-                "turn:turn.anyfirewall.com:3478?transport=udp",
-                "turn:turn.anyfirewall.com:3478?transport=tcp"
+                "turn:global.turn.twilio.com:3478?transport=udp",
+                "turn:global.turn.twilio.com:3478?transport=tcp",
+                "turn:global.turn.twilio.com:443?transport=tcp"
             ],
-            username: "anyfirewall",
-            credential: "anyfirewall"
+            username: "TWILIO_ACCOUNT_SID",
+            credential: "TWILIO_AUTH_TOKEN"
         },
-        
-        // More reliable TURN servers
+
+        // Google TURN servers (backup)
         {
-            urls: "turn:numb.viagenie.ca:3478",
-            username: "webrtc@live.com",
-            credential: "muazkh"
-        },
-        {
-            urls: "turn:relay.metered.ca:80",
-            username: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c",
-            credential: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c"
+            urls: [
+                "turn:stun.l.google.com:19302?transport=udp",
+                "turn:stun.l.google.com:19302?transport=tcp"
+            ],
+            username: "webrtc",
+            credential: "webrtc"
         }
     ];
 
