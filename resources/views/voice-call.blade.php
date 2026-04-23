@@ -324,47 +324,26 @@
                     credential: "strongpassword123"
                 },
 
-                // Public TURN servers (backup for cross-network connectivity)
+                // Open Relay - reliable free TURN
                 {
-                    urls: [
-                        "turn:openrelay.metered.ca:80",
-                        "turn:openrelay.metered.ca:443",
-                        "turn:openrelay.metered.ca:443?transport=tcp"
-                    ],
+                    urls: "turn:openrelay.metered.ca:80",
                     username: "openrelayproject",
                     credential: "openrelayproject"
                 },
                 {
-                    urls: [
-                        "turn:turn.anyfirewall.com:3478?transport=udp",
-                        "turn:turn.anyfirewall.com:3478?transport=tcp"
-                    ],
-                    username: "anyfirewall",
-                    credential: "anyfirewall"
-                },
-                // More reliable TURN servers for cross-network connectivity
-                {
-                    urls: "turn:numb.viagenie.ca:3478",
-                    username: "webrtc@live.com",
-                    credential: "muazkh"
+                    urls: "turn:openrelay.metered.ca:443",
+                    username: "openrelayproject",
+                    credential: "openrelayproject"
                 },
                 {
-                    urls: [
-                        "turn:relay.metered.ca:80",
-                        "turn:relay.metered.ca:443"
-                    ],
-                    username: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c",
-                    credential: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c"
+                    urls: "turn:openrelay.metered.ca:443?transport=tcp",
+                    username: "openrelayproject",
+                    credential: "openrelayproject"
                 },
-                // Twilio TURN servers (very reliable)
                 {
-                    urls: [
-                        "turn:global.turn.twilio.com:3478?transport=udp",
-                        "turn:global.turn.twilio.com:3478?transport=tcp",
-                        "turn:global.turn.twilio.com:443?transport=tcp"
-                    ],
-                    username: "TWILIO_ACCOUNT_SID",
-                    credential: "TWILIO_AUTH_TOKEN"
+                    urls: "turn:openrelay.metered.ca:80?transport=tcp",
+                    username: "openrelayproject",
+                    credential: "openrelayproject"
                 }
             ];
 
@@ -643,6 +622,25 @@
                 return false;
             }
 
+            // ==================== ICE CANDIDATE DEDUPLICATION ====================
+            const seenCandidates = new Set();
+            function addIceCandidate(candidate, source) {
+                if (!candidate || !candidate.candidate) return;
+                const key = candidate.candidate;
+                if (seenCandidates.has(key)) {
+                    debug(`❄️ Skipping duplicate ICE from ${source}`);
+                    return;
+                }
+                seenCandidates.add(key);
+                debug(`❄️ Adding ICE candidate from ${source}`);
+                if (!peerConnection || !isRemoteSet) {
+                    pendingCandidates.push(candidate);
+                } else {
+                    peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+                        .catch(err => debug("Error adding ICE:", err));
+                }
+            }
+
             // ==================== LISTEN FOR POST MESSAGES ====================
             window.addEventListener('message', function (event) {
                 debug("📨 Received message:", event.data.type);
@@ -659,18 +657,12 @@
                     updateStatus("Incoming call - Click Accept");
                 }
                 if (event.data.type === 'ice-candidate') {
-                    debug("❄️ Received ICE candidate via postMessage");
-                    if (!peerConnection) {
-                        pendingCandidates.push(event.data.candidate);
-                    } else if (!isRemoteSet) {
-                        pendingCandidates.push(event.data.candidate);
-                    } else {
-                        peerConnection.addIceCandidate(new RTCIceCandidate(event.data.candidate))
-                            .catch(err => debug("Error adding ICE:", err));
-                    }
+                    addIceCandidate(event.data.candidate, 'postMessage');
                 }
                 if (event.data.type === 'call-answer') {
                     debug("✅ Received answer via postMessage");
+                    // Skip if already handled via Pusher
+                    if (isRemoteSet) { debug("Answer already handled via Pusher, skipping postMessage duplicate"); return; }
                     handleAnswer(event.data.answer);
                 }
             });
@@ -706,6 +698,7 @@
                 updateStatus("Setting up connection...");
                 pendingCandidates = [];
                 isRemoteSet = false;
+                seenCandidates.clear();
 
                 peerConnection = new RTCPeerConnection({
                     iceServers: iceServers,
@@ -1245,12 +1238,13 @@
                 });
                 pusher.connection.bind('connected', () => {
                     debug("Pusher connected");
-                    const isCaller = new URLSearchParams(window.location.search).has('mode=caller');
+                    const params = new URLSearchParams(window.location.search);
+                    const isCaller = params.get('mode') === 'caller';
                     debug("Mode:", isCaller ? "CALLER" : "RECEIVER");
                     const hasPending = checkPendingCall();
                     if (isCaller) {
-                        showStartMode();
-                        updateStatus("Ready to start call");
+                        debug("STATUS: Auto-starting call as caller...");
+                        setTimeout(() => { window.startCall(); }, 500);
                     } else if (!hasPending) {
                         document.getElementById("callTitle").textContent = `Waiting for call from ${otherUserName}...`;
                         updateStatus("Ready to receive calls");
@@ -1266,7 +1260,9 @@
                 });
                 channel.bind('CallOffer', (data) => {
                     debug("📞 Call offer received in voice window");
-                    if (!new URLSearchParams(window.location.search).has('mode=caller')) {
+                    const params = new URLSearchParams(window.location.search);
+                    const isCaller = params.get('mode') === 'caller';
+                    if (!isCaller) {
                         if (data.offer && data.offer.sdp) {
                             data.offer.sdp = cleanSDP(data.offer.sdp);
                         }
@@ -1279,24 +1275,20 @@
                     }
                 });
                 channel.bind('CallAnswer', async (data) => {
-                    debug("Call answer received");
-                    if (new URLSearchParams(window.location.search).has('mode=caller')) {
-                        if (data.answer && data.answer.sdp) {
-                            data.answer.sdp = cleanSDP(data.answer.sdp);
-                        }
-                        await handleAnswer(data.answer);
+                    debug("Call answer received via Pusher");
+                    // Only handle if we are the caller (have active peerConnection waiting for answer)
+                    const isCaller = new URLSearchParams(window.location.search).get('mode') === 'caller';
+                    if (!isCaller || !peerConnection) return;
+                    // Skip if already handled via postMessage
+                    if (isRemoteSet) { debug("Answer already handled via postMessage, skipping Pusher duplicate"); return; }
+                    if (data.answer && data.answer.sdp) {
+                        data.answer.sdp = cleanSDP(data.answer.sdp);
                     }
+                    await handleAnswer(data.answer);
                 });
                 channel.bind('IceCandidate', (data) => {
-                    debug("ICE candidate received");
-                    if (!peerConnection) {
-                        pendingCandidates.push(data.candidate);
-                    } else if (!isRemoteSet) {
-                        pendingCandidates.push(data.candidate);
-                    } else {
-                        peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate))
-                            .catch(err => debug("Error adding ICE:", err));
-                    }
+                    debug("ICE candidate received via Pusher");
+                    addIceCandidate(data.candidate, 'pusher');
                 });
             }
 
