@@ -108,9 +108,23 @@ class DepartmentResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('parent_id')
-                    ->label('Department')
-                    ->relationship('parent', 'name'),
+                Tables\Filters\SelectFilter::make('parent_department_name')
+                    ->label('Parent Department')
+                    ->options(function () {
+                        return Department::whereNull('parent_id')
+                            ->where('is_active', true)
+                            ->orderBy('name')
+                            ->pluck('name', 'name')
+                            ->toArray();
+                    })
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (isset($data['value']) && $data['value'] !== '') {
+                            return $query->whereHas('parent', function (Builder $query) use ($data) {
+                                $query->where('name', $data['value']);
+                            });
+                        }
+                        return $query;
+                    }),
 
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Active')
