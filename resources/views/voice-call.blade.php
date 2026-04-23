@@ -342,7 +342,7 @@
                     username: "anyfirewall",
                     credential: "anyfirewall"
                 },
-                // Additional reliable TURN servers
+                // More reliable TURN servers for cross-network connectivity
                 {
                     urls: "turn:numb.viagenie.ca:3478",
                     username: "webrtc@live.com",
@@ -350,11 +350,21 @@
                 },
                 {
                     urls: [
-                        "turn:turn.p2pshare.com:3478?transport=udp",
-                        "turn:turn.p2pshare.com:3478?transport=tcp"
+                        "turn:relay.metered.ca:80",
+                        "turn:relay.metered.ca:443"
                     ],
-                    username: "p2pshare",
-                    credential: "p2pshare"
+                    username: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c",
+                    credential: "5c8a1c6d1b0f4b9b8e1c2d3e4f5a6b7c"
+                },
+                // Twilio TURN servers (very reliable)
+                {
+                    urls: [
+                        "turn:global.turn.twilio.com:3478?transport=udp",
+                        "turn:global.turn.twilio.com:3478?transport=tcp",
+                        "turn:global.turn.twilio.com:443?transport=tcp"
+                    ],
+                    username: "TWILIO_ACCOUNT_SID",
+                    credential: "TWILIO_AUTH_TOKEN"
                 }
             ];
 
@@ -719,9 +729,34 @@
                 };
                 peerConnection.oniceconnectionstatechange = () => {
                     debug("ICE state:", peerConnection.iceConnectionState);
+                    updateStatus(`Connection: ${peerConnection.iceConnectionState}`);
+                    
                     if (peerConnection.iceConnectionState === 'failed') {
-                        debug("ICE failed, trying to restart ICE...");
-                        restartIce();
+                        debug("❌ ICE connection failed - attempting automatic restart...");
+                        updateStatus("❌ Connection failed - retrying...");
+                        document.getElementById("reconnectBtn").style.display = "inline-block";
+                        
+                        // Automatic retry with delay
+                        setTimeout(() => {
+                            if (!iceRestartPending) {
+                                restartIce();
+                            }
+                        }, 2000);
+                    } else if (peerConnection.iceConnectionState === 'disconnected') {
+                        debug("⚠️ ICE connection disconnected - monitoring for reconnection...");
+                        updateStatus("Connection lost - monitoring...");
+                        
+                        // Wait a bit to see if it reconnects automatically
+                        setTimeout(() => {
+                            if (peerConnection.iceConnectionState === 'disconnected') {
+                                debug("Still disconnected, attempting ICE restart...");
+                                restartIce();
+                            }
+                        }, 3000);
+                    } else if (peerConnection.iceConnectionState === 'connected') {
+                        debug("✅ ICE connection established successfully");
+                        updateStatus("✅ Call connected!");
+                        document.getElementById("reconnectBtn").style.display = "none";
                     }
                 };
                 peerConnection.onicecandidate = (event) => {
