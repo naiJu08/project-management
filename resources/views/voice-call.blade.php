@@ -333,6 +333,7 @@
             let playbackGain = null;
             let currentRemoteStream = null;
             let iceRestartPending = false;
+            let handlingAnswer = false;
 
             // ==================== VOLUME METERS (unchanged) ====================
             function startLocalVolumeMeter(stream) {
@@ -1123,18 +1124,26 @@
 
             async function handleAnswer(answer) {
                 debug("Handling answer");
-                if (connectionTimeout) {
-                    clearTimeout(connectionTimeout);
-                    connectionTimeout = null;
-                }
-                if (!peerConnection) {
-                    debug("No peer connection");
+                if (handlingAnswer) {
+                    debug("Already handling answer, skipping duplicate");
                     return;
                 }
                 if (isRemoteSet) {
                     debug("Remote description already set, skipping handleAnswer");
                     return;
                 }
+                if (!peerConnection) {
+                    debug("No peer connection");
+                    return;
+                }
+                
+                handlingAnswer = true;
+                
+                if (connectionTimeout) {
+                    clearTimeout(connectionTimeout);
+                    connectionTimeout = null;
+                }
+                
                 if (answer.sdp) {
                     answer.sdp = cleanSDP(answer.sdp);
                 }
@@ -1159,6 +1168,8 @@
                 } catch (err) {
                     debug("❌ Error setting answer:", err);
                     updateStatus("❌ Connection failed");
+                } finally {
+                    handlingAnswer = false;
                 }
             }
 
@@ -1190,6 +1201,8 @@
                 isRemoteSet = false;
                 callActive = false;
                 currentRemoteStream = null;
+                handlingAnswer = false;
+                window.pendingTrackEvent = null;
                 document.getElementById('testMicBtn').style.display = 'none';
                 document.getElementById('playRemoteBtn').style.display = 'none';
                 const msgDiv = document.getElementById('audioMessage');
