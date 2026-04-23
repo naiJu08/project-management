@@ -63,47 +63,37 @@ Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $requ
 Route::get('/get-ice-servers', function () {
     $servers = [];
 
-    // Google STUN
+    // Google STUN servers
     $servers[] = ['urls' => 'stun:stun.l.google.com:19302'];
     $servers[] = ['urls' => 'stun:stun1.l.google.com:19302'];
+    $servers[] = ['urls' => 'stun:stun2.l.google.com:19302'];
 
-    // Your own TURN server with time-limited HMAC credentials (coturn REST API)
-    $ttl = 86400; // 24 hours
-    $timestamp = time() + $ttl;
-    $username = $timestamp . ':webrtcuser';
-    $secret = 'strongpassword123'; // Must match coturn use-auth-secret value
-    $credential = base64_encode(hash_hmac('sha1', $username, $secret, true));
-
+    // Your own TURN server (static credentials - must match coturn lt-cred-mech config)
     $servers[] = [
         'urls' => [
             'turn:pm.inovace.in:3478?transport=udp',
             'turn:pm.inovace.in:3478?transport=tcp',
             'turn:pm.inovace.in:443?transport=tcp',
         ],
-        'username' => $username,
-        'credential' => $credential,
-    ];
-
-    // Also include static credentials as fallback (in case coturn uses static auth)
-    $servers[] = [
-        'urls' => [
-            'turn:pm.inovace.in:3478?transport=udp',
-            'turn:pm.inovace.in:3478?transport=tcp',
-        ],
         'username' => 'webrtcuser',
         'credential' => 'strongpassword123',
     ];
 
-    // OpenRelay free TURN (no account needed)
-    $servers[] = ['urls' => 'turn:openrelay.metered.ca:80', 'username' => 'openrelayproject', 'credential' => 'openrelayproject'];
-    $servers[] = ['urls' => 'turn:openrelay.metered.ca:443', 'username' => 'openrelayproject', 'credential' => 'openrelayproject'];
-    $servers[] = ['urls' => 'turn:openrelay.metered.ca:443?transport=tcp', 'username' => 'openrelayproject', 'credential' => 'openrelayproject'];
-    $servers[] = ['urls' => 'turn:openrelay.metered.ca:80?transport=tcp', 'username' => 'openrelayproject', 'credential' => 'openrelayproject'];
+    // OpenRelay free TURN (no account needed, reliable cross-network relay)
+    $servers[] = [
+        'urls' => [
+            'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:443',
+            'turn:openrelay.metered.ca:443?transport=tcp',
+        ],
+        'username' => 'openrelayproject',
+        'credential' => 'openrelayproject',
+    ];
 
-    // FreeSun free TURN (no account needed, well-maintained)
-    $servers[] = ['urls' => 'turn:freestun.net:3478', 'username' => 'free', 'credential' => 'free'];
-    $servers[] = ['urls' => 'turn:freestun.net:3479?transport=tcp', 'username' => 'free', 'credential' => 'free'];
-    $servers[] = ['urls' => 'turns:freestun.net:5350', 'username' => 'free', 'credential' => 'free'];
+    // Metered.ca free TURN (reliable, no account for basic use)
+    $servers[] = ['urls' => 'turn:a.relay.metered.ca:80', 'username' => 'free', 'credential' => 'free'];
+    $servers[] = ['urls' => 'turn:a.relay.metered.ca:443', 'username' => 'free', 'credential' => 'free'];
+    $servers[] = ['urls' => 'turn:a.relay.metered.ca:443?transport=tcp', 'username' => 'free', 'credential' => 'free'];
 
     return response()->json(['iceServers' => $servers]);
 })->middleware(['auth']);

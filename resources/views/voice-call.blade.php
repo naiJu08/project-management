@@ -619,8 +619,8 @@
 
                 peerConnection = new RTCPeerConnection({
                     iceServers: iceServers,
-                    iceCandidatePoolSize: 5,
-                    iceTransportPolicy: 'relay',  // Force TURN-only to bypass hairpin NAT
+                    iceCandidatePoolSize: 10,
+                    iceTransportPolicy: 'all',  // Allow STUN + TURN so cross-network peers can use relay
                     bundlePolicy: 'max-bundle',
                     rtcpMuxPolicy: 'require',
                     sdpSemantics: 'unified-plan'
@@ -884,9 +884,8 @@
                         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
                     }
                     
-                    // Create new offer with ICE restart
+                    // Create new offer
                     const offer = await peerConnection.createOffer({ 
-                        iceRestart: true,
                         offerToReceiveAudio: true
                     });
                     await peerConnection.setLocalDescription(offer);
