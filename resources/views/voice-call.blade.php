@@ -667,6 +667,13 @@
                         debug("✅ ICE connection established successfully");
                         updateStatus("✅ Call connected!");
                         document.getElementById("reconnectBtn").style.display = "none";
+                        
+                        // Process pending track event if we have one
+                        if (window.pendingTrackEvent) {
+                            debug("🎵 Processing pending track event now that ICE is connected");
+                            setupRemoteAudio(window.pendingTrackEvent);
+                            window.pendingTrackEvent = null;
+                        }
                     }
                 };
                 peerConnection.onicecandidate = (event) => {
@@ -696,7 +703,22 @@
                     }
                 };
                 peerConnection.ontrack = (event) => {
-                    debug("🎵 Remote audio track received");
+                    debug("🎵 Remote audio track received - ICE state:", peerConnection.iceConnectionState);
+                    debug("🎵 Connection state:", peerConnection.connectionState);
+                    
+                    // Only set up audio if ICE connection is actually connected or completed
+                    if (peerConnection.iceConnectionState !== 'connected' && peerConnection.iceConnectionState !== 'completed') {
+                        debug("⏳ Track received but ICE not connected yet - waiting...");
+                        // Store the event for later when ICE connects
+                        window.pendingTrackEvent = event;
+                        return;
+                    }
+
+                    setupRemoteAudio(event);
+                };
+
+                function setupRemoteAudio(event) {
+                    debug("🔊 Setting up remote audio playback");
                     updateStatus("Audio connected - Call active");
 
                     currentRemoteStream = event.streams[0];
@@ -747,7 +769,7 @@
                             updateStatus(remoteAudioElement.muted ? "Remote audio is muted" : "Remote audio is playing");
                         }
                     };
-                };
+                }
             }
 
             // ==================== TURN SERVER DIAGNOSTIC ====================
@@ -1107,6 +1129,10 @@
                 }
                 if (!peerConnection) {
                     debug("No peer connection");
+                    return;
+                }
+                if (isRemoteSet) {
+                    debug("Remote description already set, skipping handleAnswer");
                     return;
                 }
                 if (answer.sdp) {
