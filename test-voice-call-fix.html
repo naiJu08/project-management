@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voice Call Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Voice Call Cross-Network Fix Verification</h1>
+    
+    <div class="test-section info">
+        <h2>✅ Fixes Applied</h2>
+        <ul>
+            <li><strong>ICE Transport Policy:</strong> Changed from 'relay' to 'all' - allows STUN + TURN candidates</li>
+            <li><strong>ICE Server Credentials:</strong> Removed broken HMAC auth, kept only static credentials</li>
+            <li><strong>handleAnswer Guard:</strong> Added check to prevent InvalidStateError</li>
+            <li><strong>Audio Timing Fix:</strong> Only setup audio when ICE is actually connected</li>
+            <li><strong>ICE Restart Fix:</strong> Removed invalid iceRestart flag on new connections</li>
+        </ul>
+    </div>
+
+    <div class="test-section info">
+        <h2>🔧 How to Test</h2>
+        <ol>
+            <li>Open two different browsers (or devices) on different networks</li>
+            <li>Both users log into the application</li>
+            <li>User A calls User B</li>
+            <li>Check debug console for these key indicators:</li>
+        </ol>
+        
+        <h3>Expected Debug Output:</h3>
+        <pre>
+✅ ICE servers loaded: 8 servers
+🎵 Remote audio track received - ICE state: connected
+🔊 Setting up remote audio playback
+✅ Remote description set from answer
+✅ Call connected!
+✅ Audio is playing
+        </pre>
+        
+        <h3>❌ Should NOT see:</h3>
+        <pre>
+❌ Error setting answer: InvalidStateError
+❌ Connection failed
+❌ No TURN servers working
+        </pre>
+    </div>
+
+    <div class="test-section info">
+        <h2>🔬 Debug Tools</h2>
+        <p>In the voice call window, use these buttons to diagnose:</p>
+        <ul>
+            <li><strong>🔬 Test TURN:</strong> Verifies TURN servers can provide relay candidates</li>
+            <li><strong>🐛 Debug:</strong> Shows detailed connection logs</li>
+            <li><strong>🎤 Test Mic:</strong> Confirms microphone is working</li>
+            <li><strong>🔊 Play Remote:</strong> Forces audio playback if needed</li>
+        </ul>
+    </div>
+
+    <div class="test-section success">
+        <h2>🎯 Success Indicators</h2>
+        <p>The fix is working when you see:</p>
+        <ul>
+            <li>✅ TURN server test shows "relay candidate received"</li>
+            <li>✅ ICE connection state reaches "connected"</li>
+            <li>✅ Remote audio track is received</li>
+            <li>✅ Audio plays without clicking</li>
+            <li>✅ No InvalidStateError in console</li>
+        </ul>
+    </div>
+
+    <div class="test-section info">
+        <h2>📝 Quick Test Checklist</h2>
+        <form>
+            <label><input type="checkbox"> Both users on different networks</label><br>
+            <label><input type="checkbox"> TURN server test passes</label><br>
+            <label><input type="checkbox"> Call connects without errors</label><br>
+            <label><input type="checkbox"> Audio plays both directions</label><br>
+            <label><input type="checkbox"> No InvalidStateError in console</label><br>
+            <label><input type="checkbox"> Debug shows ICE state "connected"</label><br>
+        </form>
+    </div>
+
+    <script>
+        console.log("Voice Call Fix Test Page Loaded");
+        console.log("Key fixes to verify:");
+        console.log("1. iceTransportPolicy: 'all' (not 'relay')");
+        console.log("2. Static TURN credentials only");
+        console.log("3. handleAnswer has isRemoteSet guard");
+        console.log("4. Audio setup waits for ICE connected");
+        console.log("5. No iceRestart on new PeerConnection");
+    </script>
+</body>
+</html>
