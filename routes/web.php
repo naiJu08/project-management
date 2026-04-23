@@ -68,16 +68,8 @@ Route::get('/get-ice-servers', function () {
     $servers[] = ['urls' => 'stun:stun1.l.google.com:19302'];
     $servers[] = ['urls' => 'stun:stun2.l.google.com:19302'];
 
-    // Your own TURN server (static credentials - must match coturn lt-cred-mech config)
-    $servers[] = [
-        'urls' => [
-            'turn:pm.inovace.in:3478?transport=udp',
-            'turn:pm.inovace.in:3478?transport=tcp',
-            'turn:pm.inovace.in:443?transport=tcp',
-        ],
-        'username' => 'webrtcuser',
-        'credential' => 'strongpassword123',
-    ];
+    // Twilio Network Traversal Service (free tier, very reliable)
+    $servers[] = ['urls' => 'stun:global.stun.twilio.com:3478'];
 
     // OpenRelay free TURN (no account needed, reliable cross-network relay)
     $servers[] = [
