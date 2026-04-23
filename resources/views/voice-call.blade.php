@@ -621,7 +621,7 @@
                 peerConnection = new RTCPeerConnection({
                     iceServers: iceServers,
                     iceCandidatePoolSize: 10,
-                    iceTransportPolicy: 'all',  // Allow STUN + TURN so cross-network peers can use relay
+                    iceTransportPolicy: 'relay',  // Force TURN-only for cross-network calls
                     bundlePolicy: 'max-bundle',
                     rtcpMuxPolicy: 'require',
                     sdpSemantics: 'unified-plan'
