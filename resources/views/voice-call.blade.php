@@ -218,6 +218,7 @@
     <div class="actionButtons">
         <button id="testMicBtn" style="display: none;" onclick="testMicrophone()">🎤 Test Mic</button>
         <button id="playRemoteBtn" style="display: none;" onclick="forcePlayRemote()">🔊 Play Remote</button>
+        <button onclick="testTurnServers()" style="background:rgba(0,150,255,0.8);">🔬 Test TURN</button>
     </div>
 
     <audio id="remoteAudio" controls autoplay style="display: none;"></audio>
@@ -259,7 +260,8 @@
             // Will be populated dynamically via /get-ice-servers
             let iceServers = [
                 { urls: "stun:stun.l.google.com:19302" },
-                { urls: "stun:stun1.l.google.com:19302" }
+                { urls: "stun:stun1.l.google.com:19302" },
+                { urls: "turn:turn.free.stunprotocol.org:443", username: "free", credential: "free" }
             ];
 
             // ==================== SDP CLEANER (improved) ====================
@@ -617,8 +619,8 @@
 
                 peerConnection = new RTCPeerConnection({
                     iceServers: iceServers,
-                    iceCandidatePoolSize: 20,  // Increased to gather more candidates
-                    iceTransportPolicy: 'all',   // Use all candidates including relay
+                    iceCandidatePoolSize: 5,
+                    iceTransportPolicy: 'relay',  // Force TURN-only to bypass hairpin NAT
                     bundlePolicy: 'max-bundle',
                     rtcpMuxPolicy: 'require',
                     sdpSemantics: 'unified-plan'
@@ -747,6 +749,51 @@
                     };
                 };
             }
+
+            // ==================== TURN SERVER DIAGNOSTIC ====================
+            window.testTurnServers = async function () {
+                debug("🔬 Testing TURN servers...");
+                document.body.classList.add('debug-visible');
+                const turnServers = iceServers.filter(s => {
+                    const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+                    return urls.some(u => u.startsWith('turn:') || u.startsWith('turns:'));
+                });
+                if (turnServers.length === 0) {
+                    debug("❌ No TURN servers in ICE config!");
+                    return;
+                }
+                debug(`Testing ${turnServers.length} TURN server(s)...`);
+                for (const server of turnServers) {
+                    const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+                    const label = urls[0];
+                    try {
+                        const pc = new RTCPeerConnection({
+                            iceServers: [server],
+                            iceTransportPolicy: 'relay'
+                        });
+                        const result = await new Promise((resolve) => {
+                            const timer = setTimeout(() => { pc.close(); resolve('❌ timeout'); }, 8000);
+                            pc.onicecandidate = (e) => {
+                                if (e.candidate && e.candidate.candidate.includes('typ relay')) {
+                                    clearTimeout(timer);
+                                    pc.close();
+                                    resolve('✅ relay candidate received');
+                                } else if (!e.candidate) {
+                                    clearTimeout(timer);
+                                    pc.close();
+                                    resolve('❌ no relay candidate');
+                                }
+                            };
+                            pc.createDataChannel('test');
+                            pc.createOffer().then(o => pc.setLocalDescription(o)).catch(() => { clearTimeout(timer); resolve('❌ offer failed'); });
+                        });
+                        debug(`TURN [${label}]: ${result}`);
+                    } catch (e) {
+                        debug(`TURN [${label}]: ❌ error - ${e.message}`);
+                    }
+                }
+                debug("🔬 TURN test complete.");
+            };
 
             // ==================== NETWORK CONNECTIVITY TEST ====================
             async function testNetworkConnectivity() {
