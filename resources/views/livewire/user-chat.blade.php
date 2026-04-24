@@ -728,8 +728,10 @@
     function attachPeerConnectionListeners() {
         peerConnection.ontrack = event => {
             console.log("🎥 Remote stream received");
-            console.log("🎥 Stream tracks:", event.streams[0].getTracks());
-            console.log("🎥 Stream active:", event.streams[0].active);
+            const remoteStream = event.streams && event.streams[0] ? event.streams[0] : null;
+            const tracks = remoteStream ? remoteStream.getTracks() : [event.track];
+            console.log("🎥 Stream tracks:", tracks);
+            console.log("🎥 Stream active:", remoteStream ? remoteStream.active : event.track.readyState);
             const remoteVideo = document.getElementById("remoteVideo");
             
             if (!remoteVideo) {
@@ -744,7 +746,18 @@
             }
             
             // Set the stream immediately without pause/play cycle that causes AbortError
-            remoteVideo.srcObject = event.streams[0];
+            if (remoteStream) {
+                remoteVideo.srcObject = remoteStream;
+            } else {
+                if (!remoteVideo.srcObject) {
+                    remoteVideo.srcObject = new MediaStream();
+                }
+
+                const existingTrackIds = remoteVideo.srcObject.getTracks().map(track => track.id);
+                if (!existingTrackIds.includes(event.track.id)) {
+                    remoteVideo.srcObject.addTrack(event.track);
+                }
+            }
             remoteVideo.muted = false;
             remoteVideo.autoplay = true;
             remoteVideo.playsInline = true;
