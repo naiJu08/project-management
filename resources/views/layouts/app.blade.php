@@ -80,6 +80,7 @@
     let pendingGlobalVideoOffer = null;
     let pendingGlobalVideoCallerId = null;
     let pendingGlobalVideoCallerName = null;
+    let pendingGlobalVideoCallData = null;
 
     window.globalVideoSocket.on("offer", async (data) => {
         console.log(" GLOBAL VIDEO OFFER RECEIVED", data);
@@ -89,7 +90,14 @@
             return;
         }
 
+        if (window.showIncomingChatVideoCall && typeof window.showIncomingChatVideoCall === 'function') {
+            console.log("Delegating incoming video call to chat popup");
+            window.showIncomingChatVideoCall(data);
+            return;
+        }
+
         console.log(" GLOBAL VIDEO OFFER RECEIVED");
+        pendingGlobalVideoCallData = data;
         pendingGlobalVideoOffer = data.offer;
         pendingGlobalVideoCallerId = data.callerUserId || data.targetUserId || data.room;
         pendingGlobalVideoCallerName = data.callerName || `User ${pendingGlobalVideoCallerId}`;
@@ -124,12 +132,13 @@
             return;
         }
 
-        // Store the complete call data
+        const callerId = pendingGlobalVideoCallData?.callerUserId || pendingGlobalVideoCallerId;
         const callData = {
+            ...(pendingGlobalVideoCallData || {}),
             offer: pendingGlobalVideoOffer,
-            callerUserId: pendingGlobalVideoCallerId,
-            targetUserId: pendingGlobalVideoCallerId,
-            room: typeof pendingGlobalVideoOffer === 'object' ? null : `room-${Math.min(myGlobalVideoUserId, pendingGlobalVideoCallerId)}-${Math.max(myGlobalVideoUserId, pendingGlobalVideoCallerId)}`,
+            callerUserId: callerId,
+            targetUserId: pendingGlobalVideoCallData?.targetUserId || myGlobalVideoUserId,
+            room: pendingGlobalVideoCallData?.room || `room-${Math.min(myGlobalVideoUserId, callerId)}-${Math.max(myGlobalVideoUserId, callerId)}`,
             callerName: pendingGlobalVideoCallerName
         };
 
@@ -138,7 +147,7 @@
 
         // Open video call popup window (like voice calls)
         const popupWindow = window.open(
-            `/video-call/${pendingGlobalVideoCallerId}`,
+            `/video-call/${callerId}`,
             "VideoCallWindow",
             "width=800,height=600,resizable=yes,scrollbars=yes"
         );
@@ -146,7 +155,7 @@
         if (!popupWindow) {
             console.error("Failed to open video call popup - popup blocked");
             // Fallback: redirect to chat page
-            window.location.href = `/user-chat?selectUser=${pendingGlobalVideoCallerId}&videoCall=true`;
+            window.location.href = `/user-chat?selectUser=${callerId}&videoCall=true`;
         }
     };
 
@@ -157,6 +166,7 @@
         pendingGlobalVideoOffer = null;
         pendingGlobalVideoCallerId = null;
         pendingGlobalVideoCallerName = null;
+        pendingGlobalVideoCallData = null;
     };
 </script>
 @endif

@@ -329,6 +329,20 @@
     </button>
 </div>
 
+<!-- INCOMING VIDEO CALL POPUP -->
+<div id="incomingChatVideoCallPopup" style="display:none; position:fixed; top:20px; right:20px; z-index:10001;
+    width:300px; background:#ffffff; border:2px solid #2563eb; border-radius:12px;
+    box-shadow:0 20px 40px rgba(15,23,42,0.25); padding:16px; font-family:system-ui, sans-serif;">
+    <div style="font-weight:700; color:#111827; margin-bottom:6px;">Incoming Video Call</div>
+    <div id="incomingChatVideoCallerName" style="font-size:14px; color:#4b5563; margin-bottom:14px;">Someone is calling...</div>
+    <div style="display:flex; gap:10px;">
+        <button onclick="acceptIncomingChatVideoCall()" style="flex:1; background:#16a34a; color:white; border:0;
+            padding:9px 12px; border-radius:8px; cursor:pointer; font-weight:600;">Accept</button>
+        <button onclick="rejectIncomingChatVideoCall()" style="flex:1; background:#dc2626; color:white; border:0;
+            padding:9px 12px; border-radius:8px; cursor:pointer; font-weight:600;">Reject</button>
+    </div>
+</div>
+
 <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
 
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
@@ -606,6 +620,7 @@
     let currentRoom = null;
     let pendingCandidates = [];
     let isRemoteDescriptionSet = false;
+    let incomingChatVideoOffer = null;
 
     const iceServers = [
         // Primary STUN servers for NAT discovery
@@ -846,29 +861,78 @@
         });
     }
 
+    function showIncomingChatVideoCall(data) {
+        if (!data || Number(data.callerUserId) === Number(myVideoUserId)) {
+            return;
+        }
+
+        incomingChatVideoOffer = data;
+        window.pendingChatVideoOffer = data;
+        window.acceptChatVideoCall = acceptIncomingChatVideoCall;
+
+        const callerName = document.getElementById("incomingChatVideoCallerName");
+        if (callerName) {
+            callerName.textContent = "Incoming video call from " + (data.callerName || ("User " + data.callerUserId));
+        }
+
+        if (window.incomingVideoUI) {
+            window.incomingVideoUI.style.display = "none";
+        }
+
+        const popup = document.getElementById("incomingChatVideoCallPopup");
+        if (popup) {
+            popup.style.display = "block";
+        }
+    }
+
+    async function acceptIncomingChatVideoCall() {
+        const data = incomingChatVideoOffer || window.pendingChatVideoOffer;
+
+        if (!data) {
+            console.warn("No pending video offer to accept");
+            return;
+        }
+
+        const popup = document.getElementById("incomingChatVideoCallPopup");
+        if (popup) {
+            popup.style.display = "none";
+        }
+
+        incomingChatVideoOffer = null;
+        window.pendingChatVideoOffer = null;
+        await handleChatVideoOffer(data);
+    }
+
+    function rejectIncomingChatVideoCall() {
+        const data = incomingChatVideoOffer || window.pendingChatVideoOffer;
+
+        if (data && data.room) {
+            socket.emit("call-declined", {
+                room: data.room,
+                declinedBy: myVideoUserId
+            });
+        }
+
+        const popup = document.getElementById("incomingChatVideoCallPopup");
+        if (popup) {
+            popup.style.display = "none";
+        }
+
+        incomingChatVideoOffer = null;
+        window.pendingChatVideoOffer = null;
+    }
+
     // RECEIVE OFFER
     socket.on("offer", async (data) => {
         console.log("🔥 CHAT OFFER RECEIVED");
         console.log("📩 Incoming video offer");
-        console.log("🔍 Checking for global UI:", window.incomingVideoUI);
 
-        // If global UI exists, let it handle the popup (it's on every page via app.blade.php)
-        if (window.incomingVideoUI) {
-            console.log("� Global UI exists, letting it handle the popup");
-            
-            // Store data for when user accepts via global popup
-            window.pendingChatVideoOffer = data;
-            window.acceptChatVideoCall = async function() {
-                await handleChatVideoOffer(data);
-            };
-            
-            // Don't handle here - global UI will show popup
+        if (peerConnection || (document.getElementById("videoCallContainer") && document.getElementById("videoCallContainer").style.display === "block")) {
+            console.log("Already in a video call, ignoring incoming offer");
             return;
         }
 
-        // No global UI - handle inline (fallback for old pages without app.blade.php update)
-        console.log("📱 No global UI, handling inline");
-        await handleChatVideoOffer(data);
+        showIncomingChatVideoCall(data);
     });
 
     async function handleChatVideoOffer(data) {
@@ -959,6 +1023,13 @@
         }
     });
 
+    socket.on("call-declined", () => {
+        if (peerConnection || (document.getElementById("videoCallContainer") && document.getElementById("videoCallContainer").style.display === "block")) {
+            alert("Video call rejected");
+            endCall();
+        }
+    });
+
     // RECEIVE ICE CANDIDATE (🔥 FINAL FIX)
     socket.on("ice-candidate", async (data) => {
 
@@ -1011,6 +1082,9 @@
 
     window.startVideoCall = startVideoCall;
     window.endCall = endCall;
+    window.showIncomingChatVideoCall = showIncomingChatVideoCall;
+    window.acceptIncomingChatVideoCall = acceptIncomingChatVideoCall;
+    window.rejectIncomingChatVideoCall = rejectIncomingChatVideoCall;
 
 </script>
 
