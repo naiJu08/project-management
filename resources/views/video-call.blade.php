@@ -210,7 +210,8 @@
             {
                 urls: [
                     "turn:pm.inovace.in:3478?transport=udp",
-                    "turn:pm.inovace.in:3478?transport=tcp"
+                    "turn:pm.inovace.in:3478?transport=tcp",
+                    "turns:pm.inovace.in:5349?transport=tcp"
                 ],
                 username: "webrtcuser",
                 credential: "strongpassword123"
@@ -222,7 +223,10 @@
                 credential: "openrelayproject"
             },
             {
-                urls: "turn:openrelay.metered.ca:443",
+                urls: [
+                    "turn:openrelay.metered.ca:443",
+                    "turns:openrelay.metered.ca:443?transport=tcp"
+                ],
                 username: "openrelayproject",
                 credential: "openrelayproject"
             }
@@ -242,7 +246,7 @@
             }
 
             return new Promise(resolve => {
-                const timeout = setTimeout(done, 5000);
+                const timeout = setTimeout(done, 10000);
 
                 function done() {
                     clearTimeout(timeout);
@@ -427,6 +431,9 @@
                     }
                 }).catch(error => {
                     console.warn("⚠️ play() failed, retrying in 500ms:", error.message);
+                    if (error.name === 'NotAllowedError') {
+                        remoteVideo.muted = true;
+                    }
                     setTimeout(playRemoteVideo, 500);
                 });
             }
@@ -456,6 +463,8 @@
                 }
                 
                 remoteVideo.muted = false;
+                remoteVideo.autoplay = true;
+                remoteVideo.playsInline = true;
                 
                 // Attempt to play after a short delay
                 if (remoteVideo.playTimeout) clearTimeout(remoteVideo.playTimeout);

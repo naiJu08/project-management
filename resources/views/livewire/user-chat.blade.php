@@ -638,7 +638,8 @@
         {
             urls: [
                 "turn:pm.inovace.in:3478?transport=udp",
-                "turn:pm.inovace.in:3478?transport=tcp"
+                "turn:pm.inovace.in:3478?transport=tcp",
+                "turns:pm.inovace.in:5349?transport=tcp"
             ],
             username: "webrtcuser",
             credential: "strongpassword123"
@@ -648,7 +649,8 @@
         {
             urls: [
                 "turn:openrelay.metered.ca:80",
-                "turn:openrelay.metered.ca:443"
+                "turn:openrelay.metered.ca:443",
+                "turns:openrelay.metered.ca:443?transport=tcp"
             ],
             username: "openrelayproject",
             credential: "openrelayproject"
@@ -705,7 +707,7 @@
         }
 
         return new Promise(resolve => {
-            const timeout = setTimeout(done, 5000);
+            const timeout = setTimeout(done, 10000);
 
             function done() {
                 clearTimeout(timeout);
@@ -744,6 +746,8 @@
             // Set the stream immediately without pause/play cycle that causes AbortError
             remoteVideo.srcObject = event.streams[0];
             remoteVideo.muted = false;
+            remoteVideo.autoplay = true;
+            remoteVideo.playsInline = true;
             
             // Use a single play attempt with proper error handling
             remoteVideo.playTimeout = setTimeout(() => {
@@ -755,7 +759,9 @@
                         if (error.name === 'AbortError') {
                             console.warn("⚠️ Video play was aborted, this is usually harmless");
                         } else if (error.name === 'NotAllowedError') {
-                            console.warn("⚠️ Autoplay prevented, user interaction required");
+                            console.warn("⚠️ Autoplay prevented, retrying muted video playback");
+                            remoteVideo.muted = true;
+                            remoteVideo.play().catch(e => console.error("Muted remote video play error:", e));
                         } else {
                             console.error("❌ Remote video play error:", error);
                         }
