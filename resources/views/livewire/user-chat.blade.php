@@ -848,59 +848,26 @@
 
     // RECEIVE OFFER
     socket.on("offer", async (data) => {
-
         console.log("🔥 CHAT OFFER RECEIVED");
         console.log("📩 Incoming video offer");
         console.log("🔍 Checking for global UI:", window.incomingVideoUI);
 
-        // Wait for global UI to be available (race condition fix)
-        let attempts = 0;
-        while (!window.incomingVideoUI && attempts < 50) {
-            await new Promise(resolve => setTimeout(resolve, 50));
-            attempts++;
-        }
-        
-        console.log("🔍 Global UI after wait:", window.incomingVideoUI);
-
-        // If global UI exists and is visible, let it handle the UI
-        if (window.incomingVideoUI && window.incomingVideoUI.style.display === "block") {
-            console.log("📱 Global UI is handling the offer, just storing data");
-            // Store the data for when user accepts
+        // If global UI exists, let it handle the popup (it's on every page via app.blade.php)
+        if (window.incomingVideoUI) {
+            console.log("� Global UI exists, letting it handle the popup");
+            
+            // Store data for when user accepts via global popup
             window.pendingChatVideoOffer = data;
             window.acceptChatVideoCall = async function() {
-                window.incomingVideoUI.style.display = "none";
-                await handleChatVideoOffer(data);
-            };
-            return;
-        }
-
-        // If global UI exists but not visible, show it
-        if (window.incomingVideoUI && window.incomingVideoUI.style.display !== "block") {
-            console.log("📱 Showing global UI for incoming call");
-            
-            const callerName = data.callerName || `User ${data.callerUserId || 'Unknown'}`;
-            const callerNameElement = document.getElementById("incomingVideoCallerName");
-            if (callerNameElement) {
-                callerNameElement.textContent = `Incoming video call from ${callerName}`;
-            }
-            
-            // Store the complete data
-            window.pendingGlobalVideoData = data;
-            window.pendingChatVideoOffer = data;
-            
-            window.acceptChatVideoCall = async function() {
-                window.incomingVideoUI.style.display = "none";
                 await handleChatVideoOffer(data);
             };
             
-            window.incomingVideoUI.style.display = "block";
+            // Don't handle here - global UI will show popup
             return;
         }
 
-        // Fallback: handle immediately if no global UI available
-        console.log("📱 No global UI detected after waiting, handling immediately");
-        console.log("🔍 window.incomingVideoUI:", window.incomingVideoUI);
-        console.log("🔍 Attempts made:", attempts);
+        // No global UI - handle inline (fallback for old pages without app.blade.php update)
+        console.log("📱 No global UI, handling inline");
         await handleChatVideoOffer(data);
     });
 
