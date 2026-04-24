@@ -736,7 +736,6 @@
 
                 socket.emit("ice-candidate", {
                     room: currentRoom,
-                    targetUserId: selectedUser, // Send to other user's personal room
                     candidate: event.candidate
                 });
             } else {
@@ -773,39 +772,10 @@
     }
 
     async function startVideoCall(userId) {
-        console.log(" Starting video call with user:", userId);
 
         currentRoom = "room-" + Math.min(myVideoUserId, userId) + "-" + Math.max(myVideoUserId, userId);
+        document.getElementById("videoCallContainer").style.display = "block";
 
-        // Open video call popup window instead of inline container
-        const callData = {
-            callerUserId: myVideoUserId,
-            targetUserId: userId,
-            room: currentRoom,
-            callerName: 'Me'
-        };
-
-        // Store minimal data in sessionStorage (offer will be created in popup)
-        sessionStorage.setItem('pendingVideoCall', JSON.stringify(callData));
-
-        const popupWindow = window.open(
-            `/video-call/${userId}`,
-            "VideoCallWindow",
-            "width=900,height=700,resizable=yes,scrollbars=yes"
-        );
-
-        if (!popupWindow) {
-            console.error(" Popup blocked, falling back to inline video");
-            // Fallback: Use inline video container
-            document.getElementById("videoCallContainer").style.display = "block";
-            await startInlineVideoCall(userId);
-        } else {
-            console.log(" Video call popup opened successfully");
-        }
-    }
-
-    // Fallback inline video call (original implementation)
-    async function startInlineVideoCall(userId) {
         socket.emit("join-room", currentRoom);
 
         if (peerConnection) {
@@ -845,7 +815,7 @@
             }
         }
 
-        // FIX: Proper local video setup
+        // ✅ FIX: Proper local video setup
         const localVideo = document.getElementById("localVideo");
         if (localVideo.srcObject) {
             localVideo.pause();
@@ -854,7 +824,7 @@
         setTimeout(() => {
             localVideo.srcObject = localStream;
             localVideo.muted = true; // Always mute local video to avoid echo
-            localVideo.play().catch(e => console.error(" Local video play error:", e));
+            localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
         }, 50);
 
         peerConnection = new RTCPeerConnection(config);
@@ -882,65 +852,55 @@
         console.log("📩 Incoming video offer");
         console.log("🔍 Checking for global UI:", window.incomingVideoUI);
 
-        // Wait longer for global UI to be available (race condition fix)
-        // The global UI is created by app.blade.php which may load slower
+        // Wait for global UI to be available (race condition fix)
         let attempts = 0;
-        while (!window.incomingVideoUI && attempts < 100) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+        while (!window.incomingVideoUI && attempts < 50) {
+            await new Promise(resolve => setTimeout(resolve, 50));
             attempts++;
         }
-
+        
         console.log("🔍 Global UI after wait:", window.incomingVideoUI);
-        console.log("🔍 Attempts made:", attempts);
 
-        // If global UI exists, let it handle the incoming call
-        if (window.incomingVideoUI) {
-            console.log("📱 Global UI detected, delegating to global handler");
+        // If global UI exists and is visible, let it handle the UI
+        if (window.incomingVideoUI && window.incomingVideoUI.style.display === "block") {
+            console.log("📱 Global UI is handling the offer, just storing data");
+            // Store the data for when user accepts
+            window.pendingChatVideoOffer = data;
+            window.acceptChatVideoCall = async function() {
+                window.incomingVideoUI.style.display = "none";
+                await handleChatVideoOffer(data);
+            };
+            return;
+        }
 
-            // Store data for global handler
-            window.pendingGlobalVideoOffer = data.offer;
-            window.pendingGlobalVideoCallerId = data.callerUserId || data.targetUserId;
-            window.pendingGlobalVideoCallerName = `User ${data.callerUserId || data.targetUserId || 'Unknown'}`;
-
-            // Update global UI
+        // If global UI exists but not visible, show it
+        if (window.incomingVideoUI && window.incomingVideoUI.style.display !== "block") {
+            console.log("📱 Showing global UI for incoming call");
+            
+            const callerName = `User ${data.callerUserId || data.targetUserId || 'Unknown'}`;
             const callerNameElement = document.getElementById("incomingVideoCallerName");
             if (callerNameElement) {
-                callerNameElement.textContent = `Incoming video call from ${window.pendingGlobalVideoCallerName}`;
+                callerNameElement.textContent = `Incoming video call from ${callerName}`;
             }
-
-            // Show global UI
+            
+            // Store the complete data
+            window.pendingGlobalVideoData = data;
+            window.pendingChatVideoOffer = data;
+            
+            window.acceptChatVideoCall = async function() {
+                window.incomingVideoUI.style.display = "none";
+                await handleChatVideoOffer(data);
+            };
+            
             window.incomingVideoUI.style.display = "block";
             return;
         }
 
-        // Last resort: Open popup directly if global UI not available
-        console.log("📱 No global UI available, opening popup directly");
-
-        const room = data.room || `room-${Math.min(myVideoUserId, data.callerUserId)}-${Math.max(myVideoUserId, data.callerUserId)}`;
-        const callData = {
-            offer: data.offer,
-            callerUserId: data.callerUserId,
-            targetUserId: data.targetUserId,
-            room: room,
-            callerName: `User ${data.callerUserId || 'Unknown'}`
-        };
-
-        // Store in sessionStorage
-        sessionStorage.setItem('pendingVideoCall', JSON.stringify(callData));
-
-        // Open popup directly
-        const popupWindow = window.open(
-            `/video-call/${data.callerUserId}`,
-            "VideoCallWindow",
-            "width=800,height=600,resizable=yes,scrollbars=yes"
-        );
-
-        if (!popupWindow) {
-            console.error("❌ Popup blocked, falling back to chat page handler");
-            await handleChatVideoOffer(data);
-        } else {
-            console.log("✅ Video call popup opened successfully");
-        }
+        // Fallback: handle immediately if no global UI available
+        console.log("📱 No global UI detected after waiting, handling immediately");
+        console.log("🔍 window.incomingVideoUI:", window.incomingVideoUI);
+        console.log("🔍 Attempts made:", attempts);
+        await handleChatVideoOffer(data);
     });
 
     async function handleChatVideoOffer(data) {

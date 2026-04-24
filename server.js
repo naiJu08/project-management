@@ -36,40 +36,12 @@ io.on("connection", socket => {
 
     // ANSWER
     socket.on("answer", data => {
-        console.log(" ANSWER RECEIVED:", data);
-
-        // Send to shared room
-        if (data.room) {
-            console.log(" Sending answer to shared room:", data.room);
-            socket.to(data.room).emit("answer", data);
-        }
-
-        // Also send to target user's personal room for reliability
-        if (data.targetUserId) {
-            console.log(" Sending answer to user room:", `user-${data.targetUserId}`);
-            socket.to(`user-${data.targetUserId}`).emit("answer", data);
-        }
-
-        // Fallback: if callerUserId provided, send to that room too
-        if (data.callerUserId) {
-            console.log(" Sending answer to caller room:", `user-${data.callerUserId}`);
-            socket.to(`user-${data.callerUserId}`).emit("answer", data);
-        }
+        socket.to(data.room).emit("answer", data);
     });
 
     // ICE
     socket.on("ice-candidate", data => {
-        console.log("📡 ICE CANDIDATE RECEIVED for room:", data.room);
-
-        // Send to shared room
-        if (data.room) {
-            socket.to(data.room).emit("ice-candidate", data);
-        }
-
-        // Also send to target user's personal room
-        if (data.targetUserId) {
-            socket.to(`user-${data.targetUserId}`).emit("ice-candidate", data);
-        }
+        socket.to(data.room).emit("ice-candidate", data);
     });
 
 });
