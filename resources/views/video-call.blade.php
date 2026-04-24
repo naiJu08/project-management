@@ -235,6 +235,30 @@
             bundlePolicy: 'max-bundle',
             rtcpMuxPolicy: 'require'
         };
+
+        function waitForIceGatheringComplete(pc) {
+            if (!pc || pc.iceGatheringState === "complete") {
+                return Promise.resolve();
+            }
+
+            return new Promise(resolve => {
+                const timeout = setTimeout(done, 5000);
+
+                function done() {
+                    clearTimeout(timeout);
+                    pc.removeEventListener("icegatheringstatechange", onStateChange);
+                    resolve();
+                }
+
+                function onStateChange() {
+                    if (pc.iceGatheringState === "complete") {
+                        done();
+                    }
+                }
+
+                pc.addEventListener("icegatheringstatechange", onStateChange);
+            });
+        }
         
         // Test network connectivity
         async function testNetworkConnectivity() {
@@ -510,10 +534,11 @@
                 
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
+                await waitForIceGatheringComplete(peerConnection);
                 
                 socket.emit("answer", {
                     room: callData.room,
-                    answer: answer
+                    answer: peerConnection.localDescription
                 });
                 
                 console.log("📞 Sent answer to caller");
@@ -526,12 +551,13 @@
             try {
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
+                await waitForIceGatheringComplete(peerConnection);
                 
                 socket.emit("offer", {
                     room: callData.room,
                     targetUserId: callData.callerUserId,
                     callerUserId: myUserId,
-                    offer: offer
+                    offer: peerConnection.localDescription
                 });
                 
                 console.log("📞 Sent offer to receiver");
