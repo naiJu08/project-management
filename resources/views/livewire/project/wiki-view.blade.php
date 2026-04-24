@@ -769,6 +769,13 @@
             }, 100);
         });
 
+        // Listen for wiki edit mode event to reload content
+        window.addEventListener('wiki-edit-mode-entered', () => {
+            setTimeout(() => {
+                initTrixEditor();
+            }, 100);
+        });
+
         // Listen for job polling events
         window.addEventListener('start-job-polling', event => {
             showProgressToast();

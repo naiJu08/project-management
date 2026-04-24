@@ -123,6 +123,9 @@ class WikiView extends Component
             $this->isCreating = true;
         }
         $this->isEditing = true;
+        
+        // Dispatch event to reload Trix editor with content
+        $this->dispatchBrowserEvent('wiki-edit-mode-entered');
     }
 
     public function createSubPage($parentId)
