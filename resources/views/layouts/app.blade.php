@@ -70,6 +70,7 @@
     let pendingGlobalVideoOffer = null;
     let pendingGlobalVideoCallerId = null;
     let pendingGlobalVideoCallerName = null;
+    let pendingGlobalVideoRoom = null;
 
     globalVideoSocket.on("offer", async (data) => {
         console.log("🔥 GLOBAL VIDEO OFFER RECEIVED", data);
@@ -79,9 +80,10 @@
             return;
         }
 
-        console.log("🔥 GLOBAL VIDEO OFFER RECEIVED");
+        console.log("🔥 GLOBAL VIDEO OFFER RECEIVED - processing");
         pendingGlobalVideoOffer = data.offer;
-        pendingGlobalVideoCallerId = data.targetUserId || data.room;
+        pendingGlobalVideoCallerId = data.callerUserId;
+        pendingGlobalVideoRoom = data.room;
         pendingGlobalVideoCallerName = `User ${pendingGlobalVideoCallerId}`;
 
         document.getElementById("incomingVideoCallerName").textContent = `Incoming video call from ${pendingGlobalVideoCallerName}`;
@@ -97,14 +99,19 @@
 
         incomingVideoUI.style.display = "none";
 
-        // Store the complete call data
+        // Ensure room is set correctly
+        const roomName = pendingGlobalVideoRoom || `room-${Math.min(myGlobalVideoUserId, pendingGlobalVideoCallerId)}-${Math.max(myGlobalVideoUserId, pendingGlobalVideoCallerId)}`;
+
+        // Store the complete call data with properly serializable offer
         const callData = {
             offer: pendingGlobalVideoOffer,
             callerUserId: pendingGlobalVideoCallerId,
-            targetUserId: pendingGlobalVideoCallerId,
-            room: typeof pendingGlobalVideoOffer === 'object' ? null : `room-${Math.min(myGlobalVideoUserId, pendingGlobalVideoCallerId)}-${Math.max(myGlobalVideoUserId, pendingGlobalVideoCallerId)}`,
+            targetUserId: myGlobalVideoUserId,
+            room: roomName,
             callerName: pendingGlobalVideoCallerName
         };
+
+        console.log("📱 Storing call data:", callData);
 
         // Store in sessionStorage for the video call popup to use
         sessionStorage.setItem('pendingVideoCall', JSON.stringify(callData));
@@ -113,7 +120,7 @@
         const popupWindow = window.open(
             `/video-call/${pendingGlobalVideoCallerId}`,
             "VideoCallWindow",
-            "width=800,height=600,resizable=yes,scrollbars=yes"
+            "width=900,height=700,resizable=yes,scrollbars=yes"
         );
 
         if (!popupWindow) {
@@ -121,6 +128,12 @@
             // Fallback: redirect to chat page
             window.location.href = `/user-chat?selectUser=${pendingGlobalVideoCallerId}&videoCall=true`;
         }
+
+        // Clear pending data
+        pendingGlobalVideoOffer = null;
+        pendingGlobalVideoCallerId = null;
+        pendingGlobalVideoCallerName = null;
+        pendingGlobalVideoRoom = null;
     };
 
     window.declineGlobalVideoCall = function() {
@@ -128,6 +141,7 @@
         pendingGlobalVideoOffer = null;
         pendingGlobalVideoCallerId = null;
         pendingGlobalVideoCallerName = null;
+        pendingGlobalVideoRoom = null;
     };
 </script>
 @endif

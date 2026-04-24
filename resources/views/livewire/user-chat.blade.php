@@ -736,6 +736,7 @@
 
                 socket.emit("ice-candidate", {
                     room: currentRoom,
+                    targetUserId: selectedUser, // Send to other user's personal room
                     candidate: event.candidate
                 });
             } else {
