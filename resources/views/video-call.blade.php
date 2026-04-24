@@ -385,18 +385,46 @@
         function setupPeerConnectionListeners() {
             peerConnection.ontrack = event => {
                 console.log("🎥 Remote stream received");
+                console.log("🎥 Stream tracks:", event.streams[0].getTracks());
+                console.log("🎥 Stream active:", event.streams[0].active);
                 const remoteVideo = document.getElementById('remoteVideo');
-                remoteVideo.srcObject = event.streams[0];
                 
-                // Hide connecting message
-                document.getElementById('connectingMsg').style.display = 'none';
-                document.getElementById('callStatus').textContent = 'Connected';
-                
-                // Start call timer
-                if (!callStartTime) {
-                    callStartTime = Date.now();
-                    startCallTimer();
+                if (!remoteVideo) {
+                    console.error("❌ Remote video element not found");
+                    return;
                 }
+                
+                // Clear any existing timeout to avoid conflicts
+                if (remoteVideo.playTimeout) {
+                    clearTimeout(remoteVideo.playTimeout);
+                }
+                
+                // Set the stream immediately
+                remoteVideo.srcObject = event.streams[0];
+                remoteVideo.muted = false;
+                
+                // Use a single play attempt with proper error handling
+                remoteVideo.playTimeout = setTimeout(() => {
+                    const playPromise = remoteVideo.play();
+                    if (playPromise !== undefined) {
+                        playPromise.then(() => {
+                            console.log("✅ Remote video playing successfully");
+                            
+                            // Hide connecting message
+                            document.getElementById('connectingMsg').style.display = 'none';
+                            document.getElementById('callStatus').textContent = 'Connected';
+                            
+                            // Start call timer
+                            if (!callStartTime) {
+                                callStartTime = Date.now();
+                                startCallTimer();
+                            }
+                        }).catch(error => {
+                            console.error("❌ Failed to play remote video:", error);
+                            document.getElementById('callStatus').textContent = 'Video Play Failed';
+                        });
+                    }
+                }, 100);
             };
             
             peerConnection.onicecandidate = event => {
