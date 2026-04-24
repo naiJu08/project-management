@@ -427,11 +427,15 @@
                 return;
             }
 
-            // Check if already playing
+            // Check if already playing properly
             if (!remoteVideo.paused && remoteVideo.readyState >= 2) {
                 console.log("✅ Remote video already playing");
                 document.getElementById('connectingMsg').style.display = 'none';
                 document.getElementById('callStatus').textContent = 'Connected';
+                if (!callStartTime) {
+                    callStartTime = Date.now();
+                    startCallTimer();
+                }
                 return;
             }
 
@@ -439,6 +443,34 @@
             console.log("   - Video readyState:", remoteVideo.readyState);
             console.log("   - Stream active:", remoteVideo.srcObject.active);
             console.log("   - Stream tracks:", remoteVideo.srcObject.getTracks().map(t => `${t.kind}:${t.readyState}`).join(', '));
+
+            // If readyState is 0 or 1, wait for more data before playing
+            if (remoteVideo.readyState < 2) {
+                console.log("⏳ Video not ready yet (readyState < 2), waiting for canplay event...");
+
+                // Set up one-time event listener for canplay
+                const onCanPlay = () => {
+                    console.log("🎯 canplay event fired, readyState:", remoteVideo.readyState);
+                    remoteVideo.removeEventListener('canplay', onCanPlay);
+                    remoteVideo.removeEventListener('loadedmetadata', onCanPlay);
+                    playRemoteVideo();
+                };
+
+                remoteVideo.addEventListener('canplay', onCanPlay, { once: true });
+                remoteVideo.addEventListener('loadedmetadata', onCanPlay, { once: true });
+
+                // Fallback: try anyway after a delay
+                setTimeout(() => {
+                    remoteVideo.removeEventListener('canplay', onCanPlay);
+                    remoteVideo.removeEventListener('loadedmetadata', onCanPlay);
+                    if (remoteVideo.readyState >= 2) {
+                        console.log("⏰ Fallback: video ready after delay");
+                        playRemoteVideo();
+                    }
+                }, 2000);
+
+                return;
+            }
 
             const playPromise = remoteVideo.play();
             if (playPromise !== undefined) {
@@ -508,13 +540,9 @@
 
                 remoteVideo.muted = false;
 
-                // Attempt to play after a short delay - try multiple times
-                if (remoteVideo.playTimeout) clearTimeout(remoteVideo.playTimeout);
-                remoteVideo.playTimeout = setTimeout(() => {
-                    playRemoteVideo();
-                    // Try again after a longer delay if first attempt fails
-                    setTimeout(playRemoteVideo, 1000);
-                }, 100);
+                // Call playRemoteVideo which will wait for canplay event
+                console.log("🎥 Triggering video playback (will wait for ready state)");
+                playRemoteVideo();
             };
             
             peerConnection.onicecandidate = event => {
@@ -550,15 +578,24 @@
             peerConnection.oniceconnectionstatechange = () => {
                 const iceState = peerConnection.iceConnectionState;
                 console.log("ICE connection state:", iceState);
-                
+
                 if (iceState === 'failed') {
                     document.getElementById('callStatus').textContent = 'ICE Connection Failed - Check Network';
                 } else if (iceState === 'disconnected') {
                     document.getElementById('callStatus').textContent = 'Reconnecting...';
                 } else if (iceState === 'connected' || iceState === 'completed') {
-                    document.getElementById('callStatus').textContent = 'Connected';
-                    // Retry playing remote video in case ontrack fired before connection was ready
-                    setTimeout(playRemoteVideo, 300);
+                    document.getElementById('callStatus').textContent = 'ICE Connected - Waiting for video...';
+                    // Retry playing remote video multiple times after ICE connects
+                    // Media may arrive with some delay
+                    [300, 1000, 2000, 4000].forEach(delay => {
+                        setTimeout(() => {
+                            const remoteVideo = document.getElementById('remoteVideo');
+                            if (remoteVideo && remoteVideo.paused) {
+                                console.log(`🔄 ICE connected, retrying video play (${delay}ms)`);
+                                playRemoteVideo();
+                            }
+                        }, delay);
+                    });
                 }
             };
             
