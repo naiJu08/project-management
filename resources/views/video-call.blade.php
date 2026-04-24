@@ -187,6 +187,8 @@
         let peerConnection = null;
         let callStartTime = null;
         let callTimer = null;
+        let pendingCandidates = [];
+        let remoteDescriptionSet = false;
         
         const iceServers = [
             // Google STUN servers (primary)
@@ -382,11 +384,35 @@
             }
         }
         
+        function playRemoteVideo() {
+            const remoteVideo = document.getElementById('remoteVideo');
+            if (!remoteVideo || !remoteVideo.srcObject) return;
+            
+            // Already playing
+            if (!remoteVideo.paused && remoteVideo.readyState >= 2) return;
+            
+            const playPromise = remoteVideo.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    console.log("✅ Remote video playing successfully");
+                    document.getElementById('connectingMsg').style.display = 'none';
+                    document.getElementById('callStatus').textContent = 'Connected';
+                    if (!callStartTime) {
+                        callStartTime = Date.now();
+                        startCallTimer();
+                    }
+                }).catch(error => {
+                    console.warn("⚠️ play() failed, retrying in 500ms:", error.message);
+                    setTimeout(playRemoteVideo, 500);
+                });
+            }
+        }
+        
         function setupPeerConnectionListeners() {
             peerConnection.ontrack = event => {
                 console.log("🎥 Remote stream received");
-                console.log("🎥 Stream tracks:", event.streams[0].getTracks());
-                console.log("🎥 Stream active:", event.streams[0].active);
+                const tracks = event.streams[0] ? event.streams[0].getTracks() : [event.track];
+                console.log("🎥 Stream tracks:", tracks);
                 const remoteVideo = document.getElementById('remoteVideo');
                 
                 if (!remoteVideo) {
@@ -394,37 +420,22 @@
                     return;
                 }
                 
-                // Clear any existing timeout to avoid conflicts
-                if (remoteVideo.playTimeout) {
-                    clearTimeout(remoteVideo.playTimeout);
+                // Always update srcObject with latest stream
+                if (event.streams && event.streams[0]) {
+                    remoteVideo.srcObject = event.streams[0];
+                } else {
+                    // Fallback: build stream from track directly
+                    if (!remoteVideo.srcObject) {
+                        remoteVideo.srcObject = new MediaStream();
+                    }
+                    remoteVideo.srcObject.addTrack(event.track);
                 }
                 
-                // Set the stream immediately
-                remoteVideo.srcObject = event.streams[0];
                 remoteVideo.muted = false;
                 
-                // Use a single play attempt with proper error handling
-                remoteVideo.playTimeout = setTimeout(() => {
-                    const playPromise = remoteVideo.play();
-                    if (playPromise !== undefined) {
-                        playPromise.then(() => {
-                            console.log("✅ Remote video playing successfully");
-                            
-                            // Hide connecting message
-                            document.getElementById('connectingMsg').style.display = 'none';
-                            document.getElementById('callStatus').textContent = 'Connected';
-                            
-                            // Start call timer
-                            if (!callStartTime) {
-                                callStartTime = Date.now();
-                                startCallTimer();
-                            }
-                        }).catch(error => {
-                            console.error("❌ Failed to play remote video:", error);
-                            document.getElementById('callStatus').textContent = 'Video Play Failed';
-                        });
-                    }
-                }, 100);
+                // Attempt to play after a short delay
+                if (remoteVideo.playTimeout) clearTimeout(remoteVideo.playTimeout);
+                remoteVideo.playTimeout = setTimeout(playRemoteVideo, 200);
             };
             
             peerConnection.onicecandidate = event => {
@@ -465,8 +476,10 @@
                     document.getElementById('callStatus').textContent = 'ICE Connection Failed - Check Network';
                 } else if (iceState === 'disconnected') {
                     document.getElementById('callStatus').textContent = 'Reconnecting...';
-                } else if (iceState === 'connected') {
+                } else if (iceState === 'connected' || iceState === 'completed') {
                     document.getElementById('callStatus').textContent = 'Connected';
+                    // Retry playing remote video in case ontrack fired before connection was ready
+                    setTimeout(playRemoteVideo, 300);
                 }
             };
             
@@ -483,6 +496,18 @@
         async function handleIncomingOffer(offer) {
             try {
                 await peerConnection.setRemoteDescription(offer);
+                remoteDescriptionSet = true;
+                
+                // Flush any queued ICE candidates
+                for (const candidate of pendingCandidates) {
+                    try {
+                        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                    } catch (e) {
+                        console.warn("Failed to add queued candidate:", e);
+                    }
+                }
+                pendingCandidates = [];
+                
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
                 
@@ -520,6 +545,18 @@
             console.log("✅ Answer received");
             try {
                 await peerConnection.setRemoteDescription(data.answer);
+                remoteDescriptionSet = true;
+                console.log("✅ Remote description set, flushing", pendingCandidates.length, "pending candidates");
+                
+                // Flush queued ICE candidates
+                for (const candidate of pendingCandidates) {
+                    try {
+                        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                    } catch (e) {
+                        console.warn("Failed to add queued candidate:", e);
+                    }
+                }
+                pendingCandidates = [];
             } catch (error) {
                 console.error("❌ Failed to set remote description:", error);
             }
@@ -527,8 +564,11 @@
         
         socket.on("ice-candidate", async (data) => {
             try {
-                if (peerConnection) {
+                if (peerConnection && remoteDescriptionSet) {
                     await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                } else {
+                    console.log("⏳ Queuing ICE candidate (remote desc not set yet)");
+                    pendingCandidates.push(data.candidate);
                 }
             } catch (error) {
                 console.error("❌ Failed to add ICE candidate:", error);
