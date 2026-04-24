@@ -293,18 +293,28 @@
         // Initialize call
         async function initializeCall() {
             try {
+                console.log("🚀 Initializing video call...");
+                console.log("📊 Call data:", {
+                    hasOffer: !!callData?.offer,
+                    room: callData?.room,
+                    callerUserId: callData?.callerUserId,
+                    myUserId: myUserId,
+                    mode: callData?.offer ? 'receiver' : 'caller'
+                });
+
                 // Test network connectivity first
                 document.getElementById('callStatus').textContent = 'Testing Network...';
                 const networkOk = await testNetworkConnectivity();
-                
+
                 if (!networkOk) {
                     document.getElementById('callStatus').textContent = 'Poor Network Connection';
                     document.getElementById('connectingMsg').innerHTML = '<div>🌐 Poor network detected</div><div style="font-size: 14px; margin-top: 10px;">Attempting connection anyway...</div>';
                 } else {
                     document.getElementById('callStatus').textContent = 'Network OK - Connecting...';
                 }
-                
+
                 // Get media
+                console.log("📹 Getting user media...");
                 localStream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         width: { ideal: 1280, max: 1920 },
@@ -317,31 +327,57 @@
                         autoGainControl: true
                     }
                 });
-                
+                console.log("✅ Local stream obtained:", localStream.id);
+                console.log("   - Video tracks:", localStream.getVideoTracks().length);
+                console.log("   - Audio tracks:", localStream.getAudioTracks().length);
+
                 // Set local video
                 const localVideo = document.getElementById('localVideo');
                 localVideo.srcObject = localStream;
-                
+                console.log("✅ Local video set");
+
                 // Create peer connection
+                console.log("🔌 Creating peer connection...");
                 peerConnection = new RTCPeerConnection(config);
-                
+                console.log("✅ Peer connection created");
+
                 // Add local tracks
+                console.log("🎵 Adding local tracks to peer connection...");
                 localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
+                    const sender = peerConnection.addTrack(track, localStream);
+                    console.log(`   - Added ${track.kind} track, sender created:`, !!sender);
                 });
-                
+
                 // Setup peer connection listeners
+                console.log("👂 Setting up peer connection listeners...");
                 setupPeerConnectionListeners();
-                
+
+                // Process any pending answer that arrived early
+                if (pendingAnswer) {
+                    console.log("🔄 Processing early pending answer");
+                    try {
+                        await peerConnection.setRemoteDescription(pendingAnswer);
+                        remoteDescriptionSet = true;
+                        pendingAnswer = null;
+                        console.log("✅ Early answer applied");
+                    } catch (e) {
+                        console.error("❌ Failed to apply early answer:", e);
+                    }
+                }
+
                 // Handle incoming offer or create one
                 if (callData.offer) {
                     // Receiver mode - handle incoming offer
+                    console.log("📥 Receiver mode: handling incoming offer");
                     await handleIncomingOffer(callData.offer);
                 } else {
                     // Caller mode - create offer
+                    console.log("📤 Caller mode: creating offer");
                     await createAndSendOffer();
                 }
-                
+
+                console.log("✅ Call initialization complete");
+
             } catch (error) {
                 console.error("❌ Failed to initialize call:", error);
                 document.getElementById('callStatus').textContent = 'Failed: ' + error.message;
@@ -386,11 +422,24 @@
         
         function playRemoteVideo() {
             const remoteVideo = document.getElementById('remoteVideo');
-            if (!remoteVideo || !remoteVideo.srcObject) return;
-            
-            // Already playing
-            if (!remoteVideo.paused && remoteVideo.readyState >= 2) return;
-            
+            if (!remoteVideo || !remoteVideo.srcObject) {
+                console.log("⏳ Remote video not ready yet (no srcObject)");
+                return;
+            }
+
+            // Check if already playing
+            if (!remoteVideo.paused && remoteVideo.readyState >= 2) {
+                console.log("✅ Remote video already playing");
+                document.getElementById('connectingMsg').style.display = 'none';
+                document.getElementById('callStatus').textContent = 'Connected';
+                return;
+            }
+
+            console.log("🎬 Attempting to play remote video...");
+            console.log("   - Video readyState:", remoteVideo.readyState);
+            console.log("   - Stream active:", remoteVideo.srcObject.active);
+            console.log("   - Stream tracks:", remoteVideo.srcObject.getTracks().map(t => `${t.kind}:${t.readyState}`).join(', '));
+
             const playPromise = remoteVideo.play();
             if (playPromise !== undefined) {
                 playPromise.then(() => {
@@ -402,8 +451,29 @@
                         startCallTimer();
                     }
                 }).catch(error => {
-                    console.warn("⚠️ play() failed, retrying in 500ms:", error.message);
-                    setTimeout(playRemoteVideo, 500);
+                    console.warn("⚠️ play() failed:", error.name, error.message);
+
+                    // Handle specific errors
+                    if (error.name === 'NotAllowedError') {
+                        console.log("📱 Autoplay blocked - will retry on user interaction");
+                        // Show a message to click to play
+                        document.getElementById('connectingMsg').innerHTML = `
+                            <div>📹 Click anywhere to start video</div>
+                            <div style="font-size: 14px; margin-top: 10px;">Browser blocked autoplay</div>
+                        `;
+                        document.getElementById('connectingMsg').style.cursor = 'pointer';
+                        document.getElementById('connectingMsg').onclick = () => {
+                            playRemoteVideo();
+                            document.getElementById('connectingMsg').onclick = null;
+                            document.getElementById('connectingMsg').style.cursor = 'default';
+                        };
+                    } else if (error.name === 'AbortError') {
+                        console.log("🔄 Play aborted, will retry");
+                        setTimeout(playRemoteVideo, 300);
+                    } else {
+                        console.error("❌ Video play error:", error);
+                        setTimeout(playRemoteVideo, 500);
+                    }
                 });
             }
         }
@@ -412,30 +482,39 @@
             peerConnection.ontrack = event => {
                 console.log("🎥 Remote stream received");
                 const tracks = event.streams[0] ? event.streams[0].getTracks() : [event.track];
-                console.log("🎥 Stream tracks:", tracks);
+                console.log("🎥 Stream tracks:", tracks.map(t => `${t.kind}:${t.readyState}`).join(', '));
+                console.log("🎥 Stream active:", event.streams[0]?.active);
+                console.log("🎥 Track receivers:", peerConnection.getReceivers().length);
+
                 const remoteVideo = document.getElementById('remoteVideo');
-                
+
                 if (!remoteVideo) {
                     console.error("❌ Remote video element not found");
                     return;
                 }
-                
+
                 // Always update srcObject with latest stream
                 if (event.streams && event.streams[0]) {
+                    console.log("🎥 Setting srcObject from event.streams[0]");
                     remoteVideo.srcObject = event.streams[0];
                 } else {
                     // Fallback: build stream from track directly
+                    console.log("🎥 Building stream from individual track");
                     if (!remoteVideo.srcObject) {
                         remoteVideo.srcObject = new MediaStream();
                     }
                     remoteVideo.srcObject.addTrack(event.track);
                 }
-                
+
                 remoteVideo.muted = false;
-                
-                // Attempt to play after a short delay
+
+                // Attempt to play after a short delay - try multiple times
                 if (remoteVideo.playTimeout) clearTimeout(remoteVideo.playTimeout);
-                remoteVideo.playTimeout = setTimeout(playRemoteVideo, 200);
+                remoteVideo.playTimeout = setTimeout(() => {
+                    playRemoteVideo();
+                    // Try again after a longer delay if first attempt fails
+                    setTimeout(playRemoteVideo, 1000);
+                }, 100);
             };
             
             peerConnection.onicecandidate = event => {
@@ -497,7 +576,7 @@
             try {
                 await peerConnection.setRemoteDescription(offer);
                 remoteDescriptionSet = true;
-                
+
                 // Flush any queued ICE candidates
                 for (const candidate of pendingCandidates) {
                     try {
@@ -507,15 +586,15 @@
                     }
                 }
                 pendingCandidates = [];
-                
+
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
-                
+
                 socket.emit("answer", {
                     room: callData.room,
                     answer: answer
                 });
-                
+
                 console.log("📞 Sent answer to caller");
             } catch (error) {
                 console.error("❌ Failed to handle offer:", error);
@@ -524,30 +603,44 @@
         
         async function createAndSendOffer() {
             try {
+                console.log("📝 Creating offer...");
                 const offer = await peerConnection.createOffer();
+                console.log("✅ Offer created");
+
                 await peerConnection.setLocalDescription(offer);
-                
+                console.log("✅ Local description set (offer)");
+
                 socket.emit("offer", {
                     room: callData.room,
                     targetUserId: callData.callerUserId,
                     callerUserId: myUserId,
                     offer: offer
                 });
-                
-                console.log("📞 Sent offer to receiver");
+
+                console.log("📞 Sent offer to receiver, room:", callData.room);
             } catch (error) {
                 console.error("❌ Failed to create offer:", error);
             }
         }
         
         // Socket listeners
+        let pendingAnswer = null;
+
         socket.on("answer", async (data) => {
             console.log("✅ Answer received");
+
+            // If peerConnection not ready, queue the answer
+            if (!peerConnection) {
+                console.log("⏳ PeerConnection not ready, queueing answer");
+                pendingAnswer = data.answer;
+                return;
+            }
+
             try {
                 await peerConnection.setRemoteDescription(data.answer);
                 remoteDescriptionSet = true;
                 console.log("✅ Remote description set, flushing", pendingCandidates.length, "pending candidates");
-                
+
                 // Flush queued ICE candidates
                 for (const candidate of pendingCandidates) {
                     try {
@@ -564,14 +657,28 @@
         
         socket.on("ice-candidate", async (data) => {
             try {
-                if (peerConnection && remoteDescriptionSet) {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-                } else {
-                    console.log("⏳ Queuing ICE candidate (remote desc not set yet)");
+                const candidateType = data.candidate.candidate?.includes('typ relay') ? 'TURN' :
+                                     data.candidate.candidate?.includes('typ srflx') ? 'STUN' : 'host';
+                console.log(`📡 ICE candidate received [${candidateType}]`);
+
+                if (!peerConnection) {
+                    console.log("⏳ PeerConnection not ready, queuing ICE candidate");
                     pendingCandidates.push(data.candidate);
+                    return;
                 }
+
+                if (!remoteDescriptionSet) {
+                    console.log("⏳ Remote description not set, queuing ICE candidate");
+                    pendingCandidates.push(data.candidate);
+                    return;
+                }
+
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                console.log(`✅ ICE candidate added [${candidateType}]`);
             } catch (error) {
                 console.error("❌ Failed to add ICE candidate:", error);
+                // Still queue it in case it can be added later
+                pendingCandidates.push(data.candidate);
             }
         });
         
