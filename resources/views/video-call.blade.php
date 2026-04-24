@@ -173,12 +173,25 @@
         const socket = io("https://pm.inovace.in");
         const myUserId = {{ auth()->id() }};
         
+        let socketConnected = false;
+        let socketJoinedRoom = false;
+
         socket.on("connect", () => {
             console.log("✅ Video call socket connected");
+            socketConnected = true;
             socket.emit("join-user", myUserId);
-            
+            console.log("📡 Joined user room:", `user-${myUserId}`);
+
             if (callData.room) {
                 socket.emit("join-room", callData.room);
+                socketJoinedRoom = true;
+                console.log("📡 Joined call room:", callData.room);
+            }
+
+            // If we have a pending offer to handle, do it now
+            if (callData.offer && !remoteDescriptionSet) {
+                console.log("🔄 Socket ready, processing pending offer");
+                handleIncomingOffer(callData.offer);
             }
         });
         
@@ -369,7 +382,13 @@
                 if (callData.offer) {
                     // Receiver mode - handle incoming offer
                     console.log("📥 Receiver mode: handling incoming offer");
-                    await handleIncomingOffer(callData.offer);
+                    // Wait for socket to be connected before handling offer
+                    if (socketConnected && socketJoinedRoom) {
+                        await handleIncomingOffer(callData.offer);
+                    } else {
+                        console.log("⏳ Waiting for socket connection before handling offer...");
+                        // The offer will be handled in the socket.on('connect') callback
+                    }
                 } else {
                     // Caller mode - create offer
                     console.log("📤 Caller mode: creating offer");
@@ -547,8 +566,13 @@
             
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
+                    const candidateType = event.candidate.candidate?.includes('typ relay') ? 'TURN' :
+                                         event.candidate.candidate?.includes('typ srflx') ? 'STUN' : 'host';
+                    console.log(`📤 Sending ICE candidate [${candidateType}]`);
+
                     socket.emit("ice-candidate", {
                         room: callData.room,
+                        targetUserId: callData.callerUserId, // Send to other user's personal room
                         candidate: event.candidate
                     });
                 }
@@ -611,30 +635,57 @@
         
         async function handleIncomingOffer(offer) {
             try {
+                console.log("📥 Setting remote description (offer)...");
                 await peerConnection.setRemoteDescription(offer);
                 remoteDescriptionSet = true;
+                console.log("✅ Remote description set (offer)");
 
                 // Flush any queued ICE candidates
-                for (const candidate of pendingCandidates) {
-                    try {
-                        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                    } catch (e) {
-                        console.warn("Failed to add queued candidate:", e);
+                if (pendingCandidates.length > 0) {
+                    console.log(`🔄 Adding ${pendingCandidates.length} queued ICE candidates`);
+                    for (const candidate of pendingCandidates) {
+                        try {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                        } catch (e) {
+                            console.warn("Failed to add queued candidate:", e);
+                        }
                     }
+                    pendingCandidates = [];
                 }
-                pendingCandidates = [];
 
+                console.log("📝 Creating answer...");
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
+                console.log("✅ Local description set (answer)");
 
-                socket.emit("answer", {
-                    room: callData.room,
-                    answer: answer
-                });
+                // Ensure we're connected to the room before sending answer
+                if (!socketJoinedRoom && callData.room) {
+                    console.log("📡 Joining room before sending answer...");
+                    socket.emit("join-room", callData.room);
+                    socketJoinedRoom = true;
+                }
 
-                console.log("📞 Sent answer to caller");
+                // Send answer with retry logic
+                const sendAnswer = () => {
+                    console.log("📤 Sending answer to room:", callData.room);
+                    socket.emit("answer", {
+                        room: callData.room,
+                        answer: answer,
+                        callerUserId: myUserId,
+                        targetUserId: callData.callerUserId
+                    });
+                };
+
+                // Send immediately and retry after a short delay to ensure delivery
+                sendAnswer();
+                setTimeout(sendAnswer, 500);
+                setTimeout(sendAnswer, 1500);
+
+                console.log("📞 Answer sent to caller");
+                document.getElementById('callStatus').textContent = 'Answer sent - Waiting for connection...';
             } catch (error) {
                 console.error("❌ Failed to handle offer:", error);
+                document.getElementById('callStatus').textContent = 'Error: ' + error.message;
             }
         }
         
@@ -647,16 +698,34 @@
                 await peerConnection.setLocalDescription(offer);
                 console.log("✅ Local description set (offer)");
 
-                socket.emit("offer", {
-                    room: callData.room,
-                    targetUserId: callData.callerUserId,
-                    callerUserId: myUserId,
-                    offer: offer
-                });
+                // Ensure room is joined before sending offer
+                if (!socketJoinedRoom && callData.room) {
+                    console.log("📡 Joining room before sending offer...");
+                    socket.emit("join-room", callData.room);
+                    socketJoinedRoom = true;
+                }
 
-                console.log("📞 Sent offer to receiver, room:", callData.room);
+                // Send offer with retry logic
+                const sendOffer = () => {
+                    console.log("📤 Sending offer to room:", callData.room);
+                    socket.emit("offer", {
+                        room: callData.room,
+                        targetUserId: callData.callerUserId,
+                        callerUserId: myUserId,
+                        offer: offer
+                    });
+                };
+
+                // Send immediately and retry after delays
+                sendOffer();
+                setTimeout(sendOffer, 500);
+                setTimeout(sendOffer, 1500);
+
+                console.log("📞 Offer sent to receiver, room:", callData.room);
+                document.getElementById('callStatus').textContent = 'Calling...';
             } catch (error) {
                 console.error("❌ Failed to create offer:", error);
+                document.getElementById('callStatus').textContent = 'Error: ' + error.message;
             }
         }
         
