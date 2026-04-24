@@ -44,4 +44,11 @@ io.on("connection", socket => {
         socket.to(data.room).emit("ice-candidate", data);
     });
 
+    // CALL DECLINED
+    socket.on("call-declined", data => {
+        if (data && data.room) {
+            socket.to(data.room).emit("call-declined", data);
+        }
+    });
+
 });
