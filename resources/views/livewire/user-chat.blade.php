@@ -841,6 +841,7 @@
             room: currentRoom,
             targetUserId: userId,
             callerUserId: myVideoUserId,
+            callerName: "{{ auth()->user()->name }}",
             offer: offer
         });
     }
@@ -877,7 +878,7 @@
         if (window.incomingVideoUI && window.incomingVideoUI.style.display !== "block") {
             console.log("📱 Showing global UI for incoming call");
             
-            const callerName = `User ${data.callerUserId || data.targetUserId || 'Unknown'}`;
+            const callerName = data.callerName || `User ${data.callerUserId || 'Unknown'}`;
             const callerNameElement = document.getElementById("incomingVideoCallerName");
             if (callerNameElement) {
                 callerNameElement.textContent = `Incoming video call from ${callerName}`;

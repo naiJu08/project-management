@@ -24,16 +24,16 @@
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script>
     // ================= GLOBAL VIDEO CALL LISTENER =================
-    const globalVideoSocket = io("https://pm.inovace.in");
+    window.globalVideoSocket = io("https://pm.inovace.in");
     const myGlobalVideoUserId = {{ auth()->id() }};
     
-    globalVideoSocket.on("connect", () => {
+    window.globalVideoSocket.on("connect", () => {
         console.log("✅ Global video socket connected");
-        globalVideoSocket.emit("join-user", myGlobalVideoUserId);
+        window.globalVideoSocket.emit("join-user", myGlobalVideoUserId);
         console.log("📡 Joined user room:", `user-${myGlobalVideoUserId}`);
     });
     
-    globalVideoSocket.on("disconnect", () => {
+    window.globalVideoSocket.on("disconnect", () => {
         console.log("❌ Global video socket disconnected");
     });
 
@@ -71,7 +71,7 @@
     let pendingGlobalVideoCallerId = null;
     let pendingGlobalVideoCallerName = null;
 
-    globalVideoSocket.on("offer", async (data) => {
+    window.globalVideoSocket.on("offer", async (data) => {
         console.log("🔥 GLOBAL VIDEO OFFER RECEIVED", data);
         // Ignore if we are already in the chat video flow
         if (window.peerConnection || (document.getElementById("videoCallContainer") && document.getElementById("videoCallContainer").style.display === "block")) {
@@ -81,8 +81,8 @@
 
         console.log("🔥 GLOBAL VIDEO OFFER RECEIVED");
         pendingGlobalVideoOffer = data.offer;
-        pendingGlobalVideoCallerId = data.targetUserId || data.room;
-        pendingGlobalVideoCallerName = `User ${pendingGlobalVideoCallerId}`;
+        pendingGlobalVideoCallerId = data.callerUserId || data.targetUserId || data.room;
+        pendingGlobalVideoCallerName = data.callerName || `User ${pendingGlobalVideoCallerId}`;
 
         document.getElementById("incomingVideoCallerName").textContent = `Incoming video call from ${pendingGlobalVideoCallerName}`;
         incomingVideoUI.style.display = "block";
