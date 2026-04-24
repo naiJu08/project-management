@@ -699,6 +699,30 @@
         }
     }
 
+    function waitForIceGatheringComplete(pc) {
+        if (!pc || pc.iceGatheringState === "complete") {
+            return Promise.resolve();
+        }
+
+        return new Promise(resolve => {
+            const timeout = setTimeout(done, 5000);
+
+            function done() {
+                clearTimeout(timeout);
+                pc.removeEventListener("icegatheringstatechange", onStateChange);
+                resolve();
+            }
+
+            function onStateChange() {
+                if (pc.iceGatheringState === "complete") {
+                    done();
+                }
+            }
+
+            pc.addEventListener("icegatheringstatechange", onStateChange);
+        });
+    }
+
     function attachPeerConnectionListeners() {
         peerConnection.ontrack = event => {
             console.log("🎥 Remote stream received");
@@ -851,13 +875,14 @@
 
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
+        await waitForIceGatheringComplete(peerConnection);
 
         socket.emit("offer", {
             room: currentRoom,
             targetUserId: userId,
             callerUserId: myVideoUserId,
             callerName: "{{ auth()->user()->name }}",
-            offer: offer
+            offer: peerConnection.localDescription
         });
     }
 
@@ -998,10 +1023,11 @@
 
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
+        await waitForIceGatheringComplete(peerConnection);
 
         socket.emit("answer", {
             room: currentRoom,
-            answer: answer
+            answer: peerConnection.localDescription
         });
     }
 
