@@ -621,6 +621,8 @@
     let pendingCandidates = [];
     let isRemoteDescriptionSet = false;
     let incomingChatVideoOffer = null;
+    let remoteVideoFrameMonitor = null;
+    let remoteVideoFrameMonitorToken = 0;
 
     const iceServers = [
         // Primary STUN servers for NAT discovery
@@ -760,6 +762,64 @@
         }
     }
 
+    function refreshRemoteVideoStream() {
+        const remoteVideo = document.getElementById("remoteVideo");
+        if (!remoteVideo || !remoteVideo.srcObject) return;
+
+        const tracks = remoteVideo.srcObject.getTracks();
+        const hasLiveVideoTrack = remoteVideo.srcObject.getVideoTracks().some(track => track.readyState === "live");
+        if (!hasLiveVideoTrack) return;
+
+        remoteVideo.srcObject = null;
+        remoteVideo.srcObject = new MediaStream(tracks);
+        setTimeout(playRemoteVideo, 100);
+    }
+
+    function startRemoteVideoFrameMonitor() {
+        const remoteVideo = document.getElementById("remoteVideo");
+        if (!remoteVideo || !remoteVideo.srcObject) return;
+
+        if (remoteVideoFrameMonitor) {
+            clearInterval(remoteVideoFrameMonitor);
+        }
+
+        remoteVideoFrameMonitorToken++;
+        const monitorToken = remoteVideoFrameMonitorToken;
+        let lastFrameAt = Date.now();
+        let lastVideoTime = remoteVideo.currentTime;
+
+        if ("requestVideoFrameCallback" in remoteVideo) {
+            const markFrame = () => {
+                if (monitorToken !== remoteVideoFrameMonitorToken) return;
+                lastFrameAt = Date.now();
+                if (remoteVideo.srcObject) {
+                    remoteVideo.requestVideoFrameCallback(markFrame);
+                }
+            };
+            remoteVideo.requestVideoFrameCallback(markFrame);
+        }
+
+        remoteVideoFrameMonitor = setInterval(() => {
+            if (!remoteVideo.srcObject || !peerConnection) return;
+
+            const hasLiveVideoTrack = remoteVideo.srcObject.getVideoTracks().some(track => track.readyState === "live");
+            if (!hasLiveVideoTrack || remoteVideo.paused) return;
+
+            if (!("requestVideoFrameCallback" in remoteVideo)) {
+                if (remoteVideo.currentTime !== lastVideoTime) {
+                    lastVideoTime = remoteVideo.currentTime;
+                    lastFrameAt = Date.now();
+                }
+            }
+
+            if (remoteVideo.videoWidth > 0 && Date.now() - lastFrameAt > 2500) {
+                console.warn("Remote video frame stalled, refreshing video element");
+                refreshRemoteVideoStream();
+                lastFrameAt = Date.now();
+            }
+        }, 1000);
+    }
+
     function bindLocalVideoStream(localVideo, stream) {
         localVideo.muted = true; // Always mute local video to avoid echo
         localVideo.autoplay = true;
@@ -831,6 +891,7 @@
             setTimeout(refreshRemoteVideoIfBlack, 800);
             setTimeout(refreshRemoteVideoIfBlack, 1800);
             setTimeout(refreshRemoteVideoIfBlack, 3000);
+            startRemoteVideoFrameMonitor();
         };
 
         peerConnection.onicecandidate = event => {
@@ -1189,6 +1250,11 @@
             remoteVideo.pause();
             remoteVideo.srcObject = null;
         }
+        if (remoteVideoFrameMonitor) {
+            clearInterval(remoteVideoFrameMonitor);
+            remoteVideoFrameMonitor = null;
+        }
+        remoteVideoFrameMonitorToken++;
         
         pendingCandidates = [];
         currentRoom = null;
