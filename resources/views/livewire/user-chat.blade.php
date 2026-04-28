@@ -754,6 +754,7 @@
         const hasLiveVideoTrack = remoteVideo.srcObject.getVideoTracks().some(track => track.readyState === "live");
 
         if (hasLiveVideoTrack && remoteVideo.videoWidth === 0) {
+            remoteVideo.srcObject = null;
             remoteVideo.srcObject = new MediaStream(tracks);
             setTimeout(playRemoteVideo, 100);
         }
@@ -821,12 +822,15 @@
             remoteVideo.playsInline = true;
             remoteVideo.style.display = "block";
             remoteVideo.style.visibility = "visible";
+            remoteVideo.style.opacity = "1";
             remoteVideo.onloadedmetadata = playRemoteVideo;
             event.track.onunmute = playRemoteVideo;
             
             // Use a single play attempt with proper error handling
             remoteVideo.playTimeout = setTimeout(playRemoteVideo, 200);
             setTimeout(refreshRemoteVideoIfBlack, 800);
+            setTimeout(refreshRemoteVideoIfBlack, 1800);
+            setTimeout(refreshRemoteVideoIfBlack, 3000);
         };
 
         peerConnection.onicecandidate = event => {
