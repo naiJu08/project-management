@@ -725,12 +725,32 @@
         });
     }
 
+    function playRemoteVideo() {
+        const remoteVideo = document.getElementById("remoteVideo");
+        if (!remoteVideo || !remoteVideo.srcObject) return;
+
+        if (!remoteVideo.paused && remoteVideo.readyState >= 2) return;
+
+        const playPromise = remoteVideo.play();
+        if (playPromise !== undefined) {
+            playPromise.then(() => {
+                console.log("✅ Remote video playing successfully");
+            }).catch(error => {
+                console.warn("⚠️ Remote video play failed, retrying:", error.message);
+                if (error.name === "NotAllowedError") {
+                    remoteVideo.muted = true;
+                }
+                setTimeout(playRemoteVideo, 500);
+            });
+        }
+    }
+
     function attachPeerConnectionListeners() {
         peerConnection.ontrack = event => {
-            const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
+            const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : null;
             console.log("🎥 Remote stream received");
-            console.log("🎥 Stream tracks:", remoteStream.getTracks());
-            console.log("🎥 Stream active:", remoteStream.active);
+            console.log("🎥 Stream tracks:", remoteStream ? remoteStream.getTracks() : [event.track]);
+            console.log("🎥 Stream active:", remoteStream ? remoteStream.active : event.track.readyState === "live");
             const remoteVideo = document.getElementById("remoteVideo");
             
             if (!remoteVideo) {
@@ -745,32 +765,24 @@
             }
             
             // Set the stream immediately without pause/play cycle that causes AbortError
-            remoteVideo.srcObject = remoteStream;
+            if (remoteStream) {
+                remoteVideo.srcObject = remoteStream;
+            } else {
+                if (!remoteVideo.srcObject) {
+                    remoteVideo.srcObject = new MediaStream();
+                }
+                remoteVideo.srcObject.addTrack(event.track);
+            }
             remoteVideo.muted = false;
             remoteVideo.autoplay = true;
             remoteVideo.playsInline = true;
-            remoteVideo.onloadedmetadata = () => remoteVideo.play().catch(e => console.error("Remote video metadata play error:", e));
-            event.track.onunmute = () => remoteVideo.play().catch(e => console.error("Remote video track play error:", e));
+            remoteVideo.style.display = "block";
+            remoteVideo.style.visibility = "visible";
+            remoteVideo.onloadedmetadata = playRemoteVideo;
+            event.track.onunmute = playRemoteVideo;
             
             // Use a single play attempt with proper error handling
-            remoteVideo.playTimeout = setTimeout(() => {
-                const playPromise = remoteVideo.play();
-                if (playPromise !== undefined) {
-                    playPromise.then(() => {
-                        console.log("✅ Remote video playing successfully");
-                    }).catch(error => {
-                        if (error.name === 'AbortError') {
-                            console.warn("⚠️ Video play was aborted, this is usually harmless");
-                        } else if (error.name === 'NotAllowedError') {
-                            console.warn("⚠️ Autoplay prevented, retrying muted video playback");
-                            remoteVideo.muted = true;
-                            remoteVideo.play().catch(e => console.error("Muted remote video play error:", e));
-                        } else {
-                            console.error("❌ Remote video play error:", error);
-                        }
-                    });
-                }
-            }, 100);
+            remoteVideo.playTimeout = setTimeout(playRemoteVideo, 200);
         };
 
         peerConnection.onicecandidate = event => {
@@ -794,6 +806,9 @@
         peerConnection.onconnectionstatechange = () => {
             const state = peerConnection.connectionState;
             console.log("WebRTC connection state:", state);
+            if (state === 'connected') {
+                setTimeout(playRemoteVideo, 300);
+            }
             if (state === 'failed' || state === 'disconnected' || state === 'closed') {
                 console.error("❌ WebRTC connection failed - video won't work");
                 alert("Video connection failed. Please check your network and try again.");
@@ -803,6 +818,9 @@
         peerConnection.oniceconnectionstatechange = () => {
             const state = peerConnection.iceConnectionState;
             console.log("WebRTC ICE state:", state);
+            if (state === 'connected' || state === 'completed') {
+                setTimeout(playRemoteVideo, 300);
+            }
             if (state === 'failed' || state === 'disconnected' || state === 'closed') {
                 console.error("❌ ICE connection failed - video won't work");
                 alert("ICE connection failed. This might be due to network restrictions or firewall.");
@@ -870,8 +888,11 @@
             localVideo.srcObject = null;
         }
         setTimeout(() => {
-            localVideo.srcObject = localStream;
             localVideo.muted = true; // Always mute local video to avoid echo
+            localVideo.autoplay = true;
+            localVideo.playsInline = true;
+            localVideo.style.display = "block";
+            localVideo.srcObject = localStream;
             localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
         }, 50);
 
@@ -1014,8 +1035,11 @@
             localVideo.srcObject = null;
         }
         setTimeout(() => {
-            localVideo.srcObject = localStream;
             localVideo.muted = true; // Always mute local video to avoid echo
+            localVideo.autoplay = true;
+            localVideo.playsInline = true;
+            localVideo.style.display = "block";
+            localVideo.srcObject = localStream;
             localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
         }, 50);
 
