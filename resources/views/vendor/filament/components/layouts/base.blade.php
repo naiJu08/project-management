@@ -221,8 +221,6 @@
 
         @stack('scripts')
 
-        @include('partials.global-video-call-listener')
-
         {{ \Filament\Facades\Filament::renderHook('scripts.end') }}
 
         {{ \Filament\Facades\Filament::renderHook('body.end') }}
