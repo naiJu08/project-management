@@ -318,7 +318,7 @@
 <div id="videoCallContainer" style="display:none; position:fixed; inset:0; background:black; z-index:9999;">
 
     <video id="localVideo" autoplay muted playsinline
-        style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px;"></video>
+        style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px; transform:scaleX(-1);"></video>
 
     <video id="remoteVideo" autoplay playsinline
         style="width:100%; height:100%; object-fit:cover;"></video>
