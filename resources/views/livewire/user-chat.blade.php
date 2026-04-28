@@ -318,13 +318,14 @@
 <div id="videoCallContainer" style="display:none; position:fixed; inset:0; background:black; z-index:9999;">
 
     <video id="localVideo" autoplay muted playsinline
-        style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px;"></video>
+        style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px; z-index:2;"></video>
 
-    <video id="remoteVideo" autoplay playsinline
-        style="width:100%; height:100%; object-fit:cover;"></video>
+    <video id="remoteVideo" autoplay muted playsinline
+        style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1;"></video>
+    <audio id="remoteAudio" autoplay></audio>
 
     <button onclick="endCall()" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
-                   background:red; color:white; padding:10px 20px; border-radius:50px;">
+                   background:red; color:white; padding:10px 20px; border-radius:50px; z-index:3;">
         End Call
     </button>
 </div>
@@ -619,6 +620,7 @@
     let peerConnection;
     let currentRoom = null;
     let currentPeerUserId = null;
+    let remoteMediaStream = null;
     let pendingCandidates = [];
     let isRemoteDescriptionSet = false;
     let incomingChatVideoOffer = null;
@@ -726,6 +728,63 @@
         });
     }
 
+    function attachRemoteMediaStream(incomingStream, incomingTrack) {
+        const remoteVideo = document.getElementById("remoteVideo");
+        const remoteAudio = document.getElementById("remoteAudio");
+
+        if (!remoteVideo) {
+            console.error("Remote video element not found");
+            return;
+        }
+
+        if (!remoteMediaStream) {
+            remoteMediaStream = new MediaStream();
+        }
+
+        const tracks = incomingStream ? incomingStream.getTracks() : [incomingTrack];
+        tracks.filter(Boolean).forEach(track => {
+            if (!remoteMediaStream.getTracks().some(existingTrack => existingTrack.id === track.id)) {
+                remoteMediaStream.addTrack(track);
+                if (track.kind === "video") {
+                    track.onunmute = () => {
+                        console.log("Remote video track unmuted");
+                        remoteVideo.play().catch(error => {
+                            console.error("Remote video play after unmute failed:", error);
+                        });
+                    };
+                }
+            }
+        });
+
+        const videoTracks = remoteMediaStream.getVideoTracks();
+        const audioTracks = remoteMediaStream.getAudioTracks();
+
+        remoteVideo.srcObject = new MediaStream(videoTracks);
+        remoteVideo.muted = true;
+        remoteVideo.autoplay = true;
+        remoteVideo.playsInline = true;
+
+        if (remoteAudio && audioTracks.length) {
+            remoteAudio.srcObject = new MediaStream(audioTracks);
+            remoteAudio.autoplay = true;
+            remoteAudio.play().catch(error => {
+                console.warn("Remote audio play blocked:", error.message);
+            });
+        }
+
+        requestAnimationFrame(() => {
+            remoteVideo.play().then(() => {
+                console.log("Remote video playing", {
+                    readyState: remoteVideo.readyState,
+                    videoWidth: remoteVideo.videoWidth,
+                    videoHeight: remoteVideo.videoHeight
+                });
+            }).catch(error => {
+                console.error("Remote video play error:", error);
+            });
+        });
+    }
+
     function attachPeerConnectionListeners() {
         peerConnection.ontrack = event => {
             console.log("🎥 Remote stream received");
@@ -733,6 +792,9 @@
             const tracks = remoteStream ? remoteStream.getTracks() : [event.track];
             console.log("🎥 Stream tracks:", tracks);
             console.log("🎥 Stream active:", remoteStream ? remoteStream.active : event.track.readyState);
+            attachRemoteMediaStream(remoteStream, event.track);
+            return;
+
             const remoteVideo = document.getElementById("remoteVideo");
             
             if (!remoteVideo) {
@@ -845,6 +907,7 @@
         }
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
+        remoteMediaStream = null;
 
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
@@ -996,6 +1059,7 @@
         }
         pendingCandidates = [];
         isRemoteDescriptionSet = false;
+        remoteMediaStream = null;
 
         // ✅ SHOW VIDEO UI
         document.getElementById("videoCallContainer").style.display = "block";
@@ -1138,6 +1202,7 @@
         pendingCandidates = [];
         currentRoom = null;
         currentPeerUserId = null;
+        remoteMediaStream = null;
         isRemoteDescriptionSet = false;
     }
 
