@@ -727,9 +727,10 @@
 
     function attachPeerConnectionListeners() {
         peerConnection.ontrack = event => {
+            const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
             console.log("🎥 Remote stream received");
-            console.log("🎥 Stream tracks:", event.streams[0].getTracks());
-            console.log("🎥 Stream active:", event.streams[0].active);
+            console.log("🎥 Stream tracks:", remoteStream.getTracks());
+            console.log("🎥 Stream active:", remoteStream.active);
             const remoteVideo = document.getElementById("remoteVideo");
             
             if (!remoteVideo) {
@@ -744,10 +745,12 @@
             }
             
             // Set the stream immediately without pause/play cycle that causes AbortError
-            remoteVideo.srcObject = event.streams[0];
+            remoteVideo.srcObject = remoteStream;
             remoteVideo.muted = false;
             remoteVideo.autoplay = true;
             remoteVideo.playsInline = true;
+            remoteVideo.onloadedmetadata = () => remoteVideo.play().catch(e => console.error("Remote video metadata play error:", e));
+            event.track.onunmute = () => remoteVideo.play().catch(e => console.error("Remote video track play error:", e));
             
             // Use a single play attempt with proper error handling
             remoteVideo.playTimeout = setTimeout(() => {
