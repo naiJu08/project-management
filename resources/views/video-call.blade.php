@@ -23,7 +23,6 @@
             height: 100%;
             object-fit: cover;
             background: #1a1a1a;
-            transform: scaleX(-1);
         }
         
         #localVideo {
@@ -36,7 +35,6 @@
             border: 2px solid #3b82f6;
             object-fit: cover;
             background: #2a2a2a;
-            transform: scaleX(-1);
         }
         
         .controls {
@@ -119,8 +117,7 @@
 </head>
 <body>
     <div class="video-container">
-        <video id="remoteVideo" autoplay muted playsinline></video>
-        <audio id="remoteAudio" autoplay></audio>
+        <video id="remoteVideo" autoplay playsinline></video>
         <video id="localVideo" autoplay muted playsinline></video>
         
         <div class="status" id="callStatus">Connecting...</div>
@@ -175,9 +172,6 @@
         // Socket connection
         const socket = io("https://pm.inovace.in");
         const myUserId = {{ auth()->id() }};
-        const remoteUserId = Number(callData.targetUserId) === Number(myUserId)
-            ? Number(callData.callerUserId)
-            : Number(callData.targetUserId || callData.callerUserId);
         
         socket.on("connect", () => {
             console.log("✅ Video call socket connected");
@@ -193,7 +187,6 @@
         let peerConnection = null;
         let callStartTime = null;
         let callTimer = null;
-        let remoteMediaStream = null;
         let pendingCandidates = [];
         let remoteDescriptionSet = false;
         
@@ -359,7 +352,6 @@
                 
                 // Create peer connection
                 peerConnection = new RTCPeerConnection(config);
-                remoteMediaStream = null;
                 
                 // Add local tracks
                 localStream.getTracks().forEach(track => {
@@ -396,7 +388,6 @@
                 
                 // Create new peer connection
                 peerConnection = new RTCPeerConnection(config);
-                remoteMediaStream = null;
                 
                 // Re-add local tracks
                 if (localStream) {
@@ -447,60 +438,12 @@
                 });
             }
         }
-
-        function attachRemoteMediaStream(incomingStream, incomingTrack) {
-            const remoteVideo = document.getElementById('remoteVideo');
-            const remoteAudio = document.getElementById('remoteAudio');
-
-            if (!remoteVideo) {
-                console.error("Remote video element not found");
-                return;
-            }
-
-            if (!remoteMediaStream) {
-                remoteMediaStream = new MediaStream();
-            }
-
-            const tracks = incomingStream ? incomingStream.getTracks() : [incomingTrack];
-            tracks.filter(Boolean).forEach(track => {
-                if (!remoteMediaStream.getTracks().some(existingTrack => existingTrack.id === track.id)) {
-                    remoteMediaStream.addTrack(track);
-                    if (track.kind === "video") {
-                        track.onunmute = () => {
-                            console.log("Remote video track unmuted");
-                            remoteVideo.play().catch(error => {
-                                console.error("Remote video play after unmute failed:", error);
-                            });
-                        };
-                    }
-                }
-            });
-
-            remoteVideo.srcObject = new MediaStream(remoteMediaStream.getVideoTracks());
-            remoteVideo.muted = true;
-            remoteVideo.autoplay = true;
-            remoteVideo.playsInline = true;
-
-            const audioTracks = remoteMediaStream.getAudioTracks();
-            if (remoteAudio && audioTracks.length) {
-                remoteAudio.srcObject = new MediaStream(audioTracks);
-                remoteAudio.autoplay = true;
-                remoteAudio.play().catch(error => {
-                    console.warn("Remote audio play blocked:", error.message);
-                });
-            }
-
-            requestAnimationFrame(playRemoteVideo);
-        }
         
         function setupPeerConnectionListeners() {
             peerConnection.ontrack = event => {
                 console.log("🎥 Remote stream received");
                 const tracks = event.streams[0] ? event.streams[0].getTracks() : [event.track];
                 console.log("🎥 Stream tracks:", tracks);
-                attachRemoteMediaStream(event.streams && event.streams[0] ? event.streams[0] : null, event.track);
-                return;
-
                 const remoteVideo = document.getElementById('remoteVideo');
                 
                 if (!remoteVideo) {
@@ -532,8 +475,6 @@
                 if (event.candidate) {
                     socket.emit("ice-candidate", {
                         room: callData.room,
-                        senderUserId: myUserId,
-                        targetUserId: remoteUserId,
                         candidate: event.candidate
                     });
                 }
@@ -606,8 +547,6 @@
                 
                 socket.emit("answer", {
                     room: callData.room,
-                    senderUserId: myUserId,
-                    targetUserId: remoteUserId,
                     answer: peerConnection.localDescription
                 });
                 
@@ -627,7 +566,6 @@
                     room: callData.room,
                     targetUserId: callData.callerUserId,
                     callerUserId: myUserId,
-                    senderUserId: myUserId,
                     offer: peerConnection.localDescription
                 });
                 
@@ -639,10 +577,6 @@
         
         // Socket listeners
         socket.on("answer", async (data) => {
-            if (Number(data.senderUserId) === Number(myUserId)) {
-                return;
-            }
-
             console.log("✅ Answer received");
             try {
                 await peerConnection.setRemoteDescription(data.answer);
@@ -664,10 +598,6 @@
         });
         
         socket.on("ice-candidate", async (data) => {
-            if (Number(data.senderUserId) === Number(myUserId)) {
-                return;
-            }
-
             try {
                 if (peerConnection && remoteDescriptionSet) {
                     await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
@@ -700,7 +630,6 @@
             if (peerConnection) {
                 peerConnection.close();
             }
-            remoteMediaStream = null;
             
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
