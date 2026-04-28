@@ -745,6 +745,20 @@
         }
     }
 
+    function stabilizeVideoSender(sender, track) {
+        if (!sender || !track || track.kind !== "video" || !sender.getParameters) return;
+
+        const params = sender.getParameters();
+        params.encodings = params.encodings && params.encodings.length ? params.encodings : [{}];
+        params.encodings[0].maxBitrate = 700000;
+        params.encodings[0].maxFramerate = 24;
+        params.degradationPreference = "maintain-framerate";
+
+        sender.setParameters(params).catch(error => {
+            console.warn("Video sender stability settings skipped:", error.message);
+        });
+    }
+
     function attachPeerConnectionListeners() {
         peerConnection.ontrack = event => {
             const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : null;
@@ -779,6 +793,9 @@
             remoteVideo.style.display = "block";
             remoteVideo.style.visibility = "visible";
             remoteVideo.onloadedmetadata = playRemoteVideo;
+            remoteVideo.onwaiting = playRemoteVideo;
+            remoteVideo.onstalled = playRemoteVideo;
+            remoteVideo.onpause = playRemoteVideo;
             event.track.onunmute = playRemoteVideo;
             
             // Use a single play attempt with proper error handling
@@ -853,8 +870,9 @@
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
                 video: {
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 },
+                    width: { ideal: 640, max: 1280 },
+                    height: { ideal: 360, max: 720 },
+                    frameRate: { ideal: 24, max: 30 },
                     facingMode: "user"
                 },
                 audio: {
@@ -900,7 +918,8 @@
         attachPeerConnectionListeners();
 
         localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
+            const sender = peerConnection.addTrack(track, localStream);
+            stabilizeVideoSender(sender, track);
         });
 
         const offer = await peerConnection.createOffer();
@@ -1009,8 +1028,9 @@
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
                 video: {
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 },
+                    width: { ideal: 640, max: 1280 },
+                    height: { ideal: 360, max: 720 },
+                    frameRate: { ideal: 24, max: 30 },
                     facingMode: "user"
                 },
                 audio: {
@@ -1047,7 +1067,8 @@
         attachPeerConnectionListeners();
 
         localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
+            const sender = peerConnection.addTrack(track, localStream);
+            stabilizeVideoSender(sender, track);
         });
 
         await peerConnection.setRemoteDescription(data.offer);
