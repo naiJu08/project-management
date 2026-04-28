@@ -478,6 +478,31 @@ class TicketResource extends Resource
                                     ->columnSpan(2),
                             ]),
 
+                        Forms\Components\Grid::make()
+                            ->columnSpan(2)
+                            ->columns(2)
+                            ->schema([
+                                Forms\Components\Select::make('severity')
+                                    ->label(__('Severity'))
+                                    ->options([
+                                        'critical' => __('Critical'),
+                                        'major' => __('Major'),
+                                        'minor' => __('Minor'),
+                                        'trivial' => __('Trivial'),
+                                    ])
+                                    ->nullable(),
+
+                                Forms\Components\Select::make('risk_level')
+                                    ->label(__('Risk level'))
+                                    ->options([
+                                        'low' => __('Low'),
+                                        'medium' => __('Medium'),
+                                        'high' => __('High'),
+                                        'critical' => __('Critical'),
+                                    ])
+                                    ->nullable(),
+                            ]),
+
                         Forms\Components\Repeater::make('relations')
                             ->itemLabel(function (array $state) {
                                 $ticketRelation = TicketRelation::find($state['id'] ?? 0);
