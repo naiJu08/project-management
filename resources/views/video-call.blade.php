@@ -23,6 +23,7 @@
             height: 100%;
             object-fit: cover;
             background: #1a1a1a;
+            transform: scaleX(-1);
         }
         
         #localVideo {
@@ -35,6 +36,7 @@
             border: 2px solid #3b82f6;
             object-fit: cover;
             background: #2a2a2a;
+            transform: scaleX(-1);
         }
         
         .controls {
