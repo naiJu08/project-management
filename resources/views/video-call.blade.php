@@ -172,9 +172,6 @@
         // Socket connection
         const socket = io("https://pm.inovace.in");
         const myUserId = {{ auth()->id() }};
-        const remoteUserId = Number(callData.targetUserId) === Number(myUserId)
-            ? Number(callData.callerUserId)
-            : Number(callData.targetUserId || callData.callerUserId);
         
         socket.on("connect", () => {
             console.log("✅ Video call socket connected");
@@ -478,8 +475,6 @@
                 if (event.candidate) {
                     socket.emit("ice-candidate", {
                         room: callData.room,
-                        senderUserId: myUserId,
-                        targetUserId: remoteUserId,
                         candidate: event.candidate
                     });
                 }
@@ -552,8 +547,6 @@
                 
                 socket.emit("answer", {
                     room: callData.room,
-                    senderUserId: myUserId,
-                    targetUserId: remoteUserId,
                     answer: peerConnection.localDescription
                 });
                 
@@ -573,7 +566,6 @@
                     room: callData.room,
                     targetUserId: callData.callerUserId,
                     callerUserId: myUserId,
-                    senderUserId: myUserId,
                     offer: peerConnection.localDescription
                 });
                 
@@ -585,10 +577,6 @@
         
         // Socket listeners
         socket.on("answer", async (data) => {
-            if (Number(data.senderUserId) === Number(myUserId)) {
-                return;
-            }
-
             console.log("✅ Answer received");
             try {
                 await peerConnection.setRemoteDescription(data.answer);
@@ -610,10 +598,6 @@
         });
         
         socket.on("ice-candidate", async (data) => {
-            if (Number(data.senderUserId) === Number(myUserId)) {
-                return;
-            }
-
             try {
                 if (peerConnection && remoteDescriptionSet) {
                     await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
