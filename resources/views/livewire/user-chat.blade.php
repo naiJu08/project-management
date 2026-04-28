@@ -767,10 +767,14 @@
             // Set the stream immediately without pause/play cycle that causes AbortError
             if (remoteStream) {
                 remoteVideo.srcObject = remoteStream;
+                remoteStream.getTracks().forEach(track => {
+                    track.enabled = true;
+                });
             } else {
                 if (!remoteVideo.srcObject) {
                     remoteVideo.srcObject = new MediaStream();
                 }
+                event.track.enabled = true;
                 remoteVideo.srcObject.addTrack(event.track);
             }
             remoteVideo.muted = false;
@@ -893,6 +897,9 @@
             localVideo.playsInline = true;
             localVideo.style.display = "block";
             localVideo.srcObject = localStream;
+            localStream.getTracks().forEach(track => {
+                track.enabled = true;
+            });
             localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
         }, 50);
 
@@ -1040,6 +1047,9 @@
             localVideo.playsInline = true;
             localVideo.style.display = "block";
             localVideo.srcObject = localStream;
+            localStream.getTracks().forEach(track => {
+                track.enabled = true;
+            });
             localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
         }, 50);
 
