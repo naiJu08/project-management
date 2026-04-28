@@ -759,6 +759,31 @@
         }
     }
 
+    function bindLocalVideoStream(localVideo, stream) {
+        localVideo.muted = true; // Always mute local video to avoid echo
+        localVideo.autoplay = true;
+        localVideo.playsInline = true;
+        localVideo.style.display = "block";
+        stream.getTracks().forEach(track => {
+            track.enabled = true;
+        });
+        localVideo.srcObject = stream;
+        localVideo.onloadedmetadata = () => {
+            localVideo.play().catch(e => console.error("ðŸŽ¥ Local video play error:", e));
+        };
+        localVideo.play().catch(e => console.error("ðŸŽ¥ Local video play error:", e));
+
+        setTimeout(() => {
+            const hasLiveVideoTrack = stream.getVideoTracks().some(track => track.readyState === "live");
+            if (hasLiveVideoTrack && localVideo.videoWidth === 0) {
+                localVideo.srcObject = new MediaStream(stream.getTracks());
+                setTimeout(() => {
+                    localVideo.play().catch(e => console.error("ðŸŽ¥ Local video play error:", e));
+                }, 100);
+            }
+        }, 800);
+    }
+
     function attachPeerConnectionListeners() {
         peerConnection.ontrack = event => {
             const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : null;
@@ -906,6 +931,7 @@
             localVideo.pause();
             localVideo.srcObject = null;
         }
+        bindLocalVideoStream(localVideo, localStream);
         setTimeout(() => {
             localVideo.muted = true; // Always mute local video to avoid echo
             localVideo.autoplay = true;
@@ -1056,6 +1082,7 @@
             localVideo.pause();
             localVideo.srcObject = null;
         }
+        bindLocalVideoStream(localVideo, localStream);
         setTimeout(() => {
             localVideo.muted = true; // Always mute local video to avoid echo
             localVideo.autoplay = true;
