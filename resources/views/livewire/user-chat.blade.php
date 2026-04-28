@@ -618,7 +618,6 @@
     let localStream;
     let peerConnection;
     let currentRoom = null;
-    let currentPeerUserId = null;
     let pendingCandidates = [];
     let isRemoteDescriptionSet = false;
     let incomingChatVideoOffer = null;
@@ -795,8 +794,6 @@
 
                 socket.emit("ice-candidate", {
                     room: currentRoom,
-                    senderUserId: myVideoUserId,
-                    targetUserId: currentPeerUserId,
                     candidate: event.candidate
                 });
             } else {
@@ -835,7 +832,6 @@
     async function startVideoCall(userId) {
 
         currentRoom = "room-" + Math.min(myVideoUserId, userId) + "-" + Math.max(myVideoUserId, userId);
-        currentPeerUserId = userId;
         document.getElementById("videoCallContainer").style.display = "block";
 
         socket.emit("join-room", currentRoom);
@@ -904,7 +900,6 @@
             room: currentRoom,
             targetUserId: userId,
             callerUserId: myVideoUserId,
-            senderUserId: myVideoUserId,
             callerName: "{{ auth()->user()->name }}",
             offer: peerConnection.localDescription
         });
@@ -989,7 +984,6 @@
         socket.emit("join-room", data.room);
 
         currentRoom = data.room;
-        currentPeerUserId = data.callerUserId;
 
         if (peerConnection) {
             peerConnection.close();
@@ -1052,18 +1046,12 @@
 
         socket.emit("answer", {
             room: currentRoom,
-            senderUserId: myVideoUserId,
-            targetUserId: currentPeerUserId,
             answer: peerConnection.localDescription
         });
     }
 
     // RECEIVE ANSWER
     socket.on("answer", async (data) => {
-        if (Number(data.senderUserId) === Number(myVideoUserId)) {
-            return;
-        }
-
         console.log("✅ ANSWER RECEIVED");
 
         if (!peerConnection) {
@@ -1089,9 +1077,6 @@
 
     // RECEIVE ICE CANDIDATE (🔥 FINAL FIX)
     socket.on("ice-candidate", async (data) => {
-        if (Number(data.senderUserId) === Number(myVideoUserId)) {
-            return;
-        }
 
         if (!peerConnection) {
             console.log("📦 Storing ICE candidate");
@@ -1137,7 +1122,6 @@
         
         pendingCandidates = [];
         currentRoom = null;
-        currentPeerUserId = null;
         isRemoteDescriptionSet = false;
     }
 
