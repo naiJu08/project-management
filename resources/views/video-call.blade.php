@@ -119,7 +119,8 @@
 </head>
 <body>
     <div class="video-container">
-        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="remoteVideo" autoplay muted playsinline></video>
+        <audio id="remoteAudio" autoplay></audio>
         <video id="localVideo" autoplay muted playsinline></video>
         
         <div class="status" id="callStatus">Connecting...</div>
@@ -192,6 +193,7 @@
         let peerConnection = null;
         let callStartTime = null;
         let callTimer = null;
+        let remoteMediaStream = null;
         let pendingCandidates = [];
         let remoteDescriptionSet = false;
         
@@ -357,6 +359,7 @@
                 
                 // Create peer connection
                 peerConnection = new RTCPeerConnection(config);
+                remoteMediaStream = null;
                 
                 // Add local tracks
                 localStream.getTracks().forEach(track => {
@@ -393,6 +396,7 @@
                 
                 // Create new peer connection
                 peerConnection = new RTCPeerConnection(config);
+                remoteMediaStream = null;
                 
                 // Re-add local tracks
                 if (localStream) {
@@ -443,12 +447,60 @@
                 });
             }
         }
+
+        function attachRemoteMediaStream(incomingStream, incomingTrack) {
+            const remoteVideo = document.getElementById('remoteVideo');
+            const remoteAudio = document.getElementById('remoteAudio');
+
+            if (!remoteVideo) {
+                console.error("Remote video element not found");
+                return;
+            }
+
+            if (!remoteMediaStream) {
+                remoteMediaStream = new MediaStream();
+            }
+
+            const tracks = incomingStream ? incomingStream.getTracks() : [incomingTrack];
+            tracks.filter(Boolean).forEach(track => {
+                if (!remoteMediaStream.getTracks().some(existingTrack => existingTrack.id === track.id)) {
+                    remoteMediaStream.addTrack(track);
+                    if (track.kind === "video") {
+                        track.onunmute = () => {
+                            console.log("Remote video track unmuted");
+                            remoteVideo.play().catch(error => {
+                                console.error("Remote video play after unmute failed:", error);
+                            });
+                        };
+                    }
+                }
+            });
+
+            remoteVideo.srcObject = new MediaStream(remoteMediaStream.getVideoTracks());
+            remoteVideo.muted = true;
+            remoteVideo.autoplay = true;
+            remoteVideo.playsInline = true;
+
+            const audioTracks = remoteMediaStream.getAudioTracks();
+            if (remoteAudio && audioTracks.length) {
+                remoteAudio.srcObject = new MediaStream(audioTracks);
+                remoteAudio.autoplay = true;
+                remoteAudio.play().catch(error => {
+                    console.warn("Remote audio play blocked:", error.message);
+                });
+            }
+
+            requestAnimationFrame(playRemoteVideo);
+        }
         
         function setupPeerConnectionListeners() {
             peerConnection.ontrack = event => {
                 console.log("🎥 Remote stream received");
                 const tracks = event.streams[0] ? event.streams[0].getTracks() : [event.track];
                 console.log("🎥 Stream tracks:", tracks);
+                attachRemoteMediaStream(event.streams && event.streams[0] ? event.streams[0] : null, event.track);
+                return;
+
                 const remoteVideo = document.getElementById('remoteVideo');
                 
                 if (!remoteVideo) {
@@ -648,6 +700,7 @@
             if (peerConnection) {
                 peerConnection.close();
             }
+            remoteMediaStream = null;
             
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
