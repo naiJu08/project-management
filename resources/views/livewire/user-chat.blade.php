@@ -727,11 +727,10 @@
 
     function attachPeerConnectionListeners() {
         peerConnection.ontrack = event => {
+            const remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
             console.log("🎥 Remote stream received");
-            const remoteStream = event.streams && event.streams[0] ? event.streams[0] : null;
-            const tracks = remoteStream ? remoteStream.getTracks() : [event.track];
-            console.log("🎥 Stream tracks:", tracks);
-            console.log("🎥 Stream active:", remoteStream ? remoteStream.active : event.track.readyState);
+            console.log("🎥 Stream tracks:", remoteStream.getTracks());
+            console.log("🎥 Stream active:", remoteStream.active);
             const remoteVideo = document.getElementById("remoteVideo");
             
             if (!remoteVideo) {
@@ -746,21 +745,12 @@
             }
             
             // Set the stream immediately without pause/play cycle that causes AbortError
-            if (remoteStream) {
-                remoteVideo.srcObject = remoteStream;
-            } else {
-                if (!remoteVideo.srcObject) {
-                    remoteVideo.srcObject = new MediaStream();
-                }
-
-                const existingTrackIds = remoteVideo.srcObject.getTracks().map(track => track.id);
-                if (!existingTrackIds.includes(event.track.id)) {
-                    remoteVideo.srcObject.addTrack(event.track);
-                }
-            }
+            remoteVideo.srcObject = remoteStream;
             remoteVideo.muted = false;
             remoteVideo.autoplay = true;
             remoteVideo.playsInline = true;
+            remoteVideo.onloadedmetadata = () => remoteVideo.play().catch(e => console.error("Remote video metadata play error:", e));
+            event.track.onunmute = () => remoteVideo.play().catch(e => console.error("Remote video track play error:", e));
             
             // Use a single play attempt with proper error handling
             remoteVideo.playTimeout = setTimeout(() => {
