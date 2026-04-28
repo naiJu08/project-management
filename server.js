@@ -25,7 +25,8 @@ io.on("connection", socket => {
         console.log(" OFFER RECEIVED:", data);
         if (data.targetUserId) {
             console.log(" Sending offer to user room:", `user-${data.targetUserId}`);
-            socket.to([`user-${data.targetUserId}`, data.room]).emit("offer", data);
+            socket.to(`user-${data.targetUserId}`).emit("offer", data);
+            socket.to(data.room).emit("offer", data);
             return;
         }
 
@@ -35,19 +36,11 @@ io.on("connection", socket => {
 
     // ANSWER
     socket.on("answer", data => {
-        if (data.targetUserId) {
-            socket.to([`user-${data.targetUserId}`, data.room]).emit("answer", data);
-            return;
-        }
         socket.to(data.room).emit("answer", data);
     });
 
     // ICE
     socket.on("ice-candidate", data => {
-        if (data.targetUserId) {
-            socket.to([`user-${data.targetUserId}`, data.room]).emit("ice-candidate", data);
-            return;
-        }
         socket.to(data.room).emit("ice-candidate", data);
     });
 
