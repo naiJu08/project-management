@@ -729,7 +729,8 @@
         const remoteVideo = document.getElementById("remoteVideo");
         if (!remoteVideo || !remoteVideo.srcObject) return;
 
-        if (!remoteVideo.paused && remoteVideo.readyState >= 2) return;
+        const hasLiveVideoTrack = remoteVideo.srcObject.getVideoTracks().some(track => track.readyState === "live");
+        if (!remoteVideo.paused && remoteVideo.readyState >= 2 && (!hasLiveVideoTrack || remoteVideo.videoWidth > 0)) return;
 
         const playPromise = remoteVideo.play();
         if (playPromise !== undefined) {
@@ -742,6 +743,19 @@
                 }
                 setTimeout(playRemoteVideo, 500);
             });
+        }
+    }
+
+    function refreshRemoteVideoIfBlack() {
+        const remoteVideo = document.getElementById("remoteVideo");
+        if (!remoteVideo || !remoteVideo.srcObject) return;
+
+        const tracks = remoteVideo.srcObject.getTracks();
+        const hasLiveVideoTrack = remoteVideo.srcObject.getVideoTracks().some(track => track.readyState === "live");
+
+        if (hasLiveVideoTrack && remoteVideo.videoWidth === 0) {
+            remoteVideo.srcObject = new MediaStream(tracks);
+            setTimeout(playRemoteVideo, 100);
         }
     }
 
@@ -787,6 +801,7 @@
             
             // Use a single play attempt with proper error handling
             remoteVideo.playTimeout = setTimeout(playRemoteVideo, 200);
+            setTimeout(refreshRemoteVideoIfBlack, 800);
         };
 
         peerConnection.onicecandidate = event => {
