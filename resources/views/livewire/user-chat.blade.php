@@ -318,12 +318,12 @@
 <div id="videoCallContainer" style="display:none; position:fixed; inset:0; background:black; z-index:9999;">
 
     <video id="localVideo" autoplay muted playsinline
-        style="position:absolute; bottom:20px; right:20px; width:200px; border-radius:10px; transform:scaleX(-1);"></video>
+        style="position:absolute; bottom:20px; right:20px; width:200px; height:112px; object-fit:cover; border-radius:10px; transform:scaleX(-1); z-index:2;"></video>
 
     <video id="remoteVideo" autoplay playsinline
-        style="width:100%; height:100%; object-fit:cover;"></video>
+        style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1;"></video>
 
-    <button onclick="endCall()" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+    <button onclick="endCall()" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:3;
                    background:red; color:white; padding:10px 20px; border-radius:50px;">
         End Call
     </button>
