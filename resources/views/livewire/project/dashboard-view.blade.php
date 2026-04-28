@@ -37,9 +37,18 @@
     {{-- Stats Overview --}}
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         @php
+            $completedStatusNames = ['done', 'completed', 'closed', 'archived'];
             $totalTickets = $this->project->tickets()->count();
-            $openTickets = $this->project->tickets()->whereHas('status', function ($q) { $q->where('name', 'Open'); })->count();
-            $completedTickets = $this->project->tickets()->whereHas('status', function ($q) { $q->where('name', 'Done'); })->count();
+            $completedTickets = $this->project->tickets()
+                ->whereHas('status', function ($q) use ($completedStatusNames) {
+                    $q->whereIn(\DB::raw('LOWER(ticket_statuses.name)'), $completedStatusNames);
+                })
+                ->count();
+            $openTickets = $this->project->tickets()
+                ->whereHas('status', function ($q) use ($completedStatusNames) {
+                    $q->whereNotIn(\DB::raw('LOWER(ticket_statuses.name)'), $completedStatusNames);
+                })
+                ->count();
             $teamMembers = $this->project->users()->count() + 1;
             $completionPercentage = $totalTickets > 0 ? round(($completedTickets / $totalTickets) * 100) : 0;
             $activeSprints = $this->project->sprints()
@@ -142,7 +151,11 @@
     {{-- Health Score Section --}}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         @php
-            $inProgressTickets = $this->project->tickets()->whereHas('status', function ($q) { $q->where('name', 'In Progress'); })->count();
+            $inProgressTickets = $this->project->tickets()
+                ->whereHas('status', function ($q) {
+                    $q->whereRaw('LOWER(ticket_statuses.name) like ?', ['%progress%']);
+                })
+                ->count();
             $completionRate = $totalTickets > 0 ? ($completedTickets / $totalTickets) * 100 : 0;
             $progressRate = $totalTickets > 0 ? (($inProgressTickets + $completedTickets) / $totalTickets) * 100 : 0;
             $openRate = $totalTickets > 0 ? ($openTickets / $totalTickets) * 100 : 0;
@@ -294,7 +307,9 @@
         <div class="space-y-3">
             @php
                 $weeklyCompleted = $this->project->tickets()
-                    ->whereHas('status', function ($q) { $q->where('name', 'Done'); })
+                    ->whereHas('status', function ($q) use ($completedStatusNames) {
+                        $q->whereIn(\DB::raw('LOWER(ticket_statuses.name)'), $completedStatusNames);
+                    })
                     ->where('updated_at', '>=', now()->subDays(7))
                     ->count();
                 $criticalTickets = $this->project->tickets()

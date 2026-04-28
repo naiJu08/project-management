@@ -5,6 +5,7 @@ namespace App\Filament\Widgets\Project;
 use App\Models\Project;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Illuminate\Support\Facades\DB;
 
 class ProjectStatsWidget extends BaseWidget
 {
@@ -16,13 +17,18 @@ class ProjectStatsWidget extends BaseWidget
             return [];
         }
 
+        $completedStatusNames = ['done', 'completed', 'closed', 'archived'];
         $totalTickets = $this->project->tickets()->count();
-        $openTickets = $this->project->tickets()->whereHas('status', function ($query) {
-            $query->where('name', 'Open');
-        })->count();
-        $completedTickets = $this->project->tickets()->whereHas('status', function ($query) {
-            $query->where('name', 'Done');
-        })->count();
+        $completedTickets = $this->project->tickets()
+            ->whereHas('status', function ($query) use ($completedStatusNames) {
+                $query->whereIn(DB::raw('LOWER(ticket_statuses.name)'), $completedStatusNames);
+            })
+            ->count();
+        $openTickets = $this->project->tickets()
+            ->whereHas('status', function ($query) use ($completedStatusNames) {
+                $query->whereNotIn(DB::raw('LOWER(ticket_statuses.name)'), $completedStatusNames);
+            })
+            ->count();
         $teamMembers = $this->project->users()->count() + 1; // +1 for owner
 
         $completionPercentage = $totalTickets > 0 ? round(($completedTickets / $totalTickets) * 100) : 0;
