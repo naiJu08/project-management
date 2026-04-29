@@ -66,21 +66,10 @@
                 {{ $showEditForm ? 'Edit Sprint' : 'Create New Sprint' }}
             </h3>
             <form wire:submit.prevent="{{ $showEditForm ? 'updateSprint' : 'createSprint' }}" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sprint Name *</label>
-                        <input type="text" wire:model="sprintName" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="e.g., Sprint 1 - User Authentication">
-                        @error('sprintName') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
-                        <select wire:model="sprintStatus" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                            <option value="upcoming">Upcoming</option>
-                            <option value="active">Active</option>
-                            <option value="completed">Completed</option>
-                        </select>
-                        @error('sprintStatus') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                    </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sprint Name *</label>
+                    <input type="text" wire:model="sprintName" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="e.g., Sprint 1 - User Authentication">
+                    @error('sprintName') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
                 </div>
 
                 <div>
@@ -122,11 +111,18 @@
     <div class="space-y-4">
         @forelse($sprints as $sprint)
             @php
-                $status = ($this->getSprintStatusProperty())($sprint);
+                // Use computed progress from backend
+                $progress = $sprint->progress ?? [
+                    'itemCount' => $sprint->backlogItems->count(),
+                    'completedCount' => $sprint->backlogItems->where('status', 'Done')->count(),
+                    'completionPercent' => 0,
+                    'status' => 'upcoming',
+                ];
+                $status = $progress['status'];
                 $statusColor = $status === 'active' ? 'green' : ($status === 'completed' ? 'purple' : 'yellow');
-                $itemCount = $sprint->backlogItems()->count();
-                $completedCount = $sprint->backlogItems()->where('status', 'Done')->count();
-                $completionPercent = $itemCount > 0 ? round(($completedCount / $itemCount) * 100) : 0;
+                $itemCount = $progress['itemCount'];
+                $completedCount = $progress['completedCount'];
+                $completionPercent = $progress['completionPercent'];
             @endphp
             <div class="bg-white dark:bg-gray-800 rounded-lg border {{ $selectedSprintId === $sprint->id ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800' : 'border-gray-200 dark:border-gray-700' }} p-6 hover:shadow-lg transition-shadow cursor-pointer">
                 <div class="flex items-start justify-between mb-4">
@@ -151,17 +147,6 @@
                         @endif
                     </div>
                     <div class="flex gap-2">
-                        @if($status === 'upcoming')
-                            <button type="button"
-                                wire:click.stop="startSprint({{ $sprint->id }})"
-                                class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors">
-                                Start
-                            </button>
-                        @elseif($status === 'active')
-                            <button wire:click.stop="completeSprint({{ $sprint->id }})" class="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors">
-                                Complete
-                            </button>
-                        @endif
                         <button wire:click.stop="showEdit({{ $sprint->id }})" class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">
                             Edit
                         </button>
@@ -196,8 +181,8 @@
                         <p class="text-xs text-gray-500 dark:text-gray-400">Progress</p>
                         <p class="text-xs font-medium text-gray-900 dark:text-white">{{ $completionPercent }}%</p>
                     </div>
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div class="bg-blue-600 h-2 rounded-full transition-all" style="width: {{ $completionPercent }}%"></div>
+                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                        <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ max($completionPercent, 2) }}%;"></div>
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $completedCount }} of {{ $itemCount }} items completed</p>
                 </div>

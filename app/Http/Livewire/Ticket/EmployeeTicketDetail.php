@@ -61,6 +61,11 @@ class EmployeeTicketDetail extends Component
     public bool $showDateEdit = false;
     public bool $showMasterEdit = false;
     public array $masterEditData = [];
+
+    // ==================== SEVERITY & RISK EDITING PROPERTIES ====================
+    public bool $showSeverityRiskEdit = false;
+    public ?string $editSeverity = null;
+    public ?string $editRiskLevel = null;
     
     protected $listeners = ['ticketUpdated' => 'refreshTicket'];
 
@@ -613,6 +618,47 @@ class EmployeeTicketDetail extends Component
         } catch (\Exception $e) {
             $this->notify('error', 'Failed to update dates: ' . $e->getMessage());
         }
+    }
+
+    // ==================== SEVERITY & RISK EDITING ====================
+
+    public function editSeverityRisk(): void
+    {
+        $this->editSeverity = $this->ticket->severity;
+        $this->editRiskLevel = $this->ticket->risk_level;
+        $this->showSeverityRiskEdit = true;
+    }
+
+    public function saveSeverityRisk(): void
+    {
+        try {
+            $this->editSeverity = $this->editSeverity ?: null;
+            $this->editRiskLevel = $this->editRiskLevel ?: null;
+
+            $this->validate([
+                'editSeverity' => 'nullable|in:critical,major,minor,trivial',
+                'editRiskLevel' => 'nullable|in:low,medium,high,critical',
+            ]);
+
+            $this->ticket->update([
+                'severity' => $this->editSeverity ?: null,
+                'risk_level' => $this->editRiskLevel ?: null,
+            ]);
+
+            $this->showSeverityRiskEdit = false;
+            $this->ticket->refresh();
+            $this->notify('success', 'Severity and risk level updated successfully');
+        } catch (\Exception $e) {
+            $this->notify('error', 'Failed to update severity and risk: ' . $e->getMessage());
+        }
+    }
+
+    public function cancelSeverityRiskEdit(): void
+    {
+        $this->showSeverityRiskEdit = false;
+        $this->editSeverity = null;
+        $this->editRiskLevel = null;
+        $this->resetErrorBag();
     }
 
     public function openMasterEdit(): void

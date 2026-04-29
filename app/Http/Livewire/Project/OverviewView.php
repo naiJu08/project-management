@@ -18,7 +18,7 @@ class OverviewView extends Component
 
     public function getProjectProperty()
     {
-        return Project::with(['owner', 'status', 'users', 'tickets', 'sprints'])->findOrFail($this->projectId);
+        return Project::with(['owner', 'status', 'users', 'tickets.status', 'sprints'])->findOrFail($this->projectId);
     }
 
     public function loadStats()
@@ -27,9 +27,7 @@ class OverviewView extends Component
         
         // Calculate completion percentage
         $totalTickets = $tickets->count();
-        $completedTickets = $tickets->filter(function($ticket) {
-            return $ticket->status && (stripos($ticket->status->name, 'Done') !== false || stripos($ticket->status->name, 'Archived') !== false);
-        })->count();
+        $completedTickets = $tickets->filter(fn($ticket) => $this->isCompletedStatus($ticket->status?->name))->count();
         
         $completionPercentage = $totalTickets > 0 ? round(($completedTickets / $totalTickets) * 100) : 0;
         
@@ -42,9 +40,7 @@ class OverviewView extends Component
             'in_progress_tickets' => $tickets->filter(function($ticket) {
                 return $ticket->status && stripos($ticket->status->name, 'progress') !== false;
             })->count(),
-            'open_tickets' => $tickets->filter(function($ticket) {
-                return $ticket->status && (stripos($ticket->status->name, 'open') !== false || stripos($ticket->status->name, 'new') !== false || stripos($ticket->status->name, 'to do') !== false);
-            })->count(),
+            'open_tickets' => $tickets->filter(fn($ticket) => ! $this->isCompletedStatus($ticket->status?->name))->count(),
             'completion_percentage' => $completionPercentage,
             'total_sprints' => $this->project->sprints->count(),
             'active_sprint' => $this->project->currentSprint,
@@ -53,6 +49,15 @@ class OverviewView extends Component
             'total_epics' => $this->project->epics->count(),
             'recent_tickets' => $recentTickets,
         ];
+    }
+
+    private function isCompletedStatus(?string $statusName): bool
+    {
+        if (!$statusName) {
+            return false;
+        }
+
+        return in_array(strtolower($statusName), ['done', 'completed', 'closed', 'archived'], true);
     }
 
     public function render()

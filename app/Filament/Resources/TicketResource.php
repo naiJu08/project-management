@@ -6,6 +6,7 @@ use App\Filament\Resources\TicketResource\Pages;
 use App\Filament\Resources\TicketResource\RelationManagers;
 use App\Models\Epic;
 use App\Models\Project;
+use App\Models\Sprint;
 use App\Models\Ticket;
 use App\Models\TicketPriority;
 use App\Models\TicketRelation;
@@ -52,8 +53,9 @@ class TicketResource extends Resource
                 Forms\Components\Card::make()
                     ->schema([
                         Forms\Components\Grid::make()
+                            ->columns(3)
                             ->schema([
-                            Forms\Components\Select::make('project_id')
+                                Forms\Components\Select::make('project_id')
                                     ->label(__('Project'))
                                     ->relationship('project', 'name')
                                     ->searchable()
@@ -64,10 +66,11 @@ class TicketResource extends Resource
                                             $component->state(request()->get('project'));
                                         }
                                     })
-                                    ->disabled(fn ($livewire) => request()->has('project'))
-                                    ->extraAttributes(fn () => request()->has('project') ? ['style' => 'pointer-events:none'] : [])
+                                    ->disabled(fn () => request()->has('project') || request()->has('project_id'))
+                                    ->extraAttributes(fn () => (request()->has('project') || request()->has('project_id')) ? ['style' => 'pointer-events:none'] : [])
                                     ->afterStateUpdated(function ($get, $set) {
                                         $project = Project::where('id', $get('project_id'))->first();
+                                        $set('sprint_id', null);
                                         if ($project?->status_type === 'custom') {
                                             $set(
                                                 'status_id',
@@ -91,8 +94,7 @@ class TicketResource extends Resource
                                             return $query->where('users.id', auth()->user()->id);
                                         })->pluck('name', 'id')->toArray()
                                     )
-                                    ->default(fn ($livewire) => request()->get('project_id'))
-                                    ->disabled(fn() => request()->has('project_id'))
+                                    ->default(fn () => request()->get('project_id') ?? request()->get('project'))
                                     ->required(),
                                 Forms\Components\Select::make('backlog_item_id')
                                 ->label(__('Epic'))
@@ -154,10 +156,85 @@ class TicketResource extends Resource
                                             return $epic->id;
                                         })
                                 
-                                 ->getOptionLabelUsing(function ($value) {
+                                ->getOptionLabelUsing(function ($value) {
                                             return \App\Models\BacklogItem::find($value)?->title ?? $value;
-                                        })
-                            
+                                        }),
+
+                                Forms\Components\Select::make('sprint_id')
+                                    ->label(__('Sprint'))
+                                    ->searchable()
+                                    ->nullable()
+                                    ->options(function ($get) {
+                                        $projectId = $get('project_id')
+                                            ?? request()->get('project_id')
+                                            ?? request()->get('project');
+
+                                        if (!$projectId) {
+                                            return [];
+                                        }
+
+                                        return Sprint::where('project_id', $projectId)
+                                            ->orderByDesc('starts_at')
+                                            ->pluck('name', 'id')
+                                            ->toArray();
+                                    })
+                                    ->getSearchResultsUsing(function ($search, $get) {
+                                        $projectId = $get('project_id')
+                                            ?? request()->get('project_id')
+                                            ?? request()->get('project');
+
+                                        if (!$projectId) {
+                                            return [];
+                                        }
+
+                                        return Sprint::where('project_id', $projectId)
+                                            ->where('name', 'like', "%{$search}%")
+                                            ->orderByDesc('starts_at')
+                                            ->pluck('name', 'id')
+                                            ->toArray();
+                                    })
+                                    ->createOptionForm([
+                                        Forms\Components\TextInput::make('name')
+                                            ->label(__('Sprint name'))
+                                            ->maxLength(255)
+                                            ->required(),
+
+                                        Forms\Components\DatePicker::make('starts_at')
+                                            ->label(__('Sprint start date'))
+                                            ->default(fn () => now()->toDateString())
+                                            ->required(),
+
+                                        Forms\Components\DatePicker::make('ends_at')
+                                            ->label(__('Sprint end date'))
+                                            ->default(fn () => now()->addWeek()->subDay()->toDateString())
+                                            ->afterOrEqual('starts_at')
+                                            ->required(),
+
+                                        Forms\Components\RichEditor::make('description')
+                                            ->label(__('Sprint description')),
+                                    ])
+                                    ->createOptionUsing(function (array $data, $set, $get) {
+                                        $projectId = $get('project_id')
+                                            ?? request()->get('project_id')
+                                            ?? request()->get('project');
+
+                                        if (!$projectId) {
+                                            return null;
+                                        }
+
+                                        $sprint = Sprint::create([
+                                            'name' => $data['name'],
+                                            'starts_at' => $data['starts_at'],
+                                            'ends_at' => $data['ends_at'],
+                                            'description' => $data['description'] ?? null,
+                                            'project_id' => $projectId,
+                                        ]);
+
+                                        $set('sprint_id', $sprint->id);
+
+                                        return $sprint->id;
+                                    })
+                                    ->getOptionLabelUsing(fn ($value) => Sprint::find($value)?->name ?? $value),
                             ]),
                             
                         // Backlog Integration Section
@@ -401,6 +478,31 @@ class TicketResource extends Resource
                                     ->columnSpan(2),
                             ]),
 
+                        Forms\Components\Grid::make()
+                            ->columnSpan(2)
+                            ->columns(2)
+                            ->schema([
+                                Forms\Components\Select::make('severity')
+                                    ->label(__('Severity'))
+                                    ->options([
+                                        'critical' => __('Critical'),
+                                        'major' => __('Major'),
+                                        'minor' => __('Minor'),
+                                        'trivial' => __('Trivial'),
+                                    ])
+                                    ->nullable(),
+
+                                Forms\Components\Select::make('risk_level')
+                                    ->label(__('Risk level'))
+                                    ->options([
+                                        'low' => __('Low'),
+                                        'medium' => __('Medium'),
+                                        'high' => __('High'),
+                                        'critical' => __('Critical'),
+                                    ])
+                                    ->nullable(),
+                            ]),
+
                         Forms\Components\Repeater::make('relations')
                             ->itemLabel(function (array $state) {
                                 $ticketRelation = TicketRelation::find($state['id'] ?? 0);
@@ -504,6 +606,18 @@ class TicketResource extends Resource
                         '))
                 ->sortable()
                 ->searchable(),
+
+            Tables\Columns\TextColumn::make('epic.name')
+                ->label(__('Epic'))
+                ->sortable()
+                ->searchable()
+                ->toggleable(),
+
+            Tables\Columns\TextColumn::make('sprint.name')
+                ->label(__('Sprint'))
+                ->sortable()
+                ->searchable()
+                ->toggleable(),
 
             Tables\Columns\TextColumn::make('created_at')
                 ->label(__('Created at'))

@@ -657,7 +657,7 @@
                                         <div>
                                             <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</h3>
                                             <div class="prose dark:prose-invert max-w-none text-gray-900 dark:text-white">
-                                                {!! nl2br(e($this->selectedItem->description)) !!}
+                                                {!! $this->selectedItem->description !!}
                                             </div>
                                         </div>
                                     @endif
