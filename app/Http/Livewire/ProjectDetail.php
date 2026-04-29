@@ -442,9 +442,9 @@ class ProjectDetail extends Component implements HasForms
             'priority' => $this->editPriority,
             'assignee_id' => $this->editAssigneeId === '' ? null : $this->editAssigneeId,
             'sprint_id' => $this->editSprintId === '' ? null : $this->editSprintId,
-            'estimated_hours' => $this->editEstimatedHours,
-            'start_date' => $this->editStartDate,
-            'due_date' => $this->editDueDate,
+            'estimated_hours' => $this->editEstimatedHours === '' ? null : $this->editEstimatedHours,
+            'start_date' => $this->editStartDate === '' ? null : $this->editStartDate,
+            'due_date' => $this->editDueDate === '' ? null : $this->editDueDate,
             'updated_by' => Auth::id(),
         ]);
         
