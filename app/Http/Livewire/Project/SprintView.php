@@ -23,7 +23,6 @@ class SprintView extends Component
     public $sprintStartDate = '';
     public $sprintEndDate = '';
     public $sprintGoal = '';
-    public $sprintStatus = 'upcoming';
 
     // Delete confirmation
     public $showDeleteConfirm = false;
@@ -35,29 +34,15 @@ class SprintView extends Component
     protected $rules = [
         'sprintName' => 'required|string|max:255',
         'sprintDescription' => 'nullable|string',
-        'sprintStartDate' => 'required|date|after_or_equal:today',
+        'sprintStartDate' => 'required|date',
         'sprintEndDate' => 'required|date|after:sprintStartDate',
         'sprintGoal' => 'nullable|string|max:500',
-        'sprintStatus' => 'required|in:upcoming,active,completed',
     ];
-
-    protected function rules()
-    {
-        $rules = $this->rules;
-        
-        // Add conditional validation for completed sprints
-        if ($this->sprintStatus === 'completed') {
-            $rules['sprintEndDate'] = 'required|date|before_or_equal:today';
-        }
-        
-        return $rules;
-    }
 
     protected function messages()
     {
         return [
-            'sprintEndDate.before_or_equal' => 'The end date must be today or in the past when the sprint status is completed.',
-            'sprintStartDate.after_or_equal' => 'The start date must be today or in the future.',
+            'sprintEndDate.after' => 'The end date must be after the start date.',
         ];
     }
 
@@ -83,13 +68,54 @@ class SprintView extends Component
     public function loadSprints()
     {
         $allSprints = $this->project->sprints()->with(['backlogItems'])->orderBy('starts_at', 'desc')->get();
-        
+
+        // Add progress data to each sprint based on dates
+        $statusCalculator = $this->getSprintStatusProperty();
+        $now = now();
+        $allSprints->each(function ($sprint) use ($statusCalculator, $now) {
+            $backlogItems = $sprint->backlogItems;
+            $itemCount = $backlogItems->count();
+            $completedCount = $backlogItems->where('status', 'Done')->count();
+
+            // Calculate status based on dates
+            $status = $statusCalculator($sprint);
+
+            // Calculate progress based on time elapsed
+            $completionPercent = 0;
+            if ($status === 'upcoming') {
+                $completionPercent = 0;
+            } elseif ($status === 'completed') {
+                $completionPercent = 100;
+            } elseif ($status === 'active') {
+                // Calculate percentage of time elapsed using Carbon methods
+                $startDate = $sprint->starts_at instanceof \Carbon\Carbon ? $sprint->starts_at : \Carbon\Carbon::parse($sprint->starts_at);
+                $endDate = $sprint->ends_at instanceof \Carbon\Carbon ? $sprint->ends_at : \Carbon\Carbon::parse($sprint->ends_at);
+                $totalDuration = $startDate->diffInRealSeconds($endDate);
+                $elapsedDuration = $startDate->diffInRealSeconds($now);
+                if ($totalDuration > 0 && $elapsedDuration >= 0) {
+                    $completionPercent = round(($elapsedDuration / $totalDuration) * 100);
+                    $completionPercent = max(0, min(100, $completionPercent)); // Ensure between 0-100
+                } else if ($elapsedDuration < 0) {
+                    $completionPercent = 0; // Haven't started yet
+                } else {
+                    $completionPercent = 50; // If same time, show 50%
+                }
+            }
+
+            $sprint->progress = [
+                'itemCount' => $itemCount,
+                'completedCount' => $completedCount,
+                'completionPercent' => $completionPercent,
+                'status' => $status,
+            ];
+        });
+
         if ($this->filterStatus === 'all') {
             $this->sprints = $allSprints;
         } else {
-            $statusCalculator = $this->getSprintStatusProperty();
             $this->sprints = $allSprints->filter(function ($sprint) use ($statusCalculator) {
-                return $statusCalculator($sprint) === $this->filterStatus;
+                $status = $sprint->progress['status'] ?? $statusCalculator($sprint);
+                return $status === $this->filterStatus;
             })->values();
         }
     }
@@ -97,16 +123,16 @@ class SprintView extends Component
     public function getSprintStatusProperty()
     {
         return function ($sprint) {
-            // If sprint has a manually set status, use it
-            if ($sprint->status && in_array($sprint->status, ['upcoming', 'active', 'completed'])) {
-                return $sprint->status;
-            }
-            
-            // Fall back to date-based calculation
-            $now = now()->toDateString();
-            if ($sprint->ends_at < $now) {
+            // Always calculate status based on dates using Carbon
+            $now = now();
+            $startDate = $sprint->starts_at instanceof \Carbon\Carbon ? $sprint->starts_at : \Carbon\Carbon::parse($sprint->starts_at);
+            $endDate = $sprint->ends_at instanceof \Carbon\Carbon ? $sprint->ends_at : \Carbon\Carbon::parse($sprint->ends_at);
+
+            if ($endDate->isPast()) {
                 return 'completed';
-            } elseif ($sprint->starts_at <= $now && $sprint->ends_at >= $now) {
+            } elseif ($startDate->isPast() && $endDate->isFuture()) {
+                return 'active';
+            } elseif ($startDate->isPast() && $endDate->isToday()) {
                 return 'active';
             } else {
                 return 'upcoming';
@@ -141,7 +167,6 @@ class SprintView extends Component
         $this->sprintStartDate = $sprint->starts_at->format('Y-m-d');
         $this->sprintEndDate = $sprint->ends_at->format('Y-m-d');
         $this->sprintGoal = $sprint->goal ?? '';
-        $this->sprintStatus = $sprint->status;
         $this->showEditForm = true;
         $this->showCreateForm = false;
     }
@@ -157,11 +182,19 @@ class SprintView extends Component
             'starts_at' => $this->sprintStartDate,
             'ends_at' => $this->sprintEndDate,
             'goal' => $this->sprintGoal,
-            'status' => $this->sprintStatus,
         ]);
 
+        // Calculate status to determine which filter to show
+        $now = now()->toDateString();
+        $status = 'upcoming';
+        if ($this->sprintStartDate <= $now && $this->sprintEndDate >= $now) {
+            $status = 'active';
+        } elseif ($this->sprintEndDate < $now) {
+            $status = 'completed';
+        }
+
         // Set filter to show the newly created sprint in its correct status tab
-        $this->filterStatus = $this->sprintStatus;
+        $this->filterStatus = $status;
         $this->resetForm();
         $this->loadSprints();
         session()->flash('success', 'Sprint created successfully!');
@@ -178,7 +211,6 @@ class SprintView extends Component
             'starts_at' => $this->sprintStartDate,
             'ends_at' => $this->sprintEndDate,
             'goal' => $this->sprintGoal,
-            'status' => $this->sprintStatus,
         ]);
 
         $this->resetForm();
@@ -218,28 +250,6 @@ class SprintView extends Component
         $this->sprintToDelete = null;
     }
 
-    public function startSprint($sprintId)
-    {
-        $sprint = Sprint::findOrFail($sprintId);
-        $sprint->update([
-            'status' => 'active',
-            'started_at' => now(),
-        ]);
-        $this->loadSprints();
-        session()->flash('success', 'Sprint started!');
-    }
-
-    public function completeSprint($sprintId)
-    {
-        $sprint = Sprint::findOrFail($sprintId);
-        $sprint->update([
-            'status' => 'completed',
-            'ended_at' => now(),
-        ]);
-        $this->loadSprints();
-        session()->flash('success', 'Sprint completed!');
-    }
-
     // Reset delete confirmation properties when form is reset
     protected function resetDeleteConfirmation()
     {
@@ -254,7 +264,6 @@ class SprintView extends Component
         $this->sprintStartDate = now()->toDateString();
         $this->sprintEndDate = now()->addDays(14)->toDateString();
         $this->sprintGoal = '';
-        $this->sprintStatus = 'upcoming';
         $this->showCreateForm = false;
         $this->showEditForm = false;
         $this->editingSprintId = null;
