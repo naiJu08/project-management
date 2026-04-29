@@ -186,7 +186,7 @@
                     @if(in_array($item->type, ['Task', 'Subtask']) && $item->tickets->count() > 0)
                         <div class="border-t border-gray-200 dark:border-gray-600 my-1"></div>
                         @foreach($item->tickets as $ticket)
-                            <a href="{{ route('filament.resources.tickets.edit', ['record' => $ticket->id]) }}" 
+                            <a href="{{ route('filament.resources.tickets.view', ['record' => $ticket->id]) }}" 
                                target="_blank"
                                class="flex items-center w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
