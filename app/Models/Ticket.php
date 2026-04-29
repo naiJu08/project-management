@@ -92,7 +92,7 @@ class Ticket extends Model implements HasMedia
             $oldSprint = $old->sprint_id;
             if ($oldSprint && !$item->sprint_id) {
                 $item->epic_id = null;
-            } elseif ($item->sprint_id && $item->sprint->epic_id) {
+            } elseif ($item->sprint_id && $item->sprint && $item->sprint->epic_id) {
                 $item->epic_id = $item->sprint->epic_id;
             }
         });
