@@ -94,7 +94,8 @@ class EmployeeTicketDetail extends Component
             'responsible',
             'sprint',
             'project',
-            'backlogItem'
+            'backlogItem.parent.parent.parent',
+            'epic'
         ]);
 
         // Initialize tracking state from cache so it survives reloads/logouts
