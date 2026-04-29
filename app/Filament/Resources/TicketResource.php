@@ -607,6 +607,18 @@ class TicketResource extends Resource
                 ->sortable()
                 ->searchable(),
 
+            Tables\Columns\TextColumn::make('epic.name')
+                ->label(__('Epic'))
+                ->sortable()
+                ->searchable()
+                ->toggleable(),
+
+            Tables\Columns\TextColumn::make('sprint.name')
+                ->label(__('Sprint'))
+                ->sortable()
+                ->searchable()
+                ->toggleable(),
+
             Tables\Columns\TextColumn::make('created_at')
                 ->label(__('Created at'))
                 ->dateTime()

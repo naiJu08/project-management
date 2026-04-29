@@ -22,7 +22,13 @@
             @php($epic = $record['epic'])
             @if($epic && $epic != "")
                 <div class="px-3 py-0.5 rounded flex items-center justify-center text-center text-xs text-white bg-blue-600" title="{{ __('Epic') }}">
-                    {{ $epic->name }}
+                    {{ $epic->title }}
+                </div>
+            @endif
+            @php($sprint = $record['sprint'])
+            @if($sprint && $sprint != "")
+                <div class="px-3 py-0.5 rounded flex items-center justify-center text-center text-xs text-white bg-green-600" title="{{ __('Sprint') }}">
+                    {{ $sprint->name }}
                 </div>
             @endif
             <x-ticket-priority :priority="$record['priority']" />
