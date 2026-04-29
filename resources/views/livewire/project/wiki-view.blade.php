@@ -306,7 +306,7 @@
                 @endif
 
                 <div class="prose dark:prose-invert max-w-none mb-8">
-                    {!! \Illuminate\Support\Str::markdown($selectedPage->content ?? '') !!}
+                    {!! $selectedPage->content ?? '' !!}
                 </div>
 
                 {{-- Comments Section --}}
