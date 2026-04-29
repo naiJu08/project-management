@@ -25,8 +25,8 @@ class ProjectStatsWidget extends BaseWidget
             })
             ->count();
         $openTickets = $this->project->tickets()
-            ->whereHas('status', function ($query) use ($completedStatusNames) {
-                $query->whereNotIn(DB::raw('LOWER(ticket_statuses.name)'), $completedStatusNames);
+            ->whereHas('status', function ($query) {
+                $query->where(DB::raw('LOWER(ticket_statuses.name)'), 'in progress');
             })
             ->count();
         $teamMembers = $this->project->users()->count() + 1; // +1 for owner

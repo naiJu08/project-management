@@ -45,8 +45,8 @@
                 })
                 ->count();
             $openTickets = $this->project->tickets()
-                ->whereHas('status', function ($q) use ($completedStatusNames) {
-                    $q->whereNotIn(\DB::raw('LOWER(ticket_statuses.name)'), $completedStatusNames);
+                ->whereHas('status', function ($q) {
+                    $q->where(\DB::raw('LOWER(ticket_statuses.name)'), 'in progress');
                 })
                 ->count();
             $teamMembers = $this->project->users()->count() + 1;
