@@ -750,9 +750,12 @@
                     trixEditor.editor.loadHTML(@this.content);
                 }
                 
-                // Update Livewire when editor changes
+                // Update Livewire when editor changes (debounced)
                 trixEditor.addEventListener('trix-change', function() {
-                    @this.set('content', trixEditor.editor.getDocument().toString());
+                    clearTimeout(trixEditor._debounceTimer);
+                    trixEditor._debounceTimer = setTimeout(() => {
+                        @this.set('content', hiddenInput.value);
+                    }, 300);
                 });
             }
         }
@@ -761,12 +764,16 @@
         setTimeout(() => {
             initTrixEditor();
         }, 100);
-        
-        // Re-initialize when entering edit mode
+
+        // Re-initialize only when entering edit mode
+        let wasEditing = @this.isEditing;
         Livewire.hook('message.processed', (message, component) => {
-            setTimeout(() => {
-                initTrixEditor();
-            }, 100);
+            if (@this.isEditing && !wasEditing) {
+                setTimeout(() => {
+                    initTrixEditor();
+                }, 100);
+            }
+            wasEditing = @this.isEditing;
         });
 
         // Listen for job polling events
