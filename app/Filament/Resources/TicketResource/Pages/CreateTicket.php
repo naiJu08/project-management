@@ -67,20 +67,19 @@ class CreateTicket extends CreateRecord
         $backlogEpicId = $formData['backlog_epic_id'] ?? null;
         $backlogFeatureId = $formData['backlog_feature_id'] ?? null;
         $backlogUserStoryId = $formData['backlog_user_story_id'] ?? null;
+        $backlogItemId = $formData['backlog_item_id'] ?? null;
         
         // Filter out placeholder values
         if ($backlogEpicId === '_placeholder') $backlogEpicId = null;
         if ($backlogFeatureId === '_placeholder') $backlogFeatureId = null;
         if ($backlogUserStoryId === '_placeholder') $backlogUserStoryId = null;
         
-        // Check if this ticket should create a backlog item
-        if ($backlogEpicId && $backlogUserStoryId && is_numeric($backlogEpicId) && is_numeric($backlogUserStoryId)) {
-            try {
-                // Determine parent and type
+        try {
+            // Case 1: Full backlog integration (Epic -> Feature -> User Story)
+            if ($backlogEpicId && $backlogUserStoryId && is_numeric($backlogEpicId) && is_numeric($backlogUserStoryId)) {
                 $parentId = $backlogUserStoryId; // Tasks go under User Story
                 $type = BacklogItem::TYPE_TASK;
                 
-                // Create backlog item linked to ticket
                 $backlogItem = BacklogItem::create([
                     'project_id' => $this->record->project_id,
                     'parent_id' => $parentId,
@@ -96,20 +95,38 @@ class CreateTicket extends CreateRecord
                     'updated_by' => auth()->id(),
                 ]);
                 
-                // Link ticket to backlog item
-                $this->record->update([
-                    'backlog_item_id' => $backlogItem->id,
-                ]);
-                
-                // Note: epic_id references the old Epic model, not BacklogItem
-                // The backlog hierarchy is maintained through BacklogItem parent relationships
-                
+                $this->record->update(['backlog_item_id' => $backlogItem->id]);
                 Filament::notify('success', 'Ticket and backlog item created successfully!');
-            } catch (\Exception $e) {
-                \Log::error('Failed to create backlog item from ticket: ' . $e->getMessage());
-                \Log::error($e->getTraceAsString());
-                Filament::notify('warning', 'Ticket created but backlog item creation failed: ' . $e->getMessage());
             }
+            // Case 2: Simple Epic selection via backlog_item_id dropdown
+            elseif ($backlogItemId && is_numeric($backlogItemId)) {
+                $parentEpic = BacklogItem::find($backlogItemId);
+                
+                if ($parentEpic && $parentEpic->type === BacklogItem::TYPE_EPIC) {
+                    // Create a Task directly under the Epic
+                    $backlogItem = BacklogItem::create([
+                        'project_id' => $this->record->project_id,
+                        'parent_id' => $backlogItemId,
+                        'type' => BacklogItem::TYPE_TASK,
+                        'title' => $this->record->name,
+                        'description' => $this->record->content,
+                        'status' => BacklogItem::STATUS_TODO,
+                        'priority' => BacklogItem::PRIORITY_MEDIUM,
+                        'assignee_id' => $this->record->responsible_id,
+                        'sprint_id' => $this->record->sprint_id,
+                        'estimated_hours' => $this->record->estimation,
+                        'created_by' => auth()->id(),
+                        'updated_by' => auth()->id(),
+                    ]);
+                    
+                    $this->record->update(['backlog_item_id' => $backlogItem->id]);
+                    Filament::notify('success', 'Ticket and backlog item created successfully!');
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::error('Failed to create backlog item from ticket: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+            Filament::notify('warning', 'Ticket created but backlog item creation failed: ' . $e->getMessage());
         }
         
         // Use raw state to include non-dehydrated controls

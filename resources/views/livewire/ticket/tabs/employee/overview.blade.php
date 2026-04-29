@@ -84,7 +84,20 @@
                 <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Epic</label>
                 <p class="text-gray-900 dark:text-white mt-1">
                     @if($ticket->backlogItem && $ticket->backlogItem->type === 'Epic')
+                        {{-- Direct Epic assignment --}}
                         <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">{{ $ticket->backlogItem->title }}</a>
+                    @elseif($ticket->backlogItem && $ticket->backlogItem->parent && $ticket->backlogItem->parent->type === 'Epic')
+                        {{-- Task under Epic - show parent Epic --}}
+                        <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">{{ $ticket->backlogItem->parent->title }}</a>
+                    @elseif($ticket->backlogItem && $ticket->backlogItem->parent && $ticket->backlogItem->parent->parent && $ticket->backlogItem->parent->parent->type === 'Epic')
+                        {{-- Task under User Story under Epic - show grandparent Epic --}}
+                        <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">{{ $ticket->backlogItem->parent->parent->title }}</a>
+                    @elseif($ticket->backlogItem && $ticket->backlogItem->parent && $ticket->backlogItem->parent->parent && $ticket->backlogItem->parent->parent->parent && $ticket->backlogItem->parent->parent->parent->type === 'Epic')
+                        {{-- Task under Subtask under User Story under Epic - show great-grandparent Epic --}}
+                        <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">{{ $ticket->backlogItem->parent->parent->parent->title }}</a>
+                    @elseif($ticket->epic)
+                        {{-- Old Epic model for backward compatibility --}}
+                        <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">{{ $ticket->epic->name }}</a>
                     @else
                         <span class="text-gray-500">Not assigned</span>
                     @endif
