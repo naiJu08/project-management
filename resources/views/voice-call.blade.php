@@ -305,6 +305,47 @@
                 linear-gradient(180deg, transparent 8px, rgba(59, 130, 246, 0.88) 8px, rgba(59, 130, 246, 0.88) 52px) 57px 0/8px 52px no-repeat,
                 linear-gradient(180deg, transparent 30px, rgba(59, 130, 246, 0.88) 30px, rgba(59, 130, 246, 0.88) 52px) 76px 0/8px 52px no-repeat;
             opacity: 0.9;
+            filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.28));
+            transform-origin: center bottom;
+            animation: blueWaveBars 1.35s ease-in-out infinite;
+        }
+
+        @keyframes blueWaveBars {
+            0% {
+                background-size: 8px 52px, 8px 52px, 8px 52px, 8px 52px, 8px 52px;
+                transform: translateY(0) scaleY(0.88);
+                opacity: 0.72;
+            }
+
+            20% {
+                background-size: 8px 38px, 8px 52px, 8px 30px, 8px 52px, 8px 40px;
+                transform: translateY(-1px) scaleY(1.02);
+                opacity: 0.92;
+            }
+
+            40% {
+                background-size: 8px 26px, 8px 44px, 8px 52px, 8px 34px, 8px 24px;
+                transform: translateY(0) scaleY(0.96);
+                opacity: 1;
+            }
+
+            60% {
+                background-size: 8px 42px, 8px 24px, 8px 36px, 8px 52px, 8px 48px;
+                transform: translateY(-2px) scaleY(1.06);
+                opacity: 0.94;
+            }
+
+            80% {
+                background-size: 8px 30px, 8px 50px, 8px 22px, 8px 40px, 8px 34px;
+                transform: translateY(-1px) scaleY(0.98);
+                opacity: 0.88;
+            }
+
+            100% {
+                background-size: 8px 52px, 8px 52px, 8px 52px, 8px 52px, 8px 52px;
+                transform: translateY(0) scaleY(0.88);
+                opacity: 0.72;
+            }
         }
 
         body > div.text-center > div.flex.gap-4.justify-center.mt-8.flex-wrap {
