@@ -343,6 +343,7 @@
         }
 
         .audioPanel {
+            display: none !important;
             bottom: 104px;
             background: rgba(0, 0, 0, 0.7);
         }
@@ -375,6 +376,7 @@
         }
 
         #remoteAudio {
+            display: none !important;
             bottom: 168px;
             right: 12px;
             width: 220px;
