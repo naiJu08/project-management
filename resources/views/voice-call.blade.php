@@ -377,6 +377,9 @@
             font-weight: 700;
             color: #fff;
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
         }
 
@@ -386,6 +389,8 @@
 
         #startBtn { background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%) !important; }
         #acceptBtn { background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%) !important; animation-duration: 1.8s; }
+        #muteBtn { background: linear-gradient(180deg, #334155 0%, #1e293b 100%) !important; }
+        #muteBtn.muted { background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%) !important; }
         #endBtn { background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%) !important; }
         #reconnectBtn { background: linear-gradient(180deg, #fb923c 0%, #f97316 100%) !important; }
         body > div.text-center > div.flex.gap-4.justify-center.mt-8.flex-wrap button:last-child { background: rgba(255, 255, 255, 0.08) !important; color: #e2e8f0; }
@@ -490,6 +495,9 @@
             00:00
         </p>
         <div class="flex gap-4 justify-center mt-8 flex-wrap">
+            <button id="muteBtn" onclick="toggleMute()" class="transition" style="display: none;">
+                <span id="muteBtnText">Mute</span>
+            </button>
             <button id="startBtn" onclick="startCall()"
                 class="bg-green-500 px-6 py-3 rounded-full text-lg hover:bg-green-600 transition flex items-center gap-2">
                 <span>📞</span> Start Call
@@ -500,7 +508,7 @@
             </button>
             <button id="endBtn" onclick="endCall()"
                 class="bg-red-500 px-6 py-3 rounded-full text-lg hover:bg-red-600 transition">
-                ❌ End
+                End
             </button>
             <button id="reconnectBtn" onclick="restartIce()"
                 class="bg-orange-500 px-6 py-3 rounded-full text-lg hover:bg-orange-600 transition">
@@ -748,6 +756,7 @@
             let closeWindowTimer = null;
             let callTimerInterval = null;
             let callStartTime = null;
+            let micMuted = false;
 
             // ==================== VOLUME METERS (unchanged) ====================
             function startLocalVolumeMeter(stream) {
@@ -1093,6 +1102,38 @@
                     timer.classList.remove("visible");
                 }
             }
+
+            function syncMuteButton() {
+                const muteBtn = document.getElementById("muteBtn");
+                const muteBtnText = document.getElementById("muteBtnText");
+
+                if (!muteBtn || !muteBtnText) {
+                    return;
+                }
+
+                muteBtn.style.display = localStream ? "inline-flex" : "none";
+                muteBtn.classList.toggle("muted", micMuted);
+                muteBtnText.textContent = micMuted ? "Unmute" : "Mute";
+            }
+
+            window.toggleMute = function () {
+                if (!localStream) {
+                    return;
+                }
+
+                const audioTracks = localStream.getAudioTracks();
+                if (!audioTracks.length) {
+                    return;
+                }
+
+                micMuted = !micMuted;
+                audioTracks.forEach(track => {
+                    track.enabled = !micMuted;
+                });
+
+                syncMuteButton();
+                updateStatus(micMuted ? "🎤 Microphone muted" : "🎤 Microphone active");
+            };
 
             function showStartMode() {
                 document.getElementById("startBtn").style.display = "block";
@@ -1530,6 +1571,8 @@
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     debug("Microphone access granted");
+                    micMuted = false;
+                    syncMuteButton();
                     startLocalVolumeMeter(localStream);
                     document.getElementById('testMicBtn').style.display = 'block';
 
@@ -1609,6 +1652,8 @@
                     try {
                         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                         debug("✅ Microphone access granted");
+                        micMuted = false;
+                        syncMuteButton();
                         startLocalVolumeMeter(localStream);
                         document.getElementById('testMicBtn').style.display = 'block';
                     } catch (micErr) {
@@ -1769,6 +1814,8 @@
                     localStream.getTracks().forEach(track => track.stop());
                     localStream = null;
                 }
+                micMuted = false;
+                syncMuteButton();
                 if (remoteAudioElement) {
                     remoteAudioElement.srcObject = null;
                     remoteAudioElement.style.display = "none";
