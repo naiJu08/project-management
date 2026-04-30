@@ -300,6 +300,42 @@
                     credential: "openrelayproject"
                 }
             ];
+            const defaultIceServers = JSON.parse(JSON.stringify(iceServers));
+
+            function normalizeIceServerUrls(server) {
+                if (!server || !server.urls) {
+                    return [];
+                }
+
+                return Array.isArray(server.urls) ? server.urls : [server.urls];
+            }
+
+            function mergeIceServers(primaryServers, extraServers) {
+                const merged = [];
+                const seen = new Set();
+
+                [...primaryServers, ...extraServers].forEach(server => {
+                    if (!server || !server.urls) {
+                        return;
+                    }
+
+                    const urls = normalizeIceServerUrls(server);
+                    const key = JSON.stringify({
+                        urls,
+                        username: server.username ?? null,
+                        credential: server.credential ?? null
+                    });
+
+                    if (seen.has(key)) {
+                        return;
+                    }
+
+                    seen.add(key);
+                    merged.push(server);
+                });
+
+                return merged;
+            }
 
             // ==================== SDP CLEANER (improved) ====================
             function cleanSDP(sdp) {
@@ -345,6 +381,30 @@
                     return line;
                 });
                 return lines.join('\r\n') + '\r\n';
+            }
+
+            function waitForIceGatheringComplete(pc) {
+                if (!pc || pc.iceGatheringState === "complete") {
+                    return Promise.resolve();
+                }
+
+                return new Promise(resolve => {
+                    const timeout = setTimeout(done, 10000);
+
+                    function done() {
+                        clearTimeout(timeout);
+                        pc.removeEventListener("icegatheringstatechange", onStateChange);
+                        resolve();
+                    }
+
+                    function onStateChange() {
+                        if (pc.iceGatheringState === "complete") {
+                            done();
+                        }
+                    }
+
+                    pc.addEventListener("icegatheringstatechange", onStateChange);
+                });
             }
 
             // ==================== STATE ====================
@@ -969,10 +1029,11 @@
                     }
                     
                     // Create new offer
-                    const offer = await peerConnection.createOffer({ 
+                    const offer = await peerConnection.createOffer({
                         offerToReceiveAudio: true
                     });
                     await peerConnection.setLocalDescription(offer);
+                    await waitForIceGatheringComplete(peerConnection);
                     
                     // Close old connection
                     oldPeerConnection.close();
@@ -985,7 +1046,10 @@
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         },
                         body: JSON.stringify({
-                            offer: { type: offer.type, sdp: offer.sdp },
+                            offer: {
+                                type: peerConnection.localDescription.type,
+                                sdp: peerConnection.localDescription.sdp
+                            },
                             receiverId: incomingCallerId ?? otherUserId,
                             iceRestart: true
                         })
@@ -1042,8 +1106,11 @@
                 createPeer();
                 localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
                 try {
-                    const offer = await peerConnection.createOffer();
+                    const offer = await peerConnection.createOffer({
+                        offerToReceiveAudio: true
+                    });
                     await peerConnection.setLocalDescription(offer);
+                    await waitForIceGatheringComplete(peerConnection);
                     updateStatus("Sending call request...");
                     const response = await fetch('/send-offer', {
                         method: 'POST',
@@ -1052,7 +1119,10 @@
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         },
                         body: JSON.stringify({
-                            offer: { type: offer.type, sdp: offer.sdp },
+                            offer: {
+                                type: peerConnection.localDescription.type,
+                                sdp: peerConnection.localDescription.sdp
+                            },
                             receiverId: otherUserId
                         })
                     });
@@ -1140,6 +1210,7 @@
                     debug("Creating answer...");
                     const answer = await peerConnection.createAnswer();
                     await peerConnection.setLocalDescription(answer);
+                    await waitForIceGatheringComplete(peerConnection);
                     debug("✅ Local description set");
 
                     isRemoteSet = true;
@@ -1163,7 +1234,10 @@
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         },
                         body: JSON.stringify({
-                            answer: { type: answer.type, sdp: answer.sdp },
+                            answer: {
+                                type: peerConnection.localDescription.type,
+                                sdp: peerConnection.localDescription.sdp
+                            },
                             receiverId: incomingCallerId
                         })
                     });
@@ -1358,8 +1432,8 @@
                     if (resp.ok) {
                         const data = await resp.json();
                         if (data.iceServers && data.iceServers.length) {
-                            iceServers = data.iceServers;
-                            debug("✅ ICE servers loaded:", iceServers.length, "servers");
+                            iceServers = mergeIceServers(defaultIceServers, data.iceServers);
+                            debug("✅ ICE servers loaded:", iceServers.length, "servers after merge");
                         }
                     } else {
                         debug("⚠️ Failed to fetch ICE servers, using defaults");
