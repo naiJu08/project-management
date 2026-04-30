@@ -1,356 +1,141 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Video Call</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <style>
         body {
-            min-height: 100vh;
             margin: 0;
-            background:
-                radial-gradient(circle at top, rgba(59, 130, 246, 0.18), transparent 35%),
-                linear-gradient(180deg, #111b21 0%, #0b141a 100%);
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            padding: 0;
+            background: #000;
+            font-family: system-ui;
             overflow: hidden;
         }
-
-        .call-container {
+        
+        .video-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #remoteVideo {
             width: 100%;
-            max-width: 430px;
-            min-height: 100vh;
-            margin: 0 auto;
-            padding: 28px 18px 140px;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background: linear-gradient(180deg, rgba(17, 27, 33, 0.92) 0%, rgba(11, 20, 26, 0.98) 100%);
+            height: 100%;
+            object-fit: cover;
+            background: #1a1a1a;
         }
-
-        .call-container::before,
-        .call-container::after {
-            content: "";
+        
+        #localVideo {
             position: absolute;
-            border-radius: 999px;
-            pointer-events: none;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            border-radius: 10px;
+            border: 2px solid #3b82f6;
+            object-fit: cover;
+            background: #2a2a2a;
         }
-
-        .call-container::before {
-            width: 180px;
-            height: 180px;
-            background: rgba(59, 130, 246, 0.14);
-            top: -40px;
-            right: -50px;
-            filter: blur(10px);
-        }
-
-        .call-container::after {
-            width: 220px;
-            height: 220px;
-            background: rgba(18, 140, 126, 0.1);
-            bottom: 120px;
-            left: -80px;
-            filter: blur(12px);
-        }
-
-        .avatar-circle {
-            width: 132px;
-            height: 132px;
-            border-radius: 999px;
-            margin-top: 84px;
-            margin-bottom: 22px;
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.92), rgba(29, 78, 216, 0.96));
-            padding: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #ecfdf5;
-            font-size: 46px;
-            font-weight: 700;
-            text-transform: uppercase;
-            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35), inset 0 0 0 6px #16232c;
-            position: relative;
-        }
-
-        .avatar-circle::after {
-            content: "Secure video";
+        
+        .controls {
             position: absolute;
-            top: 24px;
-            right: 18px;
-            padding: 8px 12px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.08);
-            color: #cbd5e1;
-            font-size: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 25px;
             backdrop-filter: blur(10px);
         }
-
-        #callTitle {
-            margin-top: 0;
-            font-size: 30px;
-            line-height: 1.15;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-            color: #f8fafc;
-        }
-
-        #callStatus {
-            margin-top: 12px;
-            color: #94a3b8;
-            font-size: 15px;
-            min-height: 24px;
-        }
-
-        .callTimer {
-            margin: 8px 0 0;
-            min-height: 22px;
-            font-size: 14px;
-            font-weight: 600;
-            letter-spacing: 0.12em;
-            color: #93c5fd;
-            opacity: 0;
-            transform: translateY(-4px);
-            transition: opacity 0.25s ease, transform 0.25s ease;
-        }
-
-        .callTimer.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        #callStatus::after {
-            content: "";
-            display: flex;
-            width: 84px;
-            max-width: 84px;
-            height: 52px;
-            margin: 34px auto 0;
-            background:
-                linear-gradient(180deg, transparent 32px, rgba(59, 130, 246, 0.88) 32px, rgba(59, 130, 246, 0.88) 52px) 0 0/8px 52px no-repeat,
-                linear-gradient(180deg, transparent 14px, rgba(59, 130, 246, 0.88) 14px, rgba(59, 130, 246, 0.88) 52px) 19px 0/8px 52px no-repeat,
-                linear-gradient(180deg, transparent 26px, rgba(59, 130, 246, 0.88) 26px, rgba(59, 130, 246, 0.88) 52px) 38px 0/8px 52px no-repeat,
-                linear-gradient(180deg, transparent 8px, rgba(59, 130, 246, 0.88) 8px, rgba(59, 130, 246, 0.88) 52px) 57px 0/8px 52px no-repeat,
-                linear-gradient(180deg, transparent 30px, rgba(59, 130, 246, 0.88) 30px, rgba(59, 130, 246, 0.88) 52px) 76px 0/8px 52px no-repeat;
-            opacity: 0.9;
-            filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.28));
-            transform-origin: center bottom;
-            animation: blueWaveBars 1.35s ease-in-out infinite;
-        }
-
-        @keyframes blueWaveBars {
-            0% {
-                background-size: 8px 52px, 8px 52px, 8px 52px, 8px 52px, 8px 52px;
-                transform: translateY(0) scaleY(0.88);
-                opacity: 0.72;
-            }
-
-            20% {
-                background-size: 8px 38px, 8px 52px, 8px 30px, 8px 52px, 8px 40px;
-                transform: translateY(-1px) scaleY(1.02);
-                opacity: 0.92;
-            }
-
-            40% {
-                background-size: 8px 26px, 8px 44px, 8px 52px, 8px 34px, 8px 24px;
-                transform: translateY(0) scaleY(0.96);
-                opacity: 1;
-            }
-
-            60% {
-                background-size: 8px 42px, 8px 24px, 8px 36px, 8px 52px, 8px 48px;
-                transform: translateY(-2px) scaleY(1.06);
-                opacity: 0.94;
-            }
-
-            80% {
-                background-size: 8px 30px, 8px 50px, 8px 22px, 8px 40px, 8px 34px;
-                transform: translateY(-1px) scaleY(0.98);
-                opacity: 0.88;
-            }
-
-            100% {
-                background-size: 8px 52px, 8px 52px, 8px 52px, 8px 52px, 8px 52px;
-                transform: translateY(0) scaleY(0.88);
-                opacity: 0.72;
-            }
-        }
-
-        .controls {
-            position: fixed;
-            left: 50%;
-            bottom: 26px;
-            transform: translateX(-50%);
-            z-index: 10002;
-            width: min(390px, calc(100% - 28px));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            padding: 16px;
-            border-radius: 28px;
-            background: rgba(17, 27, 33, 0.86);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-            backdrop-filter: blur(14px);
-        }
-
+        
         .control-btn {
-            min-width: 86px;
-            min-height: 58px;
-            border: 0;
-            border-radius: 22px;
-            padding: 0 18px;
-            font-size: 14px;
-            font-weight: 700;
-            color: #fff;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
             cursor: pointer;
-            display: inline-flex;
+            font-size: 20px;
+            display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+            transition: all 0.2s;
         }
-
+        
         .control-btn:hover {
-            transform: translateY(-1px);
+            transform: scale(1.1);
         }
-
+        
         .mute-btn {
-            background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+            background: #374151;
+            color: white;
         }
-
+        
         .mute-btn.muted {
-            background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+            background: #ef4444;
         }
-
+        
         .end-btn {
-            background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+            background: #dc2626;
+            color: white;
         }
-
-        .video-preview {
-            position: fixed;
-            bottom: 120px;
+        
+        .status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        
+        .caller-info {
+            position: absolute;
+            top: 20px;
             right: 20px;
-            width: 120px;
-            height: 90px;
-            border-radius: 12px;
-            overflow: hidden;
-            background: #1a1a1a;
-            border: 2px solid rgba(59, 130, 246, 0.5);
-            z-index: 10001;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            text-align: right;
         }
-
-        .video-preview video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .remote-video-fullscreen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            background: #1a1a1a;
-            z-index: 0;
-        }
-
-        .connecting-overlay {
-            position: fixed;
+        
+        .connecting {
+            position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
             font-size: 18px;
             text-align: center;
-            z-index: 10000;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 20px 30px;
-            border-radius: 16px;
-            backdrop-filter: blur(10px);
-        }
-
-        .video-active .call-container {
-            opacity: 0.3;
-            pointer-events: none;
-        }
-
-        .video-active .remote-video-fullscreen {
-            opacity: 1;
-        }
-
-        .remote-video-fullscreen {
-            opacity: 0;
-            transition: opacity 0.5s ease;
-        }
-
-        @media (max-width: 520px) {
-            .call-container {
-                padding: 22px 14px 138px;
-            }
-
-            #callTitle {
-                font-size: 26px;
-            }
-
-            .controls {
-                gap: 10px;
-                padding: 14px;
-            }
-
-            .control-btn {
-                min-width: 72px;
-                min-height: 54px;
-                font-size: 13px;
-                padding: 0 14px;
-            }
-
-            .video-preview {
-                width: 100px;
-                height: 75px;
-                bottom: 110px;
-                right: 14px;
-            }
         }
     </style>
 </head>
 <body>
-    <video id="remoteVideo" class="remote-video-fullscreen" autoplay playsinline></video>
-    
-    <div class="call-container">
-        <div class="avatar-circle" id="avatarCircle">
-            <span id="avatarInitial">U</span>
-        </div>
-        <h2 id="callTitle">Video Call</h2>
-        <p id="callStatus">Connecting...</p>
-        <p id="callTimer" class="callTimer">00:00</p>
+    <div class="video-container">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay muted playsinline></video>
         
-        <div class="connecting-overlay" id="connectingMsg">
+        <div class="status" id="callStatus">Connecting...</div>
+        <div class="caller-info" id="callerInfo">
+            <div id="callerName">User</div>
+            <div id="callTimer">00:00</div>
+        </div>
+        
+        <div class="connecting" id="connectingMsg">
             <div>📹 Connecting to video call...</div>
             <div style="font-size: 14px; margin-top: 10px;">Please allow camera/microphone access</div>
         </div>
-    </div>
-
-    <div class="video-preview">
-        <video id="localVideo" autoplay muted playsinline></video>
-    </div>
-
-    <div class="controls">
-        <button id="muteVideoBtn" class="control-btn mute-btn" title="Toggle Video">
-            <span id="videoBtnIcon">📹</span>
-        </button>
-        <button id="muteAudioBtn" class="control-btn mute-btn" title="Toggle Audio">
-            <span id="audioBtnIcon">🎤</span>
-        </button>
-        <button id="endCallBtn" class="control-btn end-btn" title="End Call">
-              End
-        </button>
+        
+        <div class="controls">
+            <button id="muteVideoBtn" class="control-btn mute-btn" title="Toggle Video">📹</button>
+            <button id="muteAudioBtn" class="control-btn mute-btn" title="Toggle Audio">🎤</button>
+            <button id="endCallBtn" class="control-btn end-btn" title="End Call">📞</button>
+        </div>
     </div>
 
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
@@ -381,10 +166,8 @@
         
         console.log("📹 Video call popup opened with data:", callData);
         
-        // Update UI with WhatsApp style
-        const callerName = callData.callerName || 'Unknown User';
-        document.getElementById('callTitle').textContent = callerName;
-        document.getElementById('avatarInitial').textContent = callerName.charAt(0).toUpperCase();
+        // Update UI
+        document.getElementById('callerName').textContent = callData.callerName || 'Unknown User';
         
         // Socket connection
         const socket = io("https://pm.inovace.in");
@@ -642,7 +425,6 @@
                     console.log("✅ Remote video playing successfully");
                     document.getElementById('connectingMsg').style.display = 'none';
                     document.getElementById('callStatus').textContent = 'Connected';
-                    document.body.classList.add('video-active');
                     if (!callStartTime) {
                         callStartTime = Date.now();
                         startCallTimer();
@@ -835,7 +617,6 @@
                 const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
                 const seconds = (elapsed % 60).toString().padStart(2, '0');
                 document.getElementById('callTimer').textContent = `${minutes}:${seconds}`;
-                document.getElementById('callTimer').classList.add('visible');
             }, 1000);
         }
         
@@ -861,24 +642,22 @@
         function toggleVideo() {
             const videoTrack = localStream.getVideoTracks()[0];
             const btn = document.getElementById('muteVideoBtn');
-            const icon = document.getElementById('videoBtnIcon');
             
             if (videoTrack) {
                 videoTrack.enabled = !videoTrack.enabled;
                 btn.classList.toggle('muted');
-                icon.textContent = videoTrack.enabled ? '📹' : '📹';
+                btn.textContent = videoTrack.enabled ? '📹' : '📹';
             }
         }
         
         function toggleAudio() {
             const audioTrack = localStream.getAudioTracks()[0];
             const btn = document.getElementById('muteAudioBtn');
-            const icon = document.getElementById('audioBtnIcon');
             
             if (audioTrack) {
                 audioTrack.enabled = !audioTrack.enabled;
                 btn.classList.toggle('muted');
-                icon.textContent = audioTrack.enabled ? '🎤' : '🔇';
+                btn.textContent = audioTrack.enabled ? '🎤' : '🔇';
             }
         }
         
