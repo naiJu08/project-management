@@ -431,6 +431,7 @@
             let currentRemoteStream = null;
             let iceRestartPending = false;
             let handlingAnswer = false;
+            let endingCall = false;
 
             // ==================== VOLUME METERS (unchanged) ====================
             function startLocalVolumeMeter(stream) {
@@ -717,6 +718,41 @@
                 document.getElementById("startBtn").style.display = "none";
                 document.getElementById("acceptBtn").style.display = "none";
                 document.getElementById("reconnectBtn").style.display = "none";
+            }
+
+            async function notifyCallEnded() {
+                const receiverId = incomingCallerId ?? otherUserId;
+
+                if (!receiverId) {
+                    return;
+                }
+
+                const payload = JSON.stringify({ receiverId });
+                const url = '/end-call';
+
+                try {
+                    if (navigator.sendBeacon) {
+                        const blob = new Blob([payload], { type: 'application/json' });
+                        navigator.sendBeacon(url, blob);
+                        return;
+                    }
+                } catch (err) {
+                    debug("Call end beacon failed:", err);
+                }
+
+                try {
+                    await fetch(url, {
+                        method: 'POST',
+                        keepalive: true,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        body: payload
+                    });
+                } catch (err) {
+                    debug("Call end notify failed:", err);
+                }
             }
 
             // ==================== WEBRTC ====================
@@ -1308,8 +1344,15 @@
                 }
             }
 
-            window.endCall = function () {
+            window.endCall = function (shouldNotify = true) {
                 debug("Ending call");
+                if (endingCall) return;
+                endingCall = true;
+
+                if (shouldNotify && (callActive || peerConnection || incomingCallerId || incomingOffer)) {
+                    notifyCallEnded();
+                }
+
                 if (connectionTimeout) clearTimeout(connectionTimeout);
                 if (peerConnection) {
                     peerConnection.close();
@@ -1347,9 +1390,12 @@
                     updateStatus("Call ended - close window");
                 } else {
                     showStartMode();
+                    updateStatus("Call ended");
                 }
                 incomingOffer = null;
                 incomingCallerId = null;
+                incomingCallerName = null;
+                endingCall = false;
             };
 
             // ==================== PUSHER ====================
@@ -1414,6 +1460,11 @@
                     debug("ICE candidate received via Pusher");
                     addIceCandidate(data.candidate, 'pusher');
                 });
+                channel.bind('CallEnded', (data) => {
+                    debug("Call ended received via Pusher", data);
+                    updateStatus("Other side ended the call");
+                    window.endCall(false);
+                });
             }
 
             // ==================== INIT ====================
@@ -1443,6 +1494,12 @@
                 }
 
                 initPusher();
+            });
+
+            window.addEventListener('beforeunload', () => {
+                if (callActive || peerConnection || incomingCallerId || incomingOffer) {
+                    notifyCallEnded();
+                }
             });
         })();
     </script>
