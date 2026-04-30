@@ -9,6 +9,7 @@ use App\Http\Controllers\Auth\OidcAuthController;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use App\Events\CallOffer;
 use App\Events\CallAnswer;
+use App\Events\CallEnded;
 use App\Events\IceCandidate;
 use Illuminate\Http\Request;
 
@@ -137,6 +138,19 @@ Route::post('/send-ice', function (Request $request) {
 
     broadcast(new IceCandidate($request->candidate, $senderId, $receiverId))->toOthers();
     return response()->json(['status' => 'ice sent']);
+})->middleware(['auth']);
+
+Route::post('/end-call', function (Request $request) {
+    $senderId = auth()->id();
+    $receiverId = $request->receiverId;
+
+    if (!$receiverId) {
+        return response()->json(['message' => 'receiverId is required'], 422);
+    }
+
+    broadcast(new CallEnded($senderId, $receiverId))->toOthers();
+
+    return response()->json(['status' => 'call ended']);
 })->middleware(['auth']);
 
 // ==================== BACKLOG EXPORT ROUTES ====================
