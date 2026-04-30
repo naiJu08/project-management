@@ -277,69 +277,17 @@
         #callStatus::after {
             content: "";
             display: flex;
-            width: 132px;
-            max-width: 132px;
-            height: 40px;
+            width: 84px;
+            max-width: 84px;
+            height: 52px;
             margin: 34px auto 0;
-            border-radius: 999px;
             background:
-                linear-gradient(90deg,
-                    rgba(59, 130, 246, 0.08) 0%,
-                    rgba(96, 165, 250, 0.92) 18%,
-                    rgba(59, 130, 246, 0.2) 36%,
-                    rgba(147, 197, 253, 1) 50%,
-                    rgba(59, 130, 246, 0.2) 64%,
-                    rgba(96, 165, 250, 0.92) 82%,
-                    rgba(59, 130, 246, 0.08) 100%);
-            box-shadow:
-                inset 0 0 0 1px rgba(96, 165, 250, 0.16),
-                0 0 24px rgba(59, 130, 246, 0.2);
-            animation: soundLineFlow 1.5s linear infinite;
-            opacity: 0.95;
-        }
-
-        #callStatus::before {
-            content: "";
-            display: flex;
-            width: 132px;
-            height: 2px;
-            margin: 36px auto -14px;
-            border-radius: 999px;
-            background:
-                repeating-linear-gradient(
-                    90deg,
-                    rgba(59, 130, 246, 0.12) 0 8px,
-                    rgba(96, 165, 250, 0.95) 8px 16px,
-                    rgba(59, 130, 246, 0.12) 16px 24px
-                );
-            box-shadow: 0 0 16px rgba(59, 130, 246, 0.32);
-            animation: soundLinePulse 1.2s ease-in-out infinite;
-        }
-
-        @keyframes soundLineFlow {
-            0% {
-                transform: scaleX(0.92);
-                filter: brightness(0.9);
-            }
-            50% {
-                transform: scaleX(1.04);
-                filter: brightness(1.15);
-            }
-            100% {
-                transform: scaleX(0.92);
-                filter: brightness(0.9);
-            }
-        }
-
-        @keyframes soundLinePulse {
-            0%, 100% {
-                opacity: 0.6;
-                transform: scaleX(0.94);
-            }
-            50% {
-                opacity: 1;
-                transform: scaleX(1.02);
-            }
+                linear-gradient(180deg, transparent 32px, rgba(59, 130, 246, 0.88) 32px, rgba(59, 130, 246, 0.88) 52px) 0 0/8px 52px no-repeat,
+                linear-gradient(180deg, transparent 14px, rgba(59, 130, 246, 0.88) 14px, rgba(59, 130, 246, 0.88) 52px) 19px 0/8px 52px no-repeat,
+                linear-gradient(180deg, transparent 26px, rgba(59, 130, 246, 0.88) 26px, rgba(59, 130, 246, 0.88) 52px) 38px 0/8px 52px no-repeat,
+                linear-gradient(180deg, transparent 8px, rgba(59, 130, 246, 0.88) 8px, rgba(59, 130, 246, 0.88) 52px) 57px 0/8px 52px no-repeat,
+                linear-gradient(180deg, transparent 30px, rgba(59, 130, 246, 0.88) 30px, rgba(59, 130, 246, 0.88) 52px) 76px 0/8px 52px no-repeat;
+            opacity: 0.9;
         }
 
         body > div.text-center > div.flex.gap-4.justify-center.mt-8.flex-wrap {
@@ -395,7 +343,6 @@
         }
 
         .audioPanel {
-            display: none !important;
             bottom: 104px;
             background: rgba(0, 0, 0, 0.7);
         }
@@ -428,7 +375,6 @@
         }
 
         #remoteAudio {
-            display: none !important;
             bottom: 168px;
             right: 12px;
             width: 220px;
