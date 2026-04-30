@@ -257,11 +257,47 @@
             }
 
             // ==================== ICE SERVERS ====================
-            // Will be populated dynamically via /get-ice-servers
+            // Comprehensive ICE server configuration for NAT traversal across different networks
             let iceServers = [
+                // Google STUN servers (primary)
                 { urls: "stun:stun.l.google.com:19302" },
                 { urls: "stun:stun1.l.google.com:19302" },
-                { urls: "turn:turn.free.stunprotocol.org:443", username: "free", credential: "free" }
+                { urls: "stun:stun2.l.google.com:19302" },
+                { urls: "stun:stun3.l.google.com:19302" },
+                { urls: "stun:stun4.l.google.com:19302" },
+                
+                // Public STUN servers (backup)
+                { urls: "stun:stun.stunprotocol.org:3478" },
+                { urls: "stun:stun.ekiga.net:3478" },
+                { urls: "stun:stun.ideasip.com:3478" },
+                { urls: "stun:stun.rixtelecom.se:3478" },
+                { urls: "stun:stun.schlund.de:3478" },
+                { urls: "stun:stun.internetcalls.com:3478" },
+                
+                // TURN servers (for NAT traversal)
+                {
+                    urls: [
+                        "turn:pm.inovace.in:3478?transport=udp",
+                        "turn:pm.inovace.in:3478?transport=tcp",
+                        "turns:pm.inovace.in:5349?transport=tcp"
+                    ],
+                    username: "webrtcuser",
+                    credential: "strongpassword123"
+                },
+                // Backup TURN servers (public)
+                {
+                    urls: "turn:openrelay.metered.ca:80",
+                    username: "openrelayproject",
+                    credential: "openrelayproject"
+                },
+                {
+                    urls: [
+                        "turn:openrelay.metered.ca:443",
+                        "turns:openrelay.metered.ca:443?transport=tcp"
+                    ],
+                    username: "openrelayproject",
+                    credential: "openrelayproject"
+                }
             ];
 
             // ==================== SDP CLEANER (improved) ====================
