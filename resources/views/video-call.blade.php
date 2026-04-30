@@ -7,131 +7,101 @@
         body {
             margin: 0;
             padding: 0;
-            background: radial-gradient(circle at top, #1f2e2d 0%, #0b141a 52%, #000 100%);
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: #000;
+            font-family: system-ui;
             overflow: hidden;
-            color: #fff;
         }
         
         .video-container {
             position: relative;
             width: 100vw;
             height: 100vh;
-            background: linear-gradient(180deg, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.6) 100%);
         }
         
         #remoteVideo {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            background: #111b21;
-            filter: saturate(1.05) contrast(1.03);
+            background: #1a1a1a;
         }
         
         #localVideo {
             position: absolute;
-            bottom: 112px;
-            right: 18px;
-            width: 168px;
-            height: 228px;
-            border-radius: 14px;
-            border: 2px solid rgba(255, 255, 255, 0.35);
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            border-radius: 10px;
+            border: 2px solid #3b82f6;
             object-fit: cover;
-            background: #1f2c34;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+            background: #2a2a2a;
         }
         
         .controls {
             position: absolute;
-            bottom: 24px;
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            align-items: center;
-            gap: 16px;
-            background: rgba(17, 27, 33, 0.88);
-            padding: 12px 16px;
-            border-radius: 40px;
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+            gap: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
         }
         
         .control-btn {
-            width: 56px;
-            height: 56px;
+            width: 50px;
+            height: 50px;
             border-radius: 50%;
             border: none;
             cursor: pointer;
-            font-size: 22px;
+            font-size: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+            transition: all 0.2s;
         }
         
         .control-btn:hover {
-            transform: scale(1.06);
+            transform: scale(1.1);
         }
         
         .mute-btn {
-            background: #2a3942;
+            background: #374151;
             color: white;
-            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
         }
         
         .mute-btn.muted {
-            background: #ea4335;
+            background: #ef4444;
         }
         
         .end-btn {
-            background: #ea4335;
+            background: #dc2626;
             color: white;
-            transform: rotate(135deg);
-        }
-
-        .end-btn:hover {
-            transform: rotate(135deg) scale(1.06);
         }
         
         .status {
             position: absolute;
-            top: 22px;
-            left: 16px;
+            top: 20px;
+            left: 20px;
             color: white;
-            background: rgba(17, 27, 33, 0.78);
-            padding: 8px 12px;
-            border-radius: 12px;
-            font-size: 13px;
-            font-weight: 500;
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(0,0,0,0.7);
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 14px;
         }
         
         .caller-info {
             position: absolute;
-            top: 16px;
-            left: 50%;
-            transform: translateX(-50%);
+            top: 20px;
+            right: 20px;
             color: white;
-            background: linear-gradient(180deg, rgba(42, 57, 66, 0.9) 0%, rgba(17, 27, 33, 0.82) 100%);
-            padding: 10px 16px;
-            border-radius: 16px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 15px;
+            border-radius: 10px;
             font-size: 14px;
-            text-align: center;
-            min-width: 180px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        #callerName {
-            font-weight: 600;
-            font-size: 16px;
-            letter-spacing: 0.2px;
-            margin-bottom: 2px;
-        }
-
-        #callTimer {
-            color: rgba(255, 255, 255, 0.85);
-            font-size: 12px;
+            text-align: right;
         }
         
         .connecting {
@@ -140,39 +110,8 @@
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
-            font-size: 17px;
+            font-size: 18px;
             text-align: center;
-            background: rgba(17, 27, 33, 0.75);
-            border-radius: 14px;
-            padding: 14px 18px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(4px);
-        }
-
-        @media (max-width: 768px) {
-            #localVideo {
-                width: 118px;
-                height: 160px;
-                bottom: 104px;
-                right: 12px;
-                border-radius: 12px;
-            }
-
-            .controls {
-                gap: 12px;
-                padding: 10px 12px;
-            }
-
-            .control-btn {
-                width: 52px;
-                height: 52px;
-                font-size: 20px;
-            }
-
-            .caller-info {
-                min-width: 150px;
-                padding: 9px 12px;
-            }
         }
     </style>
 </head>
@@ -193,8 +132,8 @@
         </div>
         
         <div class="controls">
-            <button id="muteVideoBtn" class="control-btn mute-btn" title="Toggle Video">�</button>
-            <button id="muteAudioBtn" class="control-btn mute-btn" title="Toggle Audio">�️</button>
+            <button id="muteVideoBtn" class="control-btn mute-btn" title="Toggle Video">📹</button>
+            <button id="muteAudioBtn" class="control-btn mute-btn" title="Toggle Audio">🎤</button>
             <button id="endCallBtn" class="control-btn end-btn" title="End Call">📞</button>
         </div>
     </div>
@@ -707,7 +646,7 @@
             if (videoTrack) {
                 videoTrack.enabled = !videoTrack.enabled;
                 btn.classList.toggle('muted');
-                btn.textContent = videoTrack.enabled ? '�' : '�';
+                btn.textContent = videoTrack.enabled ? '📹' : '📹';
             }
         }
         
@@ -718,7 +657,7 @@
             if (audioTrack) {
                 audioTrack.enabled = !audioTrack.enabled;
                 btn.classList.toggle('muted');
-                btn.textContent = audioTrack.enabled ? '�️' : '🔇';
+                btn.textContent = audioTrack.enabled ? '🎤' : '🔇';
             }
         }
         
