@@ -162,10 +162,260 @@
             display: none;
             background: #f97316;
         }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            background:
+                radial-gradient(circle at top, rgba(59, 130, 246, 0.18), transparent 35%),
+                linear-gradient(180deg, #111b21 0%, #0b141a 100%);
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body > div.text-center {
+            width: 100%;
+            max-width: 430px;
+            min-height: 100vh;
+            margin: 0 auto;
+            padding: 28px 18px 140px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            background: linear-gradient(180deg, rgba(17, 27, 33, 0.92) 0%, rgba(11, 20, 26, 0.98) 100%);
+        }
+
+        body > div.text-center::before,
+        body > div.text-center::after {
+            content: "";
+            position: absolute;
+            border-radius: 999px;
+            pointer-events: none;
+        }
+
+        body > div.text-center::before {
+            width: 180px;
+            height: 180px;
+            background: rgba(59, 130, 246, 0.14);
+            top: -40px;
+            right: -50px;
+            filter: blur(10px);
+        }
+
+        body > div.text-center::after {
+            width: 220px;
+            height: 220px;
+            background: rgba(18, 140, 126, 0.1);
+            bottom: 120px;
+            left: -80px;
+            filter: blur(12px);
+        }
+
+        body > div.text-center > div:first-child {
+            width: 132px;
+            height: 132px;
+            border-radius: 999px;
+            margin-top: 84px;
+            margin-bottom: 22px;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.92), rgba(29, 78, 216, 0.96));
+            padding: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ecfdf5;
+            font-size: 46px;
+            font-weight: 700;
+            text-transform: uppercase;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35), inset 0 0 0 6px #16232c;
+        }
+
+        body > div.text-center > div:first-child::before {
+            content: "";
+            position: absolute;
+            top: 26px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #d1f4cc;
+        }
+
+        body > div.text-center > div:first-child::after {
+            content: "Secure audio";
+            position: absolute;
+            top: 24px;
+            right: 18px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+            font-size: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+        }
+
+        #callTitle {
+            margin-top: 0;
+            font-size: 30px;
+            line-height: 1.15;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: #f8fafc;
+        }
+
+        #callStatus {
+            margin-top: 12px;
+            color: #94a3b8;
+            font-size: 15px;
+            min-height: 24px;
+        }
+
+        #callStatus::after {
+            content: "";
+            display: flex;
+            width: 84px;
+            max-width: 84px;
+            height: 52px;
+            margin: 34px auto 0;
+            background:
+                linear-gradient(180deg, transparent 32px, rgba(59, 130, 246, 0.88) 32px, rgba(59, 130, 246, 0.88) 52px) 0 0/8px 52px no-repeat,
+                linear-gradient(180deg, transparent 14px, rgba(59, 130, 246, 0.88) 14px, rgba(59, 130, 246, 0.88) 52px) 19px 0/8px 52px no-repeat,
+                linear-gradient(180deg, transparent 26px, rgba(59, 130, 246, 0.88) 26px, rgba(59, 130, 246, 0.88) 52px) 38px 0/8px 52px no-repeat,
+                linear-gradient(180deg, transparent 8px, rgba(59, 130, 246, 0.88) 8px, rgba(59, 130, 246, 0.88) 52px) 57px 0/8px 52px no-repeat,
+                linear-gradient(180deg, transparent 30px, rgba(59, 130, 246, 0.88) 30px, rgba(59, 130, 246, 0.88) 52px) 76px 0/8px 52px no-repeat;
+            opacity: 0.9;
+        }
+
+        body > div.text-center > div.flex.gap-4.justify-center.mt-8.flex-wrap {
+            position: fixed;
+            left: 50%;
+            bottom: 26px;
+            transform: translateX(-50%);
+            z-index: 10002;
+            width: min(390px, calc(100% - 28px));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 16px;
+            border-radius: 28px;
+            background: rgba(17, 27, 33, 0.86);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(14px);
+        }
+
+        body > div.text-center > div.flex.gap-4.justify-center.mt-8.flex-wrap button {
+            min-width: 86px;
+            min-height: 58px;
+            border: 0;
+            border-radius: 22px;
+            padding: 0 18px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #fff;
+            cursor: pointer;
+            transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+        }
+
+        body > div.text-center > div.flex.gap-4.justify-center.mt-8.flex-wrap button:hover {
+            transform: translateY(-1px);
+        }
+
+        #startBtn { background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%) !important; }
+        #acceptBtn { background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%) !important; animation-duration: 1.8s; }
+        #endBtn { background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%) !important; }
+        #reconnectBtn { background: linear-gradient(180deg, #fb923c 0%, #f97316 100%) !important; }
+        body > div.text-center > div.flex.gap-4.justify-center.mt-8.flex-wrap button:last-child { background: rgba(255, 255, 255, 0.08) !important; color: #e2e8f0; }
+
+        #debugPanel {
+            bottom: 108px;
+            left: 12px;
+            right: 12px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.82);
+            color: #86efac;
+            border-radius: 14px;
+        }
+
+        .audioPanel {
+            bottom: 104px;
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .localPanel {
+            left: 12px;
+            bottom: 104px;
+        }
+
+        .remotePanel {
+            right: 12px;
+        }
+
+        .remotePanel .volumeLevel { background: #22c55e; }
+        .localPanel .volumeLevel { background: #f59e0b; }
+
+        .actionButtons {
+            display: none !important;
+        }
+
+        .actionButtons button {
+            background: rgba(0, 0, 0, 0.42);
+            padding: 8px 12px;
+            border-radius: 999px;
+            backdrop-filter: blur(10px);
+        }
+
+        body > div.text-center > div.flex.gap-4.justify-center.mt-8.flex-wrap button:last-child {
+            display: none !important;
+        }
+
+        #remoteAudio {
+            bottom: 168px;
+            right: 12px;
+            width: 220px;
+            height: 42px;
+            background: rgba(17, 24, 39, 0.88);
+            border-radius: 10px;
+        }
+
+        #audioMessage {
+            top: 64px;
+            right: 12px;
+            background: #f59e0b;
+            color: #111827;
+            padding: 8px 12px;
+        }
+
+        @media (max-width: 520px) {
+            body > div.text-center {
+                padding: 22px 14px 138px;
+            }
+
+            #callTitle {
+                font-size: 26px;
+            }
+
+            body > div.text-center > div.flex.gap-4.justify-center.mt-8.flex-wrap {
+                gap: 10px;
+                padding: 14px;
+            }
+
+            body > div.text-center > div.flex.gap-4.justify-center.mt-8.flex-wrap button {
+                min-width: 72px;
+                min-height: 54px;
+                font-size: 13px;
+                padding: 0 14px;
+            }
+        }
     </style>
 </head>
 
-<body class="bg-gray-900 text-white flex items-center justify-center h-screen">
+<body class="text-white">
     <div class="text-center w-full max-w-md px-4">
         <div class="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-3xl font-bold mx-auto">
             {{ strtoupper(substr($user->name, 0, 1)) }}
@@ -432,6 +682,7 @@
             let iceRestartPending = false;
             let handlingAnswer = false;
             let endingCall = false;
+            let closeWindowTimer = null;
 
             // ==================== VOLUME METERS (unchanged) ====================
             function startLocalVolumeMeter(stream) {
@@ -693,6 +944,11 @@
                     if (isRemoteSet) { debug("Answer already handled via Pusher, skipping postMessage duplicate"); return; }
                     handleAnswer(event.data.answer);
                 }
+                if (event.data.type === 'call-ended') {
+                    debug("Call ended received via postMessage");
+                    updateStatus("Other side ended the call");
+                    window.endCall(false, true);
+                }
             });
 
             // ==================== UI FUNCTIONS ====================
@@ -753,6 +1009,20 @@
                 } catch (err) {
                     debug("Call end notify failed:", err);
                 }
+            }
+
+            function closeCallWindow(delay = 250) {
+                if (closeWindowTimer) {
+                    clearTimeout(closeWindowTimer);
+                }
+
+                closeWindowTimer = setTimeout(() => {
+                    try {
+                        window.close();
+                    } catch (err) {
+                        debug("Window close failed:", err);
+                    }
+                }, delay);
             }
 
             // ==================== WEBRTC ====================
@@ -1344,7 +1614,7 @@
                 }
             }
 
-            window.endCall = function (shouldNotify = true) {
+            window.endCall = function (shouldNotify = true, shouldCloseWindow = true) {
                 debug("Ending call");
                 if (endingCall) return;
                 endingCall = true;
@@ -1396,6 +1666,10 @@
                 incomingCallerId = null;
                 incomingCallerName = null;
                 endingCall = false;
+
+                if (shouldCloseWindow) {
+                    closeCallWindow(shouldNotify ? 450 : 250);
+                }
             };
 
             // ==================== PUSHER ====================
@@ -1463,7 +1737,7 @@
                 channel.bind('CallEnded', (data) => {
                     debug("Call ended received via Pusher", data);
                     updateStatus("Other side ended the call");
-                    window.endCall(false);
+                    window.endCall(false, true);
                 });
             }
 
