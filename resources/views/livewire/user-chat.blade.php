@@ -470,6 +470,29 @@
                 }
             });
 
+            channel.bind('CallEnded', function (data) {
+                console.log("Voice call ended:", data);
+
+                if (callWindow && !callWindow.closed) {
+                    try {
+                        callWindow.postMessage({
+                            type: 'call-ended',
+                            senderId: data.senderId
+                        }, '*');
+                    } catch (e) {
+                        console.error("Failed to forward call ended:", e);
+                    }
+
+                    try {
+                        callWindow.close();
+                    } catch (e) {
+                        console.error("Failed to close call window:", e);
+                    }
+                }
+
+                callWindow = null;
+            });
+
         } catch (error) {
             console.error("❌ Failed to initialize Pusher:", error);
         }
