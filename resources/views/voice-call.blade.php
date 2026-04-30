@@ -274,6 +274,23 @@
             min-height: 24px;
         }
 
+        .callTimer {
+            margin: 8px 0 0;
+            min-height: 22px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            color: #93c5fd;
+            opacity: 0;
+            transform: translateY(-4px);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+
+        .callTimer.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
         #callStatus::after {
             content: "";
             display: flex;
@@ -427,6 +444,9 @@
         </h2>
         <p id="callStatus" class="text-gray-400 text-sm mt-1">
             Initializing...
+        </p>
+        <p id="callTimer" class="callTimer">
+            00:00
         </p>
         <div class="flex gap-4 justify-center mt-8 flex-wrap">
             <button id="startBtn" onclick="startCall()"
@@ -685,6 +705,8 @@
             let handlingAnswer = false;
             let endingCall = false;
             let closeWindowTimer = null;
+            let callTimerInterval = null;
+            let callStartTime = null;
 
             // ==================== VOLUME METERS (unchanged) ====================
             function startLocalVolumeMeter(stream) {
@@ -957,6 +979,78 @@
             function updateStatus(message) {
                 debug("STATUS:", message);
                 document.getElementById("callStatus").innerHTML = message;
+
+                const normalizedMessage = String(message).toLowerCase();
+                if (normalizedMessage.includes("call connected")) {
+                    startCallTimer();
+                } else if (
+                    normalizedMessage.includes("failed") ||
+                    normalizedMessage.includes("ended") ||
+                    normalizedMessage.includes("lost") ||
+                    normalizedMessage.includes("denied") ||
+                    normalizedMessage.includes("error") ||
+                    normalizedMessage.includes("waiting for answer") ||
+                    normalizedMessage.includes("sending call request") ||
+                    normalizedMessage.includes("sending answer") ||
+                    normalizedMessage.includes("requesting microphone") ||
+                    normalizedMessage.includes("accessing microphone") ||
+                    normalizedMessage.includes("setting up connection") ||
+                    normalizedMessage.includes("ready to receive")
+                ) {
+                    stopCallTimer();
+                }
+            }
+
+            function formatCallDuration(totalSeconds) {
+                const minutes = Math.floor(totalSeconds / 60);
+                const seconds = totalSeconds % 60;
+                return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+
+            function updateCallTimer() {
+                const timer = document.getElementById("callTimer");
+                if (!timer || !callStartTime) {
+                    return;
+                }
+
+                const elapsedSeconds = Math.max(0, Math.floor((Date.now() - callStartTime) / 1000));
+                timer.textContent = formatCallDuration(elapsedSeconds);
+            }
+
+            function startCallTimer() {
+                const timer = document.getElementById("callTimer");
+                if (!timer) {
+                    return;
+                }
+
+                if (!callStartTime) {
+                    callStartTime = Date.now();
+                }
+
+                timer.classList.add("visible");
+                updateCallTimer();
+
+                if (callTimerInterval) {
+                    return;
+                }
+
+                callTimerInterval = setInterval(updateCallTimer, 1000);
+            }
+
+            function stopCallTimer() {
+                const timer = document.getElementById("callTimer");
+
+                if (callTimerInterval) {
+                    clearInterval(callTimerInterval);
+                    callTimerInterval = null;
+                }
+
+                callStartTime = null;
+
+                if (timer) {
+                    timer.textContent = "00:00";
+                    timer.classList.remove("visible");
+                }
             }
 
             function showStartMode() {
@@ -1646,6 +1740,7 @@
                     playbackAudioContext.close();
                     playbackAudioContext = null;
                 }
+                stopCallTimer();
                 stopVolumeMeters();
                 pendingCandidates = [];
                 isRemoteSet = false;
