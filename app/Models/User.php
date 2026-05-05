@@ -77,6 +77,11 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         });
     }
 
+    public function projects(): BelongsToMany
+    {
+        return $this->belongsToMany(Project::class, 'project_users', 'user_id', 'project_id')->withPivot(['role']);
+    }
+
     public function projectsOwning(): HasMany
     {
         return $this->hasMany(Project::class, 'owner_id', 'id');

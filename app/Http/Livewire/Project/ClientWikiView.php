@@ -21,6 +21,17 @@ class ClientWikiView extends Component
     public function mount($projectId)
     {
         $this->projectId = $projectId;
+        
+        // Check if client user has access to this project
+        if (auth()->user()->hasRole('Client')) {
+            $user = auth()->user();
+            $hasAccess = $user->projects()->where('project_id', $projectId)->exists();
+            
+            if (!$hasAccess) {
+                abort(403, 'You do not have access to this project.');
+            }
+        }
+        
         $this->loadPages();
     }
 
@@ -59,6 +70,19 @@ class ClientWikiView extends Component
         if (!$this->selectedPage) {
             session()->flash('error', 'Page not found or not available.');
             return;
+        }
+        
+        // Additional security check for client users
+        if (auth()->user()->hasRole('Client')) {
+            // Ensure the page belongs to a project the client has access to
+            $user = auth()->user();
+            $hasAccess = $user->projects()->where('project_id', $this->selectedPage->project_id)->exists();
+            
+            if (!$hasAccess) {
+                session()->flash('error', 'You do not have access to this page.');
+                $this->selectedPage = null;
+                return;
+            }
         }
         
         $this->newComment = '';
