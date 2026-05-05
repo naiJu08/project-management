@@ -167,11 +167,34 @@
                     <div class="bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
                         <div wire:ignore class="trix-wrapper">
                             <trix-editor input="wiki-content" class="trix-content"></trix-editor>
-                            <input id="wiki-content" type="hidden" wire:model.defer="content">
+                            <input id="wiki-content" type="hidden" wire:model="content">
                         </div>
                     </div>
                     @error('content') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
                 </div>
+                
+                @push('scripts')
+                    <script>
+                        document.addEventListener('livewire:init', () => {
+                            const trixEditor = document.querySelector('trix-editor');
+                            const hiddenInput = document.getElementById('wiki-content');
+                            
+                            if (trixEditor && hiddenInput) {
+                                // Sync Trix editor content with Livewire component
+                                trixEditor.addEventListener('trix-change', () => {
+                                    hiddenInput.value = trixEditor.innerHTML;
+                                    // Trigger Livewire update
+                                    @this.set('content', trixEditor.innerHTML);
+                                });
+                                
+                                // Initialize editor content when component loads
+                                @this.on('refreshEditor', () => {
+                                    trixEditor.innerHTML = @this.get('content') || '';
+                                });
+                            }
+                        });
+                    </script>
+                @endpush
 
                 <div class="mb-4">
                     <label class="flex items-center space-x-2 cursor-pointer">
@@ -404,7 +427,9 @@
                                     @endif
                                 </div>
                             @empty
-                                <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No comments yet. Be the first to comment!</p>
+                                @php
+                                    // Empty state - no placeholder text
+                                @endphp
                             @endforelse
                         </div>
                     </div>
