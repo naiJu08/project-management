@@ -203,9 +203,16 @@ class WikiView extends Component
                 'trixAttachment' => 'required|file|max:10240', // Max 10MB
             ]);
 
+            // Debug: Log the selectedPage state
+            \Log::info('Trix attachment upload attempt', [
+                'selectedPage_exists' => isset($this->selectedPage),
+                'selectedPage_type' => is_object($this->selectedPage) ? get_class($this->selectedPage) : 'not_object',
+                'selectedPage_id' => $this->selectedPage->id ?? 'no_id'
+            ]);
+
             // Store the file and add it to the current page's media
             // Add additional validation to ensure selectedPage exists and is valid
-            if ($this->selectedPage && is_object($this->selectedPage) && isset($this->selectedPage->id)) {
+            if ($this->selectedPage && is_object($this->selectedPage) && property_exists($this->selectedPage, 'id') && !empty($this->selectedPage->id)) {
                 try {
                     $media = $this->selectedPage->addMedia($this->trixAttachment)
                         ->usingName($this->trixAttachment->getClientOriginalName())
@@ -222,8 +229,13 @@ class WikiView extends Component
                     \Log::error('Failed to upload attachment: ' . $e->getMessage());
                     session()->flash('error', 'Failed to upload attachment. Please try again.');
                 }
+            } elseif ($this->isCreating) {
+                // For new pages, we need to create the page first before attaching media
+                \Log::warning('Cannot upload attachment to unsaved page. Please save the page first.');
+                session()->flash('error', 'Please save the page first before uploading attachments.');
             } else {
                 // Show error if no page is selected
+                \Log::warning('No valid selectedPage for attachment upload');
                 session()->flash('error', 'Please select a page before uploading attachments.');
             }
 
