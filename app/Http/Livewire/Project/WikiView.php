@@ -9,6 +9,7 @@ use App\Services\OllamaService;
 use App\Services\WikiPdfExportService;
 use App\Jobs\GenerateBacklogFromWiki;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -17,6 +18,7 @@ use Illuminate\Support\Str;
 
 class WikiView extends Component
 {
+    use WithFileUploads;
     public $projectId;
     public $pages;
     public $selectedPage;
@@ -40,6 +42,7 @@ class WikiView extends Component
     public $generatedBacklog = [];
     public $jobId = null;
     public $generationPercentage = 0;
+    public $trixAttachment;
 
     protected $listeners = ['refreshPages' => 'loadPages', 'checkJobProgress' => 'checkJobProgress'];
 
@@ -187,6 +190,33 @@ class WikiView extends Component
         $this->isEditing = false;
         $this->isCreating = false;
         $this->loadPages();
+    }
+
+    public function updatedTrixAttachment()
+    {
+        if ($this->trixAttachment) {
+            // Handle file upload for Trix editor
+            $this->validate([
+                'trixAttachment' => 'required|file|max:10240', // Max 10MB
+            ]);
+
+            // Store the file and add it to the current page's media
+            if ($this->selectedPage) {
+                $media = $this->selectedPage->addMedia($this->trixAttachment)
+                    ->usingName($this->trixAttachment->getClientOriginalName())
+                    ->toMediaCollection('wiki_attachments');
+
+                // Return the URL for the Trix editor
+                $this->dispatchBrowserEvent('trix-attachment-uploaded', [
+                    'url' => $media->getUrl(),
+                    'filename' => $media->file_name,
+                    'contentType' => $media->mime_type,
+                ]);
+            }
+
+            // Reset the attachment
+            $this->trixAttachment = null;
+        }
     }
 
     public function cancelEdit()

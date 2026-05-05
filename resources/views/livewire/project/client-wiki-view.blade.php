@@ -123,7 +123,7 @@
                     @endif
 
                     <div class="prose dark:prose-invert max-w-none mb-8">
-                        {!! $selectedPage->content ?? '' !!}
+                        {!! $selectedPage->processed_content ?? $selectedPage->content ?? '' !!}
                     </div>
 
                     {{-- Comments Section --}}

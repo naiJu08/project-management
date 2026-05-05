@@ -114,6 +114,62 @@ class WikiPage extends Model implements HasMedia
         return $query->where('client_visible', true);
     }
 
+    public function getProcessedContentAttribute()
+    {
+        $content = $this->content;
+        
+        if (!$content) {
+            return $content;
+        }
+        
+        // Process media attachments in content
+        // Replace Trix editor attachment placeholders with actual media URLs
+        $content = preg_replace_callback('/data-trix-attachment="([^"]+)"/', function ($matches) {
+            try {
+                $attachmentData = json_decode(html_entity_decode($matches[1]), true);
+                
+                if (isset($attachmentData['url']) && str_contains($attachmentData['url'], 'blob:')) {
+                    // This is a blob URL, need to find the corresponding media
+                    $media = $this->getMedia()->first(function ($item) use ($attachmentData) {
+                        return $item->file_name === ($attachmentData['filename'] ?? null) || 
+                               $item->name === ($attachmentData['name'] ?? null);
+                    });
+                    
+                    if ($media) {
+                        $attachmentData['url'] = $media->getUrl();
+                        return 'data-trix-attachment="' . htmlspecialchars(json_encode($attachmentData)) . '"';
+                    }
+                }
+            } catch (\Exception $e) {
+                // If processing fails, return original
+                return $matches[0];
+            }
+            
+            return $matches[0];
+        }, $content);
+        
+        // Also process any remaining image references that might be stored as media
+        $content = preg_replace_callback('/src="([^"]*attachment[^"]*)"/', function ($matches) {
+            $src = $matches[1];
+            
+            // If this looks like a media reference, try to resolve it
+            if (str_contains($src, 'attachment')) {
+                $media = $this->getMedia()->first(function ($item) use ($src) {
+                    return str_contains($src, $item->file_name) || 
+                           str_contains($src, $item->id);
+                });
+                
+                if ($media) {
+                    return 'src="' . $media->getUrl() . '"';
+                }
+            }
+            
+            return $matches[0];
+        }, $content);
+        
+        return $content;
+    }
+
     protected static function boot()
     {
         parent::boot();

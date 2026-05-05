@@ -306,7 +306,7 @@
                 @endif
 
                 <div class="prose dark:prose-invert max-w-none mb-8">
-                    {!! $selectedPage->content ?? '' !!}
+                    {!! $selectedPage->processed_content ?? $selectedPage->content ?? '' !!}
                 </div>
 
                 {{-- Comments Section --}}
@@ -756,6 +756,41 @@
                     trixEditor._debounceTimer = setTimeout(() => {
                         @this.set('content', hiddenInput.value);
                     }, 300);
+                });
+
+                // Handle file attachments
+                trixEditor.addEventListener('trix-attachment-add', function(event) {
+                    const attachment = event.attachment;
+                    
+                    if (attachment.file) {
+                        // Show uploading state
+                        attachment.setAttributes({
+                            url: URL.createObjectURL(attachment.file),
+                            filename: attachment.file.name,
+                            contentType: attachment.file.type,
+                            previewable: attachment.file.type.startsWith('image/')
+                        });
+                        
+                        // Upload the file via Livewire
+                        @this.upload('trixAttachment', attachment.file)
+                            .then(() => {
+                                // Listen for the browser event that will be dispatched
+                                window.addEventListener('trix-attachment-uploaded', function handler(e) {
+                                    const { url, filename, contentType } = e.detail;
+                                    
+                                    // Update the attachment with the uploaded URL
+                                    attachment.setAttributes({
+                                        url: url,
+                                        filename: filename,
+                                        contentType: contentType,
+                                        previewable: contentType.startsWith('image/')
+                                    });
+                                    
+                                    // Remove the event listener
+                                    window.removeEventListener('trix-attachment-uploaded', handler);
+                                }, { once: true });
+                            });
+                    }
                 });
             }
         }

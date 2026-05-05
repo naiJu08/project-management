@@ -408,6 +408,42 @@ body {
 }
 
 /* ===========================
+   Wiki Image Display Sizes
+   =========================== */
+
+.prose img,
+.wiki-content img {
+    max-width: 512px !important; /* Medium size */
+    height: auto !important;
+    border-radius: 0.5rem !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    margin: 1rem 0 1rem 0 !important;
+    float: left !important;
+    margin-right: 1rem !important;
+}
+
+/* Clear float after images to ensure content appears below */
+.prose img + *,
+.wiki-content img + * {
+    clear: both !important;
+}
+
+/* Responsive image sizes */
+@media (max-width: 640px) {
+    .prose img,
+    .wiki-content img {
+        max-width: 100% !important;
+    }
+}
+
+@media (min-width: 1024px) {
+    .prose img,
+    .wiki-content img {
+        max-width: 640px !important; /* Slightly larger on desktop */
+    }
+}
+
+/* ===========================
    Hide Unnecessary Elements
    =========================== */
 
