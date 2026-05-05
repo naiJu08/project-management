@@ -857,10 +857,22 @@ class ProjectDetail extends Component implements HasForms
         $userId = Auth::id();
         $cacheKey = "project_tabs_{$this->projectId}_user_{$userId}";
         
-        $preferences = cache($cacheKey, [
-            'enabled' => ['board', 'overview', 'list', 'backlog', 'sprint', 'dashboard', 'calendar', 'wiki', 'gantt', 'chat', 'time-tracking', 'reports', 'milestones', 'budget'],
-            'order' => ['board', 'overview', 'list', 'backlog', 'sprint', 'dashboard', 'calendar', 'wiki', 'gantt', 'chat', 'time-tracking', 'reports', 'milestones', 'budget'],
-        ]);
+        // Check if user is a client
+        if (Auth::user()->hasRole('Client')) {
+            // For client users, only show client-wiki tab
+            $preferences = [
+                'enabled' => ['client-wiki'],
+                'order' => ['client-wiki'],
+            ];
+            // Set active tab to client-wiki for clients
+            $this->activeTab = 'client-wiki';
+        } else {
+            // For regular users, show all tabs
+            $preferences = cache($cacheKey, [
+                'enabled' => ['board', 'overview', 'list', 'backlog', 'sprint', 'dashboard', 'calendar', 'wiki', 'gantt', 'chat', 'time-tracking', 'reports', 'milestones', 'budget'],
+                'order' => ['board', 'overview', 'list', 'backlog', 'sprint', 'dashboard', 'calendar', 'wiki', 'gantt', 'chat', 'time-tracking', 'reports', 'milestones', 'budget'],
+            ]);
+        }
 
         $this->enabledTabs = $preferences['enabled'];
         $this->tabOrder = $preferences['order'];
