@@ -149,22 +149,56 @@ class WikiPage extends Model implements HasMedia
         }, $content);
         
         // Also process any remaining image references that might be stored as media
-        $content = preg_replace_callback('/src="([^"]*attachment[^"]*)"/', function ($matches) {
+        $content = preg_replace_callback('/src="([^"]*)"/', function ($matches) {
             $src = $matches[1];
             
-            // If this looks like a media reference, try to resolve it
-            if (str_contains($src, 'attachment')) {
-                $media = $this->getMedia()->first(function ($item) use ($src) {
-                    return str_contains($src, $item->file_name) || 
-                           str_contains($src, $item->id);
-                });
-                
-                if ($media) {
-                    return 'src="' . $media->getUrl() . '"';
-                }
+            // Skip if it's already a full URL or data URL
+            if (str_starts_with($src, 'http') || str_starts_with($src, 'data:')) {
+                return $matches[0];
+            }
+            
+            // Try to find matching media for any image src
+            $media = $this->getMedia()->first(function ($item) use ($src) {
+                return str_contains($src, $item->file_name) || 
+                       str_contains($src, $item->id) ||
+                       str_contains($src, $item->name);
+            });
+            
+            if ($media) {
+                return 'src="' . $media->getUrl() . '"';
             }
             
             return $matches[0];
+        }, $content);
+        
+        // Process figure elements that contain images
+        $content = preg_replace_callback('/<figure[^>]*>.*?<\/figure>/s', function ($matches) {
+            $figure = $matches[0];
+            
+            // Extract any image src from the figure
+            if (preg_match('/src="([^"]*)"/', $figure, $imgMatches)) {
+                $src = $imgMatches[1];
+                
+                // Skip if it's already a full URL or data URL
+                if (!str_starts_with($src, 'http') && !str_starts_with($src, 'data:')) {
+                    // Try to find matching media
+                    $media = $this->getMedia()->first(function ($item) use ($src) {
+                        return str_contains($src, $item->file_name) || 
+                               str_contains($src, $item->id) ||
+                               str_contains($src, $item->name);
+                    });
+                    
+                    if ($media) {
+                        $figure = str_replace($src, $media->getUrl(), $figure);
+                    }
+                }
+            }
+            
+            // Remove any gray borders from figure elements
+            $figure = preg_replace('/style="[^"]*border[^"]*"/', '', $figure);
+            $figure = preg_replace('/class="([^"]*)attachment([^"]*)"/', 'class="$1$2"', $figure);
+            
+            return $figure;
         }, $content);
         
         return $content;
