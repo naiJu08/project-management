@@ -44,14 +44,22 @@ class EnhancedAiAssistant extends Component
         $this->open = false;
         
         // Detect active conversation but do NOT auto-resume. Offer a Resume option in UI.
-        $activeConversation = AiConversation::where('user_id', Auth::id())
-            ->where('status', 'active')
-            ->latest()
-            ->first();
+        try {
+            $activeConversation = AiConversation::where('user_id', Auth::id())
+                ->where('status', 'active')
+                ->latest()
+                ->first();
 
-        if ($activeConversation) {
-            $this->hasActiveConversation = true;
-            $this->lastConversationId = $activeConversation->id;
+            if ($activeConversation) {
+                $this->hasActiveConversation = true;
+                $this->lastConversationId = $activeConversation->id;
+            }
+        } catch (\Exception $e) {
+            // Log the error but don't break the page load
+            Log::warning('AI Assistant: Could not check for active conversation', [
+                'error' => $e->getMessage(),
+                'user_id' => Auth::id()
+            ]);
         }
     }
 
@@ -69,24 +77,38 @@ class EnhancedAiAssistant extends Component
     {
         $this->selectedSection = $section;
         
-        // Create new conversation
-        $conversation = AiConversation::create([
-            'user_id' => Auth::id(),
-            'section' => $section,
-            'status' => 'active',
-        ]);
+        try {
+            // Create new conversation
+            $conversation = AiConversation::create([
+                'user_id' => Auth::id(),
+                'section' => $section,
+                'status' => 'active',
+            ]);
 
-        $this->conversationId = $conversation->id;
-        
-        // Add welcome message
-        $welcomeMessage = $this->getWelcomeMessage($section);
-        $conversation->messages()->create([
-            'role' => 'assistant',
-            'content' => $welcomeMessage,
-        ]);
+            $this->conversationId = $conversation->id;
+            
+            // Add welcome message
+            $welcomeMessage = $this->getWelcomeMessage($section);
+            $conversation->messages()->create([
+                'role' => 'assistant',
+                'content' => $welcomeMessage,
+            ]);
 
-        $this->loadMessages();
-        $this->loadQuickActions();
+            $this->loadMessages();
+            $this->loadQuickActions();
+        } catch (\Exception $e) {
+            Log::error('AI Assistant: Could not create conversation', [
+                'error' => $e->getMessage(),
+                'section' => $section,
+                'user_id' => Auth::id()
+            ]);
+            
+            // Show error message to user
+            $this->messages = [[
+                'role' => 'assistant',
+                'content' => 'Sorry, I\'m having trouble connecting to the database. Please try again later.'
+            ]];
+        }
     }
 
     public function resumeLastConversation(): void
@@ -95,17 +117,28 @@ class EnhancedAiAssistant extends Component
             return;
         }
 
-        $conversation = AiConversation::find($this->lastConversationId);
-        if (!$conversation) {
+        try {
+            $conversation = AiConversation::find($this->lastConversationId);
+            if (!$conversation) {
+                $this->hasActiveConversation = false;
+                $this->lastConversationId = null;
+                return;
+            }
+
+            $this->conversationId = $conversation->id;
+            $this->selectedSection = $conversation->section;
+            $this->loadMessages();
+            $this->loadQuickActions();
+        } catch (\Exception $e) {
+            Log::error('AI Assistant: Could not resume conversation', [
+                'error' => $e->getMessage(),
+                'conversation_id' => $this->lastConversationId,
+                'user_id' => Auth::id()
+            ]);
+            
             $this->hasActiveConversation = false;
             $this->lastConversationId = null;
-            return;
         }
-
-        $this->conversationId = $conversation->id;
-        $this->selectedSection = $conversation->section;
-        $this->loadMessages();
-        $this->loadQuickActions();
     }
 
     public function executeQuickAction(string $action): void
@@ -168,14 +201,27 @@ class EnhancedAiAssistant extends Component
         } catch (\Exception $e) {
             Log::error('AI Assistant Error: ' . $e->getMessage());
             
-            $conversation = AiConversation::find($this->conversationId);
-            $conversation->messages()->create([
-                'role' => 'assistant',
-                'content' => "I apologize, but I'm having trouble processing your request. Please try rephrasing or check if the local AI service is running.",
-                'metadata' => ['error' => $e->getMessage()],
-            ]);
-            
-            $this->loadMessages();
+            try {
+                $conversation = AiConversation::find($this->conversationId);
+                if ($conversation) {
+                    $conversation->messages()->create([
+                        'role' => 'assistant',
+                        'content' => "I apologize, but I'm having trouble processing your request. Please try rephrasing or check if the local AI service is running.",
+                        'metadata' => ['error' => $e->getMessage()],
+                    ]);
+                    $this->loadMessages();
+                }
+            } catch (\Exception $dbError) {
+                Log::error('AI Assistant: Could not save error message', [
+                    'error' => $dbError->getMessage()
+                ]);
+                
+                // Show error message directly
+                $this->messages[] = [
+                    'role' => 'assistant',
+                    'content' => 'I\'m having trouble connecting to the database. Please try again later.'
+                ];
+            }
         } finally {
             $this->isProcessing = false;
         }
@@ -185,7 +231,14 @@ class EnhancedAiAssistant extends Component
     {
         // Mark current as completed
         if ($this->conversationId) {
-            AiConversation::find($this->conversationId)->update(['status' => 'completed']);
+            try {
+                AiConversation::find($this->conversationId)->update(['status' => 'completed']);
+            } catch (\Exception $e) {
+                Log::warning('AI Assistant: Could not mark conversation as completed', [
+                    'error' => $e->getMessage(),
+                    'conversation_id' => $this->conversationId
+                ]);
+            }
         }
 
         $this->selectedSection = null;
@@ -423,19 +476,33 @@ class EnhancedAiAssistant extends Component
             return;
         }
 
-        $conversation = AiConversation::find($this->conversationId);
-        $this->messages = $conversation->messages()
-            ->orderBy('created_at', 'asc')
-            ->get()
-            ->map(function ($message) {
-                return [
-                    'role' => $message->role,
-                    'content' => $message->content,
-                    'time' => $message->created_at->diffForHumans(),
-                    'metadata' => $message->metadata,
-                ];
-            })
-            ->toArray();
+        try {
+            $conversation = AiConversation::find($this->conversationId);
+            if (!$conversation) {
+                $this->messages = [];
+                return;
+            }
+            
+            $this->messages = $conversation->messages()
+                ->orderBy('created_at', 'asc')
+                ->get()
+                ->map(function ($message) {
+                    return [
+                        'role' => $message->role,
+                        'content' => $message->content,
+                        'time' => $message->created_at->diffForHumans(),
+                        'metadata' => $message->metadata,
+                    ];
+                })
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::error('AI Assistant: Could not load messages', [
+                'error' => $e->getMessage(),
+                'conversation_id' => $this->conversationId
+            ]);
+            
+            $this->messages = [];
+        }
     }
 
     protected function loadQuickActions(): void
