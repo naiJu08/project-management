@@ -43,6 +43,8 @@ class WikiView extends Component
     public $jobId = null;
     public $generationPercentage = 0;
     public $trixAttachment;
+    public $message = '';
+    public $messageType = '';
 
     protected $listeners = ['refreshPages' => 'loadPages', 'checkJobProgress' => 'checkJobProgress'];
 
@@ -50,6 +52,15 @@ class WikiView extends Component
     {
         $this->projectId = $projectId;
         $this->loadPages();
+    }
+
+    protected function setMessage($type, $message)
+    {
+        $this->message = $message;
+        $this->messageType = $type;
+        
+        // Auto-clear message after 5 seconds
+        $this->dispatchBrowserEvent('auto-clear-message', ['delay' => 5000]);
     }
 
     public function getProjectProperty()
@@ -100,12 +111,12 @@ class WikiView extends Component
     public function editPage($pageId = null)
     {
         if (!$this->canEdit() && $pageId) {
-            session()->flash('error', 'You do not have permission to edit wiki pages.');
+            $this->setMessage('error', 'You do not have permission to edit wiki pages.');
             return;
         }
 
         if (!$this->canCreate() && !$pageId) {
-            session()->flash('error', 'You do not have permission to create wiki pages.');
+            $this->setMessage('error', 'You do not have permission to create wiki pages.');
             return;
         }
 
@@ -126,12 +137,13 @@ class WikiView extends Component
             $this->isCreating = true;
         }
         $this->isEditing = true;
+        $this->emit('edit-mode-entered');
     }
 
     public function createSubPage($parentId)
     {
         if (!$this->canCreate()) {
-            session()->flash('error', 'You do not have permission to create wiki pages.');
+            $this->setMessage('error', 'You do not have permission to create wiki pages.');
             return;
         }
 
@@ -141,17 +153,18 @@ class WikiView extends Component
         $this->parentId = $parentId;
         $this->isCreating = true;
         $this->isEditing = true;
+        $this->emit('edit-mode-entered');
     }
 
     public function savePage()
     {
         if ($this->selectedPage && !$this->canEdit()) {
-            session()->flash('error', 'You do not have permission to edit wiki pages.');
+            $this->setMessage('error', 'You do not have permission to edit wiki pages.');
             return;
         }
 
         if (!$this->selectedPage && !$this->canCreate()) {
-            session()->flash('error', 'You do not have permission to create wiki pages.');
+            $this->setMessage('error', 'You do not have permission to create wiki pages.');
             return;
         }
 
@@ -170,7 +183,7 @@ class WikiView extends Component
                 'client_visible' => $this->clientVisible,
                 'client_visible_at' => $this->clientVisible ? ($this->selectedPage->client_visible_at ?? now()) : null,
             ]);
-            session()->flash('success', 'Wiki page updated successfully!');
+            $this->setMessage('success', 'Wiki page updated successfully!');
         } else {
             // Create new page
             $page = WikiPage::create([
@@ -184,7 +197,7 @@ class WikiView extends Component
                 'client_visible_at' => $this->clientVisible ? now() : null,
             ]);
             $this->selectedPage = $page;
-            session()->flash('success', 'Wiki page created successfully!');
+            $this->setMessage('success', 'Wiki page created successfully!');
         }
 
         $this->isEditing = false;
@@ -229,7 +242,7 @@ class WikiView extends Component
     public function confirmDelete($pageId)
     {
         if (!$this->canDelete()) {
-            session()->flash('error', 'You do not have permission to delete wiki pages.');
+            $this->setMessage('error', 'You do not have permission to delete wiki pages.');
             return;
         }
 
@@ -240,7 +253,7 @@ class WikiView extends Component
     public function deletePage()
     {
         if (!$this->canDelete()) {
-            session()->flash('error', 'You do not have permission to delete wiki pages.');
+            $this->setMessage('error', 'You do not have permission to delete wiki pages.');
             return;
         }
 
@@ -256,9 +269,9 @@ class WikiView extends Component
             $this->loadPages();
             
             if ($childCount > 0) {
-                session()->flash('success', "Wiki page and {$childCount} sub-page(s) deleted successfully!");
+                $this->setMessage('success', "Wiki page and {$childCount} sub-page(s) deleted successfully!");
             } else {
-                session()->flash('success', 'Wiki page deleted successfully!');
+                $this->setMessage('success', 'Wiki page deleted successfully!');
             }
         }
 
@@ -275,7 +288,7 @@ class WikiView extends Component
     public function addComment()
     {
         if (!auth()->user()->can('Comment on wiki')) {
-            session()->flash('error', 'You do not have permission to comment.');
+            $this->setMessage('error', 'You do not have permission to comment.');
             return;
         }
 
@@ -292,7 +305,7 @@ class WikiView extends Component
         $this->newComment = '';
         $this->replyToCommentId = null;
         $this->selectPage($this->selectedPage->id);
-        session()->flash('success', 'Comment added successfully!');
+        $this->setMessage('success', 'Comment added successfully!');
     }
 
     public function replyToComment($commentId)
@@ -313,7 +326,7 @@ class WikiView extends Component
             $this->commentToDelete = $commentId;
             $this->showCommentDeleteConfirm = true;
         } else {
-            session()->flash('error', 'You cannot delete this comment.');
+            $this->setMessage('error', 'You cannot delete this comment.');
         }
     }
 
@@ -324,9 +337,9 @@ class WikiView extends Component
         if ($comment && $comment->canDelete()) {
             $comment->delete();
             $this->selectPage($this->selectedPage->id);
-            session()->flash('success', 'Comment deleted successfully!');
+            $this->setMessage('success', 'Comment deleted successfully!');
         } else {
-            session()->flash('error', 'You cannot delete this comment.');
+            $this->setMessage('error', 'You cannot delete this comment.');
         }
 
         $this->showCommentDeleteConfirm = false;
@@ -342,12 +355,12 @@ class WikiView extends Component
     public function signOffPage()
     {
         if (!auth()->user()->hasRole('Client')) {
-            session()->flash('error', 'Only clients can sign off documents.');
+            $this->setMessage('error', 'Only clients can sign off documents.');
             return;
         }
 
         if (!auth()->user()->can('Sign off wiki')) {
-            session()->flash('error', 'You do not have permission to sign off.');
+            $this->setMessage('error', 'You do not have permission to sign off.');
             return;
         }
 
@@ -359,7 +372,7 @@ class WikiView extends Component
             ->first();
 
         if ($existingSignoff) {
-            session()->flash('error', 'You have already signed off this version.');
+            $this->setMessage('error', 'You have already signed off this version.');
             return;
         }
 
@@ -374,7 +387,7 @@ class WikiView extends Component
 
         $this->signoffRemarks = '';
         $this->selectPage($this->selectedPage->id);
-        session()->flash('success', 'Document signed off successfully!');
+        $this->setMessage('success', 'Document signed off successfully!');
     }
 
     public function exportPagePdf($pageId)
@@ -382,7 +395,7 @@ class WikiView extends Component
         $page = WikiPage::findOrFail($pageId);
         
         if ($page->project_id !== $this->project->id) {
-            session()->flash('error', 'Page not found.');
+            $this->setMessage('error', 'Page not found.');
             return;
         }
         
@@ -419,11 +432,11 @@ class WikiView extends Component
             // Start polling for progress
             $this->dispatchBrowserEvent('start-job-polling', ['jobId' => $this->jobId]);
 
-            session()->flash('info', 'Backlog generation started. This may take 1-2 minutes...');
+            $this->setMessage('info', 'Backlog generation started. This may take 1-2 minutes...');
 
         } catch (\Exception $e) {
             Log::error('Failed to start backlog generation: ' . $e->getMessage());
-            session()->flash('error', 'Failed to start backlog generation: ' . $e->getMessage());
+            $this->setMessage('error', 'Failed to start backlog generation: ' . $e->getMessage());
             $this->isGeneratingBacklog = false;
         }
     }
@@ -442,14 +455,14 @@ class WikiView extends Component
 
             if ($progress['status'] === 'success') {
                 $this->isGeneratingBacklog = false;
-                session()->flash('success', $progress['message']);
+                $this->setMessage('success', $progress['message']);
                 $this->dispatchBrowserEvent('stop-job-polling');
                 $this->dispatchBrowserEvent('refresh-backlog');
                 Cache::forget("backlog_generation_{$this->jobId}");
                 $this->jobId = null;
             } elseif ($progress['status'] === 'error') {
                 $this->isGeneratingBacklog = false;
-                session()->flash('error', $progress['message']);
+                $this->setMessage('error', $progress['message']);
                 $this->dispatchBrowserEvent('stop-job-polling');
                 Cache::forget("backlog_generation_{$this->jobId}");
                 $this->jobId = null;
@@ -460,7 +473,7 @@ class WikiView extends Component
     public function confirmBacklogGeneration()
     {
         if (empty($this->generatedBacklog) || !isset($this->generatedBacklog['epics'])) {
-            session()->flash('error', 'No backlog data to create.');
+            $this->setMessage('error', 'No backlog data to create.');
             return;
         }
 
@@ -530,7 +543,7 @@ class WikiView extends Component
             $this->generatedBacklog = [];
             $this->generationProgress = '';
             
-            session()->flash('success', "Successfully created {$createdCount} backlog items!");
+            $this->setMessage('success', "Successfully created {$createdCount} backlog items!");
             
             // Emit event to refresh backlog if on same page
             $this->emit('backlogCreated');
@@ -538,7 +551,7 @@ class WikiView extends Component
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to create backlog items: ' . $e->getMessage());
-            session()->flash('error', 'Failed to create backlog items: ' . $e->getMessage());
+            $this->setMessage('error', 'Failed to create backlog items: ' . $e->getMessage());
         }
     }
 
