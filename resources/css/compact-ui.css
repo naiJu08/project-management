@@ -494,6 +494,70 @@ body {
     border: none !important;
 }
 
+/* Additional comprehensive fixes for gray lines on Trix images */
+.trix-content .attachment--preview::before,
+.trix-editor .attachment--preview::before,
+.trix-content .attachment--preview::after,
+.trix-editor .attachment--preview::after {
+    display: none !important;
+}
+
+/* Remove any outline or box-shadow that might create gray lines */
+.trix-content img,
+.trix-editor img,
+.trix-content .attachment img,
+.trix-editor .attachment img {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Remove any gray lines from figure captions or elements */
+.trix-content figcaption,
+.trix-editor figcaption,
+.trix-content figure,
+.trix-editor figure {
+    border: none !important;
+    outline: none !important;
+}
+
+/* Remove any gray lines from attachment containers */
+.trix-content .attachment,
+.trix-editor .attachment,
+.trix-content .attachment--preview,
+.trix-editor .attachment--preview,
+.trix-content .attachment--file,
+.trix-editor .attachment--file {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Remove any pseudo-elements that might create gray lines */
+.trix-content .attachment::before,
+.trix-editor .attachment::before,
+.trix-content .attachment::after,
+.trix-editor .attachment::after,
+.trix-content .attachment--preview::before,
+.trix-editor .attachment--preview::before,
+.trix-content .attachment--preview::after,
+.trix-editor .attachment--preview::after {
+    display: none !important;
+    content: none !important;
+}
+
+/* Ensure all images in Trix editor content are the same size */
+.trix-content img,
+.trix-editor img,
+.trix-content .attachment img,
+.trix-editor .attachment img {
+    width: 100% !important;
+    height: auto !important;
+    max-width: 600px !important; /* Adjust this value as needed */
+    display: block !important;
+    margin: 0 auto !important;
+}
+
 /* Override any gray borders in dark mode */
 .dark .trix-content .attachment,
 .dark .trix-editor .attachment,
