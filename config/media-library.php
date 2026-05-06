@@ -36,25 +36,20 @@ return [
     ],
 
     /*
-     * These are the options that will be used when generating thumbnails.
+     * The class that contains the strategy for determining a media file's path.
      */
-    'path_generator' => [
-        'driver' => env('MEDIA_PATH_GENERATOR_DRIVER', 'default'),
-    ],
+    'path_generator' => Spatie\MediaLibrary\Support\PathGenerator\DefaultPathGenerator::class,
 
     /*
-     * These are the options that will be used when generating thumbnails.
+     * When urls to files get generated, this class will be called. Use the default
+     * if your files are stored locally above the site root or on s3.
      */
-    'url_generator' => [
-        'driver' => env('MEDIA_URL_GENERATOR_DRIVER', 'default'),
-    ],
+    'url_generator' => Spatie\MediaLibrary\Support\UrlGenerator\DefaultUrlGenerator::class,
 
     /*
-     * These are the options that will be used when generating thumbnails.
+     * This is the class that is responsible for naming generated files.
      */
-    'file_namer' => [
-        'driver' => env('MEDIA_FILE_NAMER_DRIVER', 'default'),
-    ],
+    'file_namer' => Spatie\MediaLibrary\Support\FileNamer\DefaultFileNamer::class,
 
     /*
      * These are the options that will be used when generating thumbnails.
