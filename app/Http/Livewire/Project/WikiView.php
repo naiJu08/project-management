@@ -126,6 +126,9 @@ class WikiView extends Component
             $this->isCreating = true;
         }
         $this->isEditing = true;
+        
+        // Refresh the Trix editor content after a short delay to ensure DOM is ready
+        $this->dispatchBrowserEvent('refreshEditor');
     }
 
     public function createSubPage($parentId)
@@ -200,18 +203,40 @@ class WikiView extends Component
                 'trixAttachment' => 'required|file|max:10240', // Max 10MB
             ]);
 
-            // Store the file and add it to the current page's media
-            if ($this->selectedPage) {
-                $media = $this->selectedPage->addMedia($this->trixAttachment)
-                    ->usingName($this->trixAttachment->getClientOriginalName())
-                    ->toMediaCollection('wiki_attachments');
+            // Debug: Log the selectedPage state
+            \Log::info('Trix attachment upload attempt', [
+                'selectedPage_exists' => isset($this->selectedPage),
+                'selectedPage_type' => is_object($this->selectedPage) ? get_class($this->selectedPage) : 'not_object',
+                'selectedPage_id' => $this->selectedPage->id ?? 'no_id'
+            ]);
 
-                // Return the URL for the Trix editor
-                $this->dispatchBrowserEvent('trix-attachment-uploaded', [
-                    'url' => $media->getUrl(),
-                    'filename' => $media->file_name,
-                    'contentType' => $media->mime_type,
-                ]);
+            // Store the file and add it to the current page's media
+            // Add additional validation to ensure selectedPage exists and is valid
+            if ($this->selectedPage && is_object($this->selectedPage) && property_exists($this->selectedPage, 'id') && !empty($this->selectedPage->id)) {
+                try {
+                    $media = $this->selectedPage->addMedia($this->trixAttachment)
+                        ->usingName($this->trixAttachment->getClientOriginalName())
+                        ->toMediaCollection('wiki_attachments');
+
+                    // Return the URL for the Trix editor
+                    $this->dispatchBrowserEvent('trix-attachment-uploaded', [
+                        'url' => $media->getUrl(),
+                        'filename' => $media->file_name,
+                        'contentType' => $media->mime_type,
+                    ]);
+                } catch (\Exception $e) {
+                    // Log error and show user-friendly message
+                    \Log::error('Failed to upload attachment: ' . $e->getMessage());
+                    session()->flash('error', 'Failed to upload attachment. Please try again.');
+                }
+            } elseif ($this->isCreating) {
+                // For new pages, we need to create the page first before attaching media
+                \Log::warning('Cannot upload attachment to unsaved page. Please save the page first.');
+                session()->flash('error', 'Please save the page first before uploading attachments.');
+            } else {
+                // Show error if no page is selected
+                \Log::warning('No valid selectedPage for attachment upload');
+                session()->flash('error', 'Please select a page before uploading attachments.');
             }
 
             // Reset the attachment
@@ -224,6 +249,9 @@ class WikiView extends Component
         $this->isEditing = false;
         $this->title = '';
         $this->content = '';
+        
+        // Clear the Trix editor
+        $this->dispatchBrowserEvent('refreshEditor');
     }
 
     public function confirmDelete($pageId)
