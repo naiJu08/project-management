@@ -207,9 +207,7 @@
                                         @endif
                                     </div>
                                 @empty
-                                    @php
-                                        // Empty state - no placeholder text
-                                    @endphp
+                                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No comments yet. Be the first to comment!</p>
                                 @endforelse
                             </div>
                         </div>
