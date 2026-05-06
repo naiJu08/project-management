@@ -444,7 +444,66 @@ body {
 }
 
 /* ===========================
-   Hide Unnecessary Elements
+   Trix Editor Image Fixes
+   =========================== */
+
+/* Remove gray border from image attachments in Trix editor */
+.trix-content .attachment--preview,
+.trix-content .attachment--preview img,
+.trix-editor .attachment--preview,
+.trix-editor .attachment--preview img {
+    border: none !important;
+    border-radius: 0.5rem !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Remove gray border from file attachments that are images */
+.trix-content .attachment--file img,
+.trix-editor .attachment--file img {
+    border: none !important;
+}
+
+/* Remove any gray borders from attachments containing images */
+.trix-content .attachment img,
+.trix-editor .attachment img {
+    border: none !important;
+}
+
+/* Remove gray borders from all attachment types */
+.trix-content .attachment,
+.trix-editor .attachment {
+    border: none !important;
+}
+
+/* Specific fix for gray borders on figure elements */
+.trix-content figure,
+.trix-editor figure {
+    border: none !important;
+}
+
+/* Remove gray borders from any elements with attachment classes */
+.trix-content [class*="attachment"],
+.trix-editor [class*="attachment"] {
+    border: none !important;
+}
+
+/* Fix for any remaining gray borders in wiki content */
+.wiki-content img,
+.prose img,
+.prose figure img {
+    border: none !important;
+}
+
+/* Override any gray borders in dark mode */
+.dark .trix-content .attachment,
+.dark .trix-editor .attachment,
+.dark .trix-content .attachment img,
+.dark .trix-editor .attachment img {
+    border: none !important;
+}
+
+/* ===========================
+   Remove Unnecessary Elements
    =========================== */
 
 /* Hide Filament branding widget if present */
