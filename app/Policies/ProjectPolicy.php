@@ -18,7 +18,7 @@ class ProjectPolicy
      */
     public function viewAny(User $user)
     {
-        return $user->can('List projects');
+        return $user->can('List projects') || $user->can('View client wiki');
     }
 
     /**
@@ -30,6 +30,15 @@ class ProjectPolicy
      */
     public function view(User $user, Project $project)
     {
+        if ($user->can('View client wiki')) {
+            return $project->wikiPages()
+                ->clientVisible()
+                ->exists()
+                || $project->wikiPages()
+                    ->whereHas('children', fn ($query) => $query->clientVisible())
+                    ->exists();
+        }
+
         return $user->can('View project')
             && (
                 $project->owner_id === $user->id

@@ -91,8 +91,7 @@ class ProjectDetail extends Component implements HasForms
         // Verify project exists and user has access
         $project = Project::findOrFail($projectId);
         
-        // Check if user is owner or member of the project
-        if ($project->owner_id != auth()->id() && !$project->users->contains(auth()->id())) {
+        if (!$this->canAccessProject($project)) {
             abort(403, 'You do not have access to this project.');
         }
         
@@ -857,17 +856,13 @@ class ProjectDetail extends Component implements HasForms
         $userId = Auth::id();
         $cacheKey = "project_tabs_{$this->projectId}_user_{$userId}";
         
-        // Check if user is a client
-        if (Auth::user()->hasRole('Client')) {
-            // For client users, only show client-wiki tab
+        if ($this->isClientWikiUser()) {
             $preferences = [
                 'enabled' => ['client-wiki'],
                 'order' => ['client-wiki'],
             ];
-            // Set active tab to client-wiki for clients
             $this->activeTab = 'client-wiki';
         } else {
-            // For regular users, show all tabs
             $preferences = cache($cacheKey, [
                 'enabled' => ['board', 'overview', 'list', 'backlog', 'sprint', 'dashboard', 'calendar', 'wiki', 'gantt', 'chat', 'time-tracking', 'reports', 'milestones', 'budget'],
                 'order' => ['board', 'overview', 'list', 'backlog', 'sprint', 'dashboard', 'calendar', 'wiki', 'gantt', 'chat', 'time-tracking', 'reports', 'milestones', 'budget'],
@@ -886,6 +881,25 @@ class ProjectDetail extends Component implements HasForms
     public function reloadTabPreferences()
     {
         $this->loadTabPreferences();
+    }
+
+    private function canAccessProject(Project $project): bool
+    {
+        $user = auth()->user();
+
+        if ($this->isClientWikiUser()) {
+            return \App\Models\WikiPage::where('project_id', $project->id)
+                ->clientVisible()
+                ->exists();
+        }
+
+        return $project->owner_id == $user->id
+            || $project->users()->where('users.id', $user->id)->exists();
+    }
+
+    private function isClientWikiUser(): bool
+    {
+        return Auth::user()->can('View client wiki');
     }
 
     public function render()
