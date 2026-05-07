@@ -102,7 +102,7 @@ return [
                 'list' => [
                     'employee' => 'Employee',
                     'customer' => 'Customer',
-                    'administrator' => 'Administrator'
+                    'administrator' => 'Client'
                 ],
 
                 // Roles colors
