@@ -20,7 +20,7 @@ class ListProjects extends ListRecords
 
     protected function getTableQuery(): Builder
     {
-        if (auth()->user()->can('View client wiki')) {
+        if ($this->isClientWikiUser()) {
             return parent::getTableQuery()
                 ->where(function ($query) {
                     $query->whereHas('wikiPages', function ($wikiQuery) {
@@ -38,5 +38,13 @@ class ListProjects extends ListRecords
                         return $query->where('users.id', auth()->user()->id);
                     });
             });
+    }
+
+    private function isClientWikiUser(): bool
+    {
+        $user = auth()->user();
+
+        return $user->roles->contains(fn ($role) => strtolower($role->name) === 'client')
+            && $user->can('View client wiki');
     }
 }

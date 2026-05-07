@@ -174,6 +174,9 @@ class ClientWikiView extends Component
 
     private function isClientWikiUser(): bool
     {
-        return auth()->user()->can('View client wiki');
+        $user = auth()->user();
+
+        return $user->roles->contains(fn ($role) => strtolower($role->name) === 'client')
+            && $user->can('View client wiki');
     }
 }

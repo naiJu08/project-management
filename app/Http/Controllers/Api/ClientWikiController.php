@@ -71,7 +71,7 @@ class ClientWikiController extends Controller
 
     private function canAccessProject($user, Project $project): bool
     {
-        if ($user->can('View client wiki')) {
+        if ($this->isClientWikiUser($user)) {
             return WikiPage::where('project_id', $project->id)
                 ->clientVisible()
                 ->exists();
@@ -79,5 +79,11 @@ class ClientWikiController extends Controller
 
         return $project->owner_id === $user->id
             || $project->users()->where('users.id', $user->id)->exists();
+    }
+
+    private function isClientWikiUser($user): bool
+    {
+        return $user->roles->contains(fn ($role) => strtolower($role->name) === 'client')
+            && $user->can('View client wiki');
     }
 }
