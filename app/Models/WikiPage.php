@@ -124,28 +124,30 @@ class WikiPage extends Model implements HasMedia
         
         // Process media attachments in content
         // Replace Trix editor attachment placeholders with actual media URLs
-        $content = preg_replace_callback('/data-trix-attachment="([^"]+)"/', function ($matches) {
+        $content = preg_replace_callback('/<figure[^>]*data-trix-attachment="([^"]+)"[^>]*>.*?<\/figure>/s', function ($matches) {
             try {
+                $figure = $matches[0];
                 $attachmentData = json_decode(html_entity_decode($matches[1]), true);
                 
-                if (isset($attachmentData['url']) && str_contains($attachmentData['url'], 'blob:')) {
-                    // This is a blob URL, need to find the corresponding media
-                    $media = $this->getMedia()->first(function ($item) use ($attachmentData) {
-                        return $item->file_name === ($attachmentData['filename'] ?? null) || 
-                               $item->name === ($attachmentData['name'] ?? null);
-                    });
-                    
-                    if ($media) {
-                        $attachmentData['url'] = $media->getUrl();
-                        return 'data-trix-attachment="' . htmlspecialchars(json_encode($attachmentData)) . '"';
-                    }
+                if (!is_array($attachmentData)) {
+                    return $figure;
                 }
+
+                $media = $this->resolveAttachmentMedia($attachmentData);
+
+                if (!$media) {
+                    return $figure;
+                }
+
+                $attachmentData['url'] = $media->getUrl();
+                $updatedAttachment = htmlspecialchars(json_encode($attachmentData), ENT_QUOTES, 'UTF-8');
+                $figure = preg_replace('/data-trix-attachment="([^"]+)"/', 'data-trix-attachment="' . $updatedAttachment . '"', $figure, 1);
+                $figure = preg_replace('/<img([^>]*)src="([^"]*)"([^>]*)>/', '<img$1src="' . $media->getUrl() . '"$3>', $figure, 1);
+
+                return $figure;
             } catch (\Exception $e) {
-                // If processing fails, return original
                 return $matches[0];
             }
-            
-            return $matches[0];
         }, $content);
         
         // Also process any remaining image references that might be stored as media
@@ -153,7 +155,7 @@ class WikiPage extends Model implements HasMedia
             $src = $matches[1];
             
             // Skip if it's already a full URL or data URL
-            if (str_starts_with($src, 'http') || str_starts_with($src, 'data:')) {
+            if ((str_starts_with($src, 'http') && !str_starts_with($src, 'blob:')) || str_starts_with($src, 'data:')) {
                 return $matches[0];
             }
             
@@ -179,8 +181,8 @@ class WikiPage extends Model implements HasMedia
             if (preg_match('/src="([^"]*)"/', $figure, $imgMatches)) {
                 $src = $imgMatches[1];
                 
-                // Skip if it's already a full URL or data URL
-                if (!str_starts_with($src, 'http') && !str_starts_with($src, 'data:')) {
+                // Skip if it's already a full URL or data URL, but still repair blob URLs
+                if ((!str_starts_with($src, 'http') || str_starts_with($src, 'blob:')) && !str_starts_with($src, 'data:')) {
                     // Try to find matching media
                     $media = $this->getMedia()->first(function ($item) use ($src) {
                         return str_contains($src, $item->file_name) || 
@@ -196,12 +198,30 @@ class WikiPage extends Model implements HasMedia
             
             // Remove any gray borders from figure elements
             $figure = preg_replace('/style="[^"]*border[^"]*"/', '', $figure);
-            $figure = preg_replace('/class="([^"]*)attachment([^"]*)"/', 'class="$1$2"', $figure);
             
             return $figure;
         }, $content);
         
         return $content;
+    }
+
+    private function resolveAttachmentMedia(array $attachmentData)
+    {
+        $mediaItems = $this->getMedia('wiki_attachments')->sortByDesc('id')->values();
+        $filename = $attachmentData['filename'] ?? null;
+        $name = $attachmentData['name'] ?? null;
+        $url = $attachmentData['url'] ?? null;
+
+        return $mediaItems->firstWhere('file_name', $filename)
+            ?? $mediaItems->firstWhere('name', $filename)
+            ?? $mediaItems->firstWhere('file_name', $name)
+            ?? $mediaItems->firstWhere('name', $name)
+            ?? $mediaItems->first(function ($item) use ($url) {
+                return $url && (
+                    str_contains($url, $item->file_name)
+                    || str_contains($url, (string) $item->id)
+                );
+            });
     }
 
     protected static function boot()
