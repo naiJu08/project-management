@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class WikiView extends Component
@@ -43,6 +44,7 @@ class WikiView extends Component
     public $jobId = null;
     public $generationPercentage = 0;
     public $trixAttachment;
+    public $pendingAttachments = [];
     public $message = '';
     public $messageType = '';
 
@@ -96,13 +98,26 @@ class WikiView extends Component
 
     public function selectPage($pageId)
     {
-        $this->selectedPage = WikiPage::with([
+        $page = WikiPage::with([
             'children',
             'comments.user',
             'comments.replies.user',
             'activeSignoffs.client',
             'signoffs'
         ])->find($pageId);
+
+        if ($page) {
+            $this->repairPersistedAttachmentUrls($page);
+            $page->refresh()->load([
+                'children',
+                'comments.user',
+                'comments.replies.user',
+                'activeSignoffs.client',
+                'signoffs'
+            ]);
+        }
+
+        $this->selectedPage = $page;
         $this->isEditing = false;
         $this->newComment = '';
         $this->replyToCommentId = null;
@@ -176,15 +191,18 @@ class WikiView extends Component
         $pageId = null;
 
         if ($this->selectedPage) {
+            $normalizedContent = $this->normalizeWikiContent($this->content, $this->selectedPage);
+
             // Update existing page
             $this->selectedPage->update([
                 'title' => $this->title,
-                'content' => $this->content,
+                'content' => $normalizedContent,
                 'updated_by' => auth()->id(),
                 'version' => $this->selectedPage->version + 1,
                 'client_visible' => $this->clientVisible,
                 'client_visible_at' => $this->clientVisible ? ($this->selectedPage->client_visible_at ?? now()) : null,
             ]);
+            $this->content = $normalizedContent;
             $pageId = $this->selectedPage->id;
             $this->setMessage('success', 'Wiki page updated successfully!');
         } else {
@@ -199,6 +217,10 @@ class WikiView extends Component
                 'client_visible' => $this->clientVisible,
                 'client_visible_at' => $this->clientVisible ? now() : null,
             ]);
+            $this->syncPendingAttachments($page);
+            $normalizedContent = $this->normalizeWikiContent($page->content, $page);
+            $page->update(['content' => $normalizedContent]);
+            $this->content = $normalizedContent;
             $pageId = $page->id;
             $this->setMessage('success', 'Wiki page created successfully!');
         }
@@ -212,26 +234,38 @@ class WikiView extends Component
     public function updatedTrixAttachment()
     {
         if ($this->trixAttachment) {
-            // Handle file upload for Trix editor
             $this->validate([
                 'trixAttachment' => 'required|file|max:10240', // Max 10MB
             ]);
 
-            // Store the file and add it to the current page's media
             if ($this->selectedPage) {
                 $media = $this->selectedPage->addMedia($this->trixAttachment)
                     ->usingName($this->trixAttachment->getClientOriginalName())
                     ->toMediaCollection('wiki_attachments');
 
-                // Return the URL for the Trix editor
                 $this->dispatchBrowserEvent('trix-attachment-uploaded', [
                     'url' => $media->getUrl(),
                     'filename' => $media->file_name,
                     'contentType' => $media->mime_type,
                 ]);
+            } else {
+                $temporaryPath = $this->trixAttachment->store('wiki/temp', 'public');
+                $temporaryUrl = Storage::disk('public')->url($temporaryPath);
+
+                $this->pendingAttachments[] = [
+                    'path' => $temporaryPath,
+                    'url' => $temporaryUrl,
+                    'filename' => $this->trixAttachment->getClientOriginalName(),
+                    'content_type' => $this->trixAttachment->getMimeType(),
+                ];
+
+                $this->dispatchBrowserEvent('trix-attachment-uploaded', [
+                    'url' => $temporaryUrl,
+                    'filename' => $this->trixAttachment->getClientOriginalName(),
+                    'contentType' => $this->trixAttachment->getMimeType(),
+                ]);
             }
 
-            // Reset the attachment
             $this->trixAttachment = null;
         }
     }
@@ -589,6 +623,93 @@ class WikiView extends Component
         ];
         
         return $priorityMap[$priority] ?? BacklogItem::PRIORITY_MEDIUM;
+    }
+
+    private function syncPendingAttachments(WikiPage $page): void
+    {
+        if (empty($this->pendingAttachments)) {
+            return;
+        }
+
+        $updatedContent = $page->content ?? '';
+
+        foreach ($this->pendingAttachments as $attachment) {
+            $temporaryPath = $attachment['path'] ?? null;
+
+            if (!$temporaryPath || !Storage::disk('public')->exists($temporaryPath)) {
+                continue;
+            }
+
+            $media = $page->addMedia(Storage::disk('public')->path($temporaryPath))
+                ->usingName($attachment['filename'] ?? basename($temporaryPath))
+                ->toMediaCollection('wiki_attachments');
+
+            $temporaryUrl = $attachment['url'] ?? Storage::disk('public')->url($temporaryPath);
+            $updatedContent = str_replace($temporaryUrl, $media->getUrl(), $updatedContent);
+
+            Storage::disk('public')->delete($temporaryPath);
+        }
+
+        $page->update(['content' => $updatedContent]);
+        $this->content = $updatedContent;
+        $this->pendingAttachments = [];
+    }
+
+    private function normalizeWikiContent(?string $content, WikiPage $page): string
+    {
+        if (blank($content)) {
+            return '';
+        }
+
+        return preg_replace_callback('/<figure[^>]*data-trix-attachment="([^"]+)"[^>]*>.*?<\/figure>/s', function ($matches) use ($page) {
+            $figure = $matches[0];
+            $attachmentData = json_decode(html_entity_decode($matches[1]), true);
+
+            if (!is_array($attachmentData)) {
+                return $figure;
+            }
+
+            $media = $this->findMatchingMedia($page, $attachmentData);
+
+            if (!$media) {
+                return $figure;
+            }
+
+            $attachmentData['url'] = $media->getUrl();
+            $updatedAttachment = htmlspecialchars(json_encode($attachmentData), ENT_QUOTES, 'UTF-8');
+            $updatedFigure = preg_replace('/data-trix-attachment="([^"]+)"/', 'data-trix-attachment="' . $updatedAttachment . '"', $figure, 1);
+            $updatedFigure = preg_replace('/<img([^>]*)src="([^"]*)"([^>]*)>/', '<img$1src="' . $media->getUrl() . '"$3>', $updatedFigure, 1);
+
+            return $updatedFigure;
+        }, $content) ?? $content;
+    }
+
+    private function findMatchingMedia(WikiPage $page, array $attachmentData)
+    {
+        $mediaItems = $page->getMedia('wiki_attachments')->sortByDesc('id')->values();
+        $filename = $attachmentData['filename'] ?? null;
+        $name = $attachmentData['name'] ?? null;
+        $url = $attachmentData['url'] ?? null;
+
+        return $mediaItems->firstWhere('file_name', $filename)
+            ?? $mediaItems->firstWhere('name', $filename)
+            ?? $mediaItems->firstWhere('file_name', $name)
+            ?? $mediaItems->firstWhere('name', $name)
+            ?? $mediaItems->first(function ($item) use ($url) {
+                return $url && (
+                    str_contains($url, $item->file_name)
+                    || str_contains($url, (string) $item->id)
+                );
+            });
+    }
+
+    private function repairPersistedAttachmentUrls(WikiPage $page): void
+    {
+        $normalizedContent = $this->normalizeWikiContent($page->content, $page);
+
+        if ($normalizedContent !== ($page->content ?? '')) {
+            $page->updateQuietly(['content' => $normalizedContent]);
+        }
     }
 
     public function render()
