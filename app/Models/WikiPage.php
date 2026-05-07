@@ -139,10 +139,10 @@ class WikiPage extends Model implements HasMedia
                     return $figure;
                 }
 
-                $attachmentData['url'] = $media->getUrl();
+                $attachmentData['url'] = $this->getMediaPublicUrl($media);
                 $updatedAttachment = htmlspecialchars(json_encode($attachmentData), ENT_QUOTES, 'UTF-8');
                 $figure = preg_replace('/data-trix-attachment="([^"]+)"/', 'data-trix-attachment="' . $updatedAttachment . '"', $figure, 1);
-                $figure = preg_replace('/<img([^>]*)src="([^"]*)"([^>]*)>/', '<img$1src="' . $media->getUrl() . '"$3>', $figure, 1);
+                $figure = preg_replace('/<img([^>]*)src="([^"]*)"([^>]*)>/', '<img$1src="' . $this->getMediaPublicUrl($media) . '"$3>', $figure, 1);
 
                 return $figure;
             } catch (\Exception $e) {
@@ -167,7 +167,7 @@ class WikiPage extends Model implements HasMedia
             });
             
             if ($media) {
-                return 'src="' . $media->getUrl() . '"';
+                return 'src="' . $this->getMediaPublicUrl($media) . '"';
             }
             
             return $matches[0];
@@ -191,7 +191,7 @@ class WikiPage extends Model implements HasMedia
                     });
                     
                     if ($media) {
-                        $figure = str_replace($src, $media->getUrl(), $figure);
+                        $figure = str_replace($src, $this->getMediaPublicUrl($media), $figure);
                     }
                 }
             }
@@ -222,6 +222,14 @@ class WikiPage extends Model implements HasMedia
                     || str_contains($url, (string) $item->id)
                 );
             });
+    }
+
+    private function getMediaPublicUrl($media): string
+    {
+        $url = $media->getUrl();
+        $path = parse_url($url, PHP_URL_PATH);
+
+        return $path ?: $url;
     }
 
     protected static function boot()
