@@ -244,7 +244,7 @@ class WikiView extends Component
                     ->toMediaCollection('wiki_attachments');
 
                 $this->dispatchBrowserEvent('trix-attachment-uploaded', [
-                    'url' => $media->getUrl(),
+                    'url' => $this->getMediaPublicUrl($media),
                     'filename' => $media->file_name,
                     'contentType' => $media->mime_type,
                 ]);
@@ -645,7 +645,7 @@ class WikiView extends Component
                 ->toMediaCollection('wiki_attachments');
 
             $temporaryUrl = $attachment['url'] ?? Storage::disk('public')->url($temporaryPath);
-            $updatedContent = str_replace($temporaryUrl, $media->getUrl(), $updatedContent);
+            $updatedContent = str_replace($temporaryUrl, $this->getMediaPublicUrl($media), $updatedContent);
 
             Storage::disk('public')->delete($temporaryPath);
         }
@@ -675,10 +675,10 @@ class WikiView extends Component
                 return $figure;
             }
 
-            $attachmentData['url'] = $media->getUrl();
+            $attachmentData['url'] = $this->getMediaPublicUrl($media);
             $updatedAttachment = htmlspecialchars(json_encode($attachmentData), ENT_QUOTES, 'UTF-8');
             $updatedFigure = preg_replace('/data-trix-attachment="([^"]+)"/', 'data-trix-attachment="' . $updatedAttachment . '"', $figure, 1);
-            $updatedFigure = preg_replace('/<img([^>]*)src="([^"]*)"([^>]*)>/', '<img$1src="' . $media->getUrl() . '"$3>', $updatedFigure, 1);
+            $updatedFigure = preg_replace('/<img([^>]*)src="([^"]*)"([^>]*)>/', '<img$1src="' . $this->getMediaPublicUrl($media) . '"$3>', $updatedFigure, 1);
 
             return $updatedFigure;
         }, $content) ?? $content;
@@ -710,6 +710,14 @@ class WikiView extends Component
         if ($normalizedContent !== ($page->content ?? '')) {
             $page->updateQuietly(['content' => $normalizedContent]);
         }
+    }
+
+    private function getMediaPublicUrl($media): string
+    {
+        $url = $media->getUrl();
+        $path = parse_url($url, PHP_URL_PATH);
+
+        return $path ?: $url;
     }
 
     public function render()
