@@ -250,7 +250,7 @@ class WikiView extends Component
                 ]);
             } else {
                 $temporaryPath = $this->trixAttachment->store('wiki/temp', 'public');
-                $temporaryUrl = Storage::disk('public')->url($temporaryPath);
+                $temporaryUrl = $this->getPublicDiskUrl($temporaryPath);
 
                 $this->pendingAttachments[] = [
                     'path' => $temporaryPath,
@@ -640,11 +640,11 @@ class WikiView extends Component
                 continue;
             }
 
-            $media = $page->addMedia(Storage::disk('public')->path($temporaryPath))
+            $media = $page->addMedia($this->getPublicDiskPath($temporaryPath))
                 ->usingName($attachment['filename'] ?? basename($temporaryPath))
                 ->toMediaCollection('wiki_attachments');
 
-            $temporaryUrl = $attachment['url'] ?? Storage::disk('public')->url($temporaryPath);
+            $temporaryUrl = $attachment['url'] ?? $this->getPublicDiskUrl($temporaryPath);
             $updatedContent = str_replace($temporaryUrl, $this->getMediaPublicUrl($media), $updatedContent);
 
             Storage::disk('public')->delete($temporaryPath);
@@ -718,6 +718,20 @@ class WikiView extends Component
         $path = parse_url($url, PHP_URL_PATH);
 
         return $path ?: $url;
+    }
+
+    private function getPublicDiskUrl(string $path): string
+    {
+        $baseUrl = (string) config('filesystems.disks.public.url', '/storage');
+
+        return rtrim($baseUrl, '/') . '/' . ltrim($path, '/');
+    }
+
+    private function getPublicDiskPath(string $path): string
+    {
+        $root = (string) config('filesystems.disks.public.root', storage_path('app/public'));
+
+        return rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($path, DIRECTORY_SEPARATOR . '/');
     }
 
     public function render()
