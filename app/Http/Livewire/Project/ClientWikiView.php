@@ -21,17 +21,11 @@ class ClientWikiView extends Component
     public function mount($projectId)
     {
         $this->projectId = $projectId;
-        
-        // Check if client user has access to this project
-        if (auth()->user()->hasRole('Client')) {
-            $user = auth()->user();
-            $hasAccess = $user->projects()->where('project_id', $projectId)->exists();
-            
-            if (!$hasAccess) {
-                abort(403, 'You do not have access to this project.');
-            }
+
+        if (!$this->canAccessProject()) {
+            abort(403, 'You do not have access to this project.');
         }
-        
+
         $this->loadPages();
     }
 
@@ -42,8 +36,15 @@ class ClientWikiView extends Component
 
     public function loadPages()
     {
-        $query = $this->project->wikiPages()
+        $query = WikiPage::query()
+            ->where('project_id', $this->projectId)
             ->clientVisible()
+            ->where(function ($query) {
+                $query->whereNull('parent_id')
+                    ->orWhereDoesntHave('parent', function ($parentQuery) {
+                        $parentQuery->clientVisible();
+                    });
+            })
             ->with(['children' => function ($query) {
                 $query->clientVisible();
             }, 'creator', 'updater', 'activeSignoffs']);
@@ -53,6 +54,10 @@ class ClientWikiView extends Component
         }
         
         $this->pages = $query->get();
+
+        if (!$this->selectedPage && $this->pages->isNotEmpty()) {
+            $this->selectPage($this->pages->first()->id);
+        }
     }
 
     public function selectPage($pageId)
@@ -72,17 +77,10 @@ class ClientWikiView extends Component
             return;
         }
         
-        // Additional security check for client users
-        if (auth()->user()->hasRole('Client')) {
-            // Ensure the page belongs to a project the client has access to
-            $user = auth()->user();
-            $hasAccess = $user->projects()->where('project_id', $this->selectedPage->project_id)->exists();
-            
-            if (!$hasAccess) {
-                session()->flash('error', 'You do not have access to this page.');
-                $this->selectedPage = null;
-                return;
-            }
+        if (!$this->canAccessProject()) {
+            session()->flash('error', 'You do not have access to this page.');
+            $this->selectedPage = null;
+            return;
         }
         
         $this->newComment = '';
@@ -124,11 +122,6 @@ class ClientWikiView extends Component
 
     public function signOffPage()
     {
-        if (!auth()->user()->hasRole('Client')) {
-            session()->flash('error', 'Only clients can sign off documents.');
-            return;
-        }
-
         if (!auth()->user()->can('Sign off wiki')) {
             session()->flash('error', 'You do not have permission to sign off.');
             return;
@@ -163,5 +156,24 @@ class ClientWikiView extends Component
     public function render()
     {
         return view('livewire.project.client-wiki-view');
+    }
+
+    private function canAccessProject(): bool
+    {
+        $user = auth()->user();
+
+        if ($this->isClientWikiUser()) {
+            return WikiPage::where('project_id', $this->projectId)
+                ->clientVisible()
+                ->exists();
+        }
+
+        return $this->project->owner_id === $user->id
+            || $this->project->users()->where('users.id', $user->id)->exists();
+    }
+
+    private function isClientWikiUser(): bool
+    {
+        return auth()->user()->can('View client wiki');
     }
 }

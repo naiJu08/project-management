@@ -16,8 +16,7 @@ class ClientWikiController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user is a client or has access to the project
-        if (!$user->hasRole('Client') && !$project->users->contains($user->id) && $project->owner_id !== $user->id) {
+        if (!$this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -45,7 +44,7 @@ class ClientWikiController extends Controller
 
         // Check if user has access to the project
         $project = $wikiPage->project;
-        if (!$user->hasRole('Client') && !$project->users->contains($user->id) && $project->owner_id !== $user->id) {
+        if (!$this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -68,5 +67,17 @@ class ClientWikiController extends Controller
             'signoff_status' => $wikiPage->getSignoffStatus(),
             'is_signed_off' => $wikiPage->isSignedOff(),
         ]);
+    }
+
+    private function canAccessProject($user, Project $project): bool
+    {
+        if ($user->can('View client wiki')) {
+            return WikiPage::where('project_id', $project->id)
+                ->clientVisible()
+                ->exists();
+        }
+
+        return $project->owner_id === $user->id
+            || $project->users()->where('users.id', $user->id)->exists();
     }
 }

@@ -20,6 +20,17 @@ class ListProjects extends ListRecords
 
     protected function getTableQuery(): Builder
     {
+        if (auth()->user()->can('View client wiki')) {
+            return parent::getTableQuery()
+                ->where(function ($query) {
+                    $query->whereHas('wikiPages', function ($wikiQuery) {
+                        $wikiQuery->clientVisible();
+                    })->orWhereHas('wikiPages.children', function ($wikiQuery) {
+                        $wikiQuery->clientVisible();
+                    });
+                });
+        }
+
         return parent::getTableQuery()
             ->where(function ($query) {
                 return $query->where('owner_id', auth()->user()->id)
