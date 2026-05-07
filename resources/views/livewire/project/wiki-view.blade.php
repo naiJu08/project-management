@@ -164,8 +164,7 @@
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Page Title</label>
                     <input type="text" 
-                           wire:model="title" 
-                           wire:key="page-title-input"
+                           wire:model.defer="title" 
                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
                            placeholder="Enter page title...">
                     @error('title') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
@@ -199,7 +198,8 @@
                 </div>
 
                 <div class="flex items-center space-x-2">
-                    <button wire:click="savePage"
+                    <button type="button"
+                            onclick="saveWikiPage()"
                             class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
                         Save Page
                     </button>
@@ -775,7 +775,9 @@
         });
 
         trixEditor.addEventListener('trix-change', function() {
-            @this.set('content', hiddenInput.value);
+            requestAnimationFrame(() => {
+                syncWikiContent();
+            });
         });
 
         trixEditor.addEventListener('trix-attachment-add', function(event) {
@@ -803,11 +805,47 @@
                         previewable: contentType.startsWith('image/')
                     });
 
-                    @this.set('content', hiddenInput.value);
+                    requestAnimationFrame(() => {
+                        syncWikiContent();
+                    });
                     window.removeEventListener('trix-attachment-uploaded', handler);
                 }, { once: true });
             });
         });
+    }
+
+    function getWikiComponent() {
+        const trixEditor = document.querySelector('trix-editor[input="wiki-content"]');
+        const componentRoot = trixEditor?.closest('[wire\\:id]') ?? document.querySelector('[wire\\:id]');
+
+        return componentRoot ? Livewire.find(componentRoot.getAttribute('wire:id')) : null;
+    }
+
+    function getWikiEditorContent() {
+        const trixEditor = document.querySelector('trix-editor[input="wiki-content"]');
+        const hiddenInput = document.getElementById('wiki-content');
+
+        return trixEditor?.value ?? hiddenInput?.value ?? '';
+    }
+
+    function syncWikiContent() {
+        const component = getWikiComponent();
+
+        if (!component) {
+            return;
+        }
+
+        component.set('content', getWikiEditorContent());
+    }
+
+    async function saveWikiPage() {
+        const component = getWikiComponent();
+
+        if (!component) {
+            return;
+        }
+
+        component.call('savePageFromEditor', getWikiEditorContent());
     }
 
     document.addEventListener('livewire:load', function () {
