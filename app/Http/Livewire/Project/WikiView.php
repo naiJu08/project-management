@@ -231,6 +231,13 @@ class WikiView extends Component
         $this->selectPage($pageId);
     }
 
+    public function savePageFromEditor($content = '')
+    {
+        $this->content = $content ?? '';
+
+        $this->savePage();
+    }
+
     public function updatedTrixAttachment()
     {
         if ($this->trixAttachment) {
