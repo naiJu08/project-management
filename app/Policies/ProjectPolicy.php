@@ -18,7 +18,8 @@ class ProjectPolicy
      */
     public function viewAny(User $user)
     {
-        return $user->can('List projects') || $user->can('View client wiki');
+        return $user->can('List projects')
+            || ($this->isClientWikiUser($user) && $user->can('View client wiki'));
     }
 
     /**
@@ -30,7 +31,7 @@ class ProjectPolicy
      */
     public function view(User $user, Project $project)
     {
-        if ($user->can('View client wiki')) {
+        if ($this->isClientWikiUser($user) && $user->can('View client wiki')) {
             return $project->wikiPages()
                 ->clientVisible()
                 ->exists()
@@ -87,5 +88,10 @@ class ProjectPolicy
     public function delete(User $user, Project $project)
     {
         return $user->can('Delete project');
+    }
+
+    private function isClientWikiUser(User $user): bool
+    {
+        return $user->roles->contains(fn ($role) => strtolower($role->name) === 'client');
     }
 }

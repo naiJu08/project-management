@@ -899,7 +899,10 @@ class ProjectDetail extends Component implements HasForms
 
     private function isClientWikiUser(): bool
     {
-        return Auth::user()->can('View client wiki');
+        $user = Auth::user();
+
+        return $user->roles->contains(fn ($role) => strtolower($role->name) === 'client')
+            && $user->can('View client wiki');
     }
 
     public function render()
