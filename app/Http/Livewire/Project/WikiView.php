@@ -173,6 +173,8 @@ class WikiView extends Component
             'content' => 'nullable|string',
         ]);
 
+        $pageId = null;
+
         if ($this->selectedPage) {
             // Update existing page
             $this->selectedPage->update([
@@ -183,6 +185,7 @@ class WikiView extends Component
                 'client_visible' => $this->clientVisible,
                 'client_visible_at' => $this->clientVisible ? ($this->selectedPage->client_visible_at ?? now()) : null,
             ]);
+            $pageId = $this->selectedPage->id;
             $this->setMessage('success', 'Wiki page updated successfully!');
         } else {
             // Create new page
@@ -196,13 +199,14 @@ class WikiView extends Component
                 'client_visible' => $this->clientVisible,
                 'client_visible_at' => $this->clientVisible ? now() : null,
             ]);
-            $this->selectedPage = $page;
+            $pageId = $page->id;
             $this->setMessage('success', 'Wiki page created successfully!');
         }
 
         $this->isEditing = false;
         $this->isCreating = false;
         $this->loadPages();
+        $this->selectPage($pageId);
     }
 
     public function updatedTrixAttachment()

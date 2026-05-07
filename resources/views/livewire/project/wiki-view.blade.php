@@ -174,9 +174,9 @@
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Content</label>
                     <div class="bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
-                        <div wire:ignore class="trix-wrapper">
-                            <trix-editor input="wiki-content" class="trix-content"></trix-editor>
+                        <div wire:ignore class="trix-wrapper" wire:key="wiki-trix-{{ $selectedPage?->id ?? 'new' }}-{{ $isEditing ? 'editing' : 'viewing' }}">
                             <input id="wiki-content" type="hidden" wire:model.defer="content">
+                            <trix-editor input="wiki-content" class="trix-content"></trix-editor>
                         </div>
                     </div>
                     @error('content') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
@@ -314,9 +314,15 @@
                     </div>
                 @endif
 
-                <div class="prose dark:prose-invert max-w-none mb-8">
-                    {!! $selectedPage->processed_content ?? $selectedPage->content ?? '' !!}
-                </div>
+                @if(filled($selectedPage->processed_content ?? $selectedPage->content))
+                    <div class="prose dark:prose-invert max-w-none mb-8 wiki-content">
+                        {!! $selectedPage->processed_content ?? $selectedPage->content !!}
+                    </div>
+                @else
+                    <div class="mb-8 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/20 p-4 text-sm text-gray-500 dark:text-gray-400">
+                        This wiki page does not have any content yet.
+                    </div>
+                @endif
 
                 {{-- Comments Section --}}
                 @if(auth()->user()->can('Comment on wiki'))
@@ -733,6 +739,7 @@
 <script src="https://cdn.tiny.cloud/1/no-api-key-required/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
     let progressPollingInterval = null;
+    let wikiTrixEditor = null;
 
     function showProgressToast() {
         document.getElementById('progress-toast').classList.remove('hidden');
@@ -748,74 +755,70 @@
         document.getElementById('progress-percentage').textContent = percentage + '%';
     }
 
-    document.addEventListener('livewire:load', function () {
-        function initTrixEditor() {
-            const trixEditor = document.querySelector('trix-editor');
-            const hiddenInput = document.getElementById('wiki-content');
-            
-            if (trixEditor && hiddenInput) {
-                // Set initial content
-                if (@this.content) {
-                    trixEditor.editor.loadHTML(@this.content);
-                }
-                
-                // Update Livewire when editor changes (debounced)
-                trixEditor.addEventListener('trix-change', function() {
-                    clearTimeout(trixEditor._debounceTimer);
-                    trixEditor._debounceTimer = setTimeout(() => {
-                        @this.set('content', hiddenInput.value);
-                    }, 300);
-                });
+    function initWikiTrixEditor() {
+        const trixEditor = document.querySelector('trix-editor[input="wiki-content"]');
+        const hiddenInput = document.getElementById('wiki-content');
 
-                // Handle file attachments
-                trixEditor.addEventListener('trix-attachment-add', function(event) {
-                    const attachment = event.attachment;
-                    
-                    if (attachment.file) {
-                        // Show uploading state
-                        attachment.setAttributes({
-                            url: URL.createObjectURL(attachment.file),
-                            filename: attachment.file.name,
-                            contentType: attachment.file.type,
-                            previewable: attachment.file.type.startsWith('image/')
-                        });
-                        
-                        // Upload the file via Livewire
-                        @this.upload('trixAttachment', attachment.file)
-                            .then(() => {
-                                // Listen for the browser event that will be dispatched
-                                window.addEventListener('trix-attachment-uploaded', function handler(e) {
-                                    const { url, filename, contentType } = e.detail;
-                                    
-                                    // Update the attachment with the uploaded URL
-                                    attachment.setAttributes({
-                                        url: url,
-                                        filename: filename,
-                                        contentType: contentType,
-                                        previewable: contentType.startsWith('image/')
-                                    });
-                                    
-                                    // Remove the event listener
-                                    window.removeEventListener('trix-attachment-uploaded', handler);
-                                }, { once: true });
-                            });
-                    }
-                });
-            }
+        if (!trixEditor || !hiddenInput || trixEditor === wikiTrixEditor) {
+            return;
         }
-        
-        // Initialize on page load
-        setTimeout(() => {
-            initTrixEditor();
-        }, 100);
+
+        wikiTrixEditor = trixEditor;
+
+        const initialContent = @this.get('content') || '';
+        hiddenInput.value = initialContent;
+
+        requestAnimationFrame(() => {
+            if (trixEditor.editor) {
+                trixEditor.editor.loadHTML(initialContent);
+            }
+        });
+
+        trixEditor.addEventListener('trix-change', function() {
+            @this.set('content', hiddenInput.value);
+        });
+
+        trixEditor.addEventListener('trix-attachment-add', function(event) {
+            const attachment = event.attachment;
+
+            if (!attachment.file) {
+                return;
+            }
+
+            attachment.setAttributes({
+                url: URL.createObjectURL(attachment.file),
+                filename: attachment.file.name,
+                contentType: attachment.file.type,
+                previewable: attachment.file.type.startsWith('image/')
+            });
+
+            @this.upload('trixAttachment', attachment.file).then(() => {
+                window.addEventListener('trix-attachment-uploaded', function handler(e) {
+                    const { url, filename, contentType } = e.detail;
+
+                    attachment.setAttributes({
+                        url: url,
+                        filename: filename,
+                        contentType: contentType,
+                        previewable: contentType.startsWith('image/')
+                    });
+
+                    @this.set('content', hiddenInput.value);
+                    window.removeEventListener('trix-attachment-uploaded', handler);
+                }, { once: true });
+            });
+        });
+    }
+
+    document.addEventListener('livewire:load', function () {
+        setTimeout(initWikiTrixEditor, 100);
 
         // Re-initialize only when entering edit mode
         let wasEditing = @this.isEditing;
         Livewire.hook('message.processed', (message, component) => {
             if (@this.isEditing && !wasEditing) {
-                setTimeout(() => {
-                    initTrixEditor();
-                }, 100);
+                wikiTrixEditor = null;
+                setTimeout(initWikiTrixEditor, 100);
             }
             wasEditing = @this.isEditing;
         });
@@ -851,50 +854,11 @@
         });
     });
 
-    // Initialize Trix editor for wiki content
     document.addEventListener('livewire:init', function () {
-        function initWikiTrixEditor() {
-            const trixEditor = document.querySelector('trix-editor[input="wiki-content"]');
-            const hiddenInput = document.getElementById('wiki-content');
-            
-            if (trixEditor && hiddenInput) {
-                // Load initial content when editing
-                if (@this.content) {
-                    trixEditor.editor.loadHTML(@this.content);
-                }
-                
-                // Sync content changes to Livewire
-                trixEditor.addEventListener('trix-change', function() {
-                    @this.set('content', trixEditor.editor.getDocument().toString());
-                });
-                
-                // Handle file attachments
-                trixEditor.addEventListener('trix-attachment-add', function(event) {
-                    const attachment = event.attachment;
-                    if (attachment.file) {
-                        // Handle file upload through Livewire
-                        const reader = new FileReader();
-                        reader.onload = function(e) {
-                            // Create a temporary blob URL for preview
-                            const blob = new Blob([e.target.result], { type: attachment.file.type });
-                            const url = URL.createObjectURL(blob);
-                            attachment.setAttributes({ url: url, filename: attachment.file.name });
-                        };
-                        reader.readAsArrayBuffer(attachment.file);
-                    }
-                });
-            }
-        }
-        
-        // Initialize when component loads and when entering edit mode
         @this.on('edit-mode-entered', () => {
+            wikiTrixEditor = null;
             setTimeout(initWikiTrixEditor, 100);
         });
-        
-        // Also initialize immediately if in edit mode
-        if (@this.isEditing) {
-            setTimeout(initWikiTrixEditor, 100);
-        }
     });
 
     // Auto-clear messages
