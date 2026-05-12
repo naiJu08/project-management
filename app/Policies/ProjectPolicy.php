@@ -32,12 +32,15 @@ class ProjectPolicy
     public function view(User $user, Project $project)
     {
         if ($this->isClientWikiUser($user) && $user->can('View client wiki')) {
-            return $project->wikiPages()
+            return $project->users()->where('users.id', $user->id)->exists()
+                && (
+                    $project->wikiPages()
                 ->clientVisible()
                 ->exists()
                 || $project->wikiPages()
                     ->whereHas('children', fn ($query) => $query->clientVisible())
-                    ->exists();
+                    ->exists()
+                );
         }
 
         return $user->can('View project')
