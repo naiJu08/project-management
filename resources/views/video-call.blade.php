@@ -374,7 +374,7 @@
                         video: {
                             width: { ideal: 1280, max: 1920 },
                             height: { ideal: 720, max: 1080 },
-                            facingMode: "user"
+                            facingMode: { ideal: "user" }
                         },
                         audio: {
                             echoCancellation: true,
@@ -384,10 +384,18 @@
                     });
                 } catch (mediaError) {
                     console.warn("Enhanced media constraints failed, retrying with basic constraints:", mediaError);
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        video: true,
-                        audio: true
-                    });
+                    try {
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            video: true,
+                            audio: true
+                        });
+                    } catch (mediaError2) {
+                        console.warn("Basic video+audio failed, retrying with video-only:", mediaError2);
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            video: true,
+                            audio: false
+                        });
+                    }
                 }
                 
                 // Set local video
