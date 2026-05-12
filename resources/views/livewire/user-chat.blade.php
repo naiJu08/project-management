@@ -969,6 +969,45 @@
         };
     }
 
+    async function getBestLocalMediaStream(contextLabel = "Media") {
+        const attempts = [
+            {
+                label: "enhanced video+audio",
+                constraints: {
+                    video: {
+                        width: { ideal: 1280, max: 1920 },
+                        height: { ideal: 720, max: 1080 },
+                        facingMode: "user"
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                }
+            },
+            { label: "basic video+audio", constraints: { video: true, audio: true } },
+            { label: "video-only fallback", constraints: { video: true, audio: false } }
+        ];
+
+        let lastError = null;
+
+        for (const attempt of attempts) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(attempt.constraints);
+                console.log(`${contextLabel} stream obtained (${attempt.label}):`, stream);
+                console.log(`${contextLabel} video tracks:`, stream.getVideoTracks());
+                console.log(`${contextLabel} audio tracks:`, stream.getAudioTracks());
+                return stream;
+            } catch (error) {
+                lastError = error;
+                console.warn(`${contextLabel} ${attempt.label} failed:`, error);
+            }
+        }
+
+        throw lastError || new Error("No usable media device found");
+    }
+
     async function startVideoCall(userId) {
 
         currentRoom = "room-" + Math.min(myVideoUserId, userId) + "-" + Math.max(myVideoUserId, userId);
@@ -983,34 +1022,11 @@
         isRemoteDescriptionSet = false;
 
         try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 },
-                    facingMode: "user"
-                },
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
-            });
-            console.log(" Local stream obtained:", localStream);
-            console.log(" Video tracks:", localStream.getVideoTracks());
-            console.log(" Audio tracks:", localStream.getAudioTracks());
+            localStream = await getBestLocalMediaStream("Caller");
         } catch (e) {
-            console.warn(" Enhanced constraints failed, trying basic constraints");
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({
-                    video: true,
-                    audio: true
-                });
-                console.log(" Basic local stream obtained:", localStream);
-            } catch (e2) {
-                alert("Camera/Mic permission blocked or not supported");
-                console.error(" Media error:", e2);
-                return;
-            }
+            alert("Camera/Mic permission blocked, unavailable, or not supported");
+            console.error("Media error:", e);
+            return;
         }
 
         // ✅ FIX: Proper local video setup
@@ -1143,24 +1159,10 @@
 
         // ✅ GET CAMERA
         try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 },
-                    facingMode: "user"
-                },
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
-            });
-            console.log("🎥 Receiver local stream obtained:", localStream);
-            console.log("🎥 Receiver video tracks:", localStream.getVideoTracks());
-            console.log("🎥 Receiver audio tracks:", localStream.getAudioTracks());
+            localStream = await getBestLocalMediaStream("Receiver");
         } catch (e) {
-            alert("Camera not allowed on receiver side");
-            console.error("❌ Receiver media error:", e);
+            alert("Receiver camera/mic unavailable or blocked");
+            console.error("Receiver media error:", e);
             return;
         }
 

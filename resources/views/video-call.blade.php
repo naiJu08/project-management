@@ -388,6 +388,12 @@
                         video: true,
                         audio: true
                     });
+                } catch (mediaError2) {
+                    console.warn("Basic video+audio failed, retrying with video-only:", mediaError2);
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: false
+                    });
                 }
                 
                 // Set local video
