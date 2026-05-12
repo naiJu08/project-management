@@ -969,6 +969,56 @@
         };
     }
 
+    async function getBestLocalMediaStream(contextLabel = "Media") {
+        const attempts = [
+            {
+                label: "enhanced video+audio",
+                constraints: {
+                    video: {
+                        width: { ideal: 1280, max: 1920 },
+                        height: { ideal: 720, max: 1080 },
+                        facingMode: { ideal: "user" }
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                }
+            },
+            {
+                label: "enhanced video+audio (no facing mode)",
+                constraints: {
+                    video: {
+                        width: { ideal: 1280, max: 1920 },
+                        height: { ideal: 720, max: 1080 }
+                    },
+                    audio: true
+                }
+            },
+            { label: "basic video+audio", constraints: { video: true, audio: true } },
+            { label: "video-only fallback", constraints: { video: true, audio: false } },
+            { label: "video-only low-res fallback", constraints: { video: { width: 640, height: 480 }, audio: false } }
+        ];
+
+        let lastError = null;
+
+        for (const attempt of attempts) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(attempt.constraints);
+                console.log(`${contextLabel} stream obtained (${attempt.label}):`, stream);
+                console.log(`${contextLabel} video tracks:`, stream.getVideoTracks());
+                console.log(`${contextLabel} audio tracks:`, stream.getAudioTracks());
+                return stream;
+            } catch (error) {
+                lastError = error;
+                console.warn(`${contextLabel} ${attempt.label} failed:`, error);
+            }
+        }
+
+        throw lastError || new Error("No usable media device found");
+    }
+
     async function startVideoCall(userId) {
 
         currentRoom = "room-" + Math.min(myVideoUserId, userId) + "-" + Math.max(myVideoUserId, userId);
@@ -1142,6 +1192,7 @@
         document.getElementById("videoCallContainer").style.display = "block";
 
         // ✅ GET CAMERA
+        let receiverMediaUnavailable = false;
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
                 video: {
@@ -1159,9 +1210,10 @@
             console.log("🎥 Receiver video tracks:", localStream.getVideoTracks());
             console.log("🎥 Receiver audio tracks:", localStream.getAudioTracks());
         } catch (e) {
-            alert("Camera not allowed on receiver side");
-            console.error("❌ Receiver media error:", e);
-            return;
+            console.error("Receiver media error:", e);
+            receiverMediaUnavailable = true;
+            localStream = null;
+            alert("Receiver camera/mic unavailable. Continuing with receive-only mode.");
         }
 
         // ✅ FIX: Proper local video setup
@@ -1170,25 +1222,29 @@
             localVideo.pause();
             localVideo.srcObject = null;
         }
-        bindLocalVideoStream(localVideo, localStream);
-        setTimeout(() => {
-            localVideo.muted = true; // Always mute local video to avoid echo
-            localVideo.autoplay = true;
-            localVideo.playsInline = true;
-            localVideo.style.display = "block";
-            localVideo.srcObject = localStream;
-            localStream.getTracks().forEach(track => {
-                track.enabled = true;
-            });
-            localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
-        }, 50);
+        if (!receiverMediaUnavailable && localStream) {
+            bindLocalVideoStream(localVideo, localStream);
+            setTimeout(() => {
+                localVideo.muted = true; // Always mute local video to avoid echo
+                localVideo.autoplay = true;
+                localVideo.playsInline = true;
+                localVideo.style.display = "block";
+                localVideo.srcObject = localStream;
+                localStream.getTracks().forEach(track => {
+                    track.enabled = true;
+                });
+                localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
+            }, 50);
+        }
 
         peerConnection = new RTCPeerConnection(config);
         attachPeerConnectionListeners();
 
-        localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
-        });
+        if (localStream) {
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+        }
 
         await peerConnection.setRemoteDescription(data.offer);
         isRemoteDescriptionSet = true;
