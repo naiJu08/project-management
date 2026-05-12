@@ -189,6 +189,8 @@
         let callTimer = null;
         let pendingCandidates = [];
         let remoteDescriptionSet = false;
+        let remoteVideoFrameMonitor = null;
+        let remoteVideoFrameMonitorToken = 0;
         
         const iceServers = [
             // Google STUN servers (primary)
@@ -263,6 +265,39 @@
                 pc.addEventListener("icegatheringstatechange", onStateChange);
             });
         }
+
+        function bindLocalVideoStream(localVideo, stream) {
+            if (!localVideo || !stream) return;
+
+            localVideo.muted = true;
+            localVideo.autoplay = true;
+            localVideo.playsInline = true;
+            stream.getTracks().forEach(track => {
+                track.enabled = true;
+            });
+
+            localVideo.srcObject = stream;
+            localVideo.onloadedmetadata = () => {
+                localVideo.play().catch(error => {
+                    console.error("Local video play error:", error);
+                });
+            };
+            localVideo.play().catch(error => {
+                console.error("Local video play error:", error);
+            });
+
+            setTimeout(() => {
+                const hasLiveVideoTrack = stream.getVideoTracks().some(track => track.readyState === "live");
+                if (hasLiveVideoTrack && localVideo.videoWidth === 0) {
+                    localVideo.srcObject = new MediaStream(stream.getTracks());
+                    setTimeout(() => {
+                        localVideo.play().catch(error => {
+                            console.error("Local video play error:", error);
+                        });
+                    }, 100);
+                }
+            }, 800);
+        }
         
         // Test network connectivity
         async function testNetworkConnectivity() {
@@ -333,22 +368,34 @@
                 }
                 
                 // Get media
-                localStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        width: { ideal: 1280, max: 1920 },
-                        height: { ideal: 720, max: 1080 },
-                        facingMode: "user"
-                    },
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
-                });
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            width: { ideal: 1280, max: 1920 },
+                            height: { ideal: 720, max: 1080 },
+                            facingMode: "user"
+                        },
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        }
+                    });
+                } catch (mediaError) {
+                    console.warn("Enhanced media constraints failed, retrying with basic constraints:", mediaError);
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: true
+                    });
+                }
                 
                 // Set local video
                 const localVideo = document.getElementById('localVideo');
-                localVideo.srcObject = localStream;
+                if (localVideo.srcObject) {
+                    localVideo.pause();
+                    localVideo.srcObject = null;
+                }
+                bindLocalVideoStream(localVideo, localStream);
                 
                 // Create peer connection
                 peerConnection = new RTCPeerConnection(config);
@@ -415,9 +462,9 @@
         function playRemoteVideo() {
             const remoteVideo = document.getElementById('remoteVideo');
             if (!remoteVideo || !remoteVideo.srcObject) return;
-            
-            // Already playing
-            if (!remoteVideo.paused && remoteVideo.readyState >= 2) return;
+
+            const hasLiveVideoTrack = remoteVideo.srcObject.getVideoTracks().some(track => track.readyState === "live");
+            if (!remoteVideo.paused && remoteVideo.readyState >= 2 && (!hasLiveVideoTrack || remoteVideo.videoWidth > 0)) return;
             
             const playPromise = remoteVideo.play();
             if (playPromise !== undefined) {
@@ -438,6 +485,78 @@
                 });
             }
         }
+
+        function refreshRemoteVideoIfBlack() {
+            const remoteVideo = document.getElementById('remoteVideo');
+            if (!remoteVideo || !remoteVideo.srcObject) return;
+
+            const tracks = remoteVideo.srcObject.getTracks();
+            const hasLiveVideoTrack = remoteVideo.srcObject.getVideoTracks().some(track => track.readyState === "live");
+
+            if (hasLiveVideoTrack && remoteVideo.videoWidth === 0) {
+                remoteVideo.srcObject = null;
+                remoteVideo.srcObject = new MediaStream(tracks);
+                setTimeout(playRemoteVideo, 100);
+            }
+        }
+
+        function refreshRemoteVideoStream() {
+            const remoteVideo = document.getElementById('remoteVideo');
+            if (!remoteVideo || !remoteVideo.srcObject) return;
+
+            const tracks = remoteVideo.srcObject.getTracks();
+            const hasLiveVideoTrack = remoteVideo.srcObject.getVideoTracks().some(track => track.readyState === "live");
+            if (!hasLiveVideoTrack) return;
+
+            remoteVideo.srcObject = null;
+            remoteVideo.srcObject = new MediaStream(tracks);
+            setTimeout(playRemoteVideo, 100);
+        }
+
+        function startRemoteVideoFrameMonitor() {
+            const remoteVideo = document.getElementById('remoteVideo');
+            if (!remoteVideo || !remoteVideo.srcObject) return;
+
+            if (remoteVideoFrameMonitor) {
+                clearInterval(remoteVideoFrameMonitor);
+            }
+
+            remoteVideoFrameMonitorToken++;
+            const monitorToken = remoteVideoFrameMonitorToken;
+            let lastFrameAt = Date.now();
+            let lastVideoTime = remoteVideo.currentTime;
+
+            if ("requestVideoFrameCallback" in remoteVideo) {
+                const markFrame = () => {
+                    if (monitorToken !== remoteVideoFrameMonitorToken) return;
+                    lastFrameAt = Date.now();
+                    if (remoteVideo.srcObject) {
+                        remoteVideo.requestVideoFrameCallback(markFrame);
+                    }
+                };
+                remoteVideo.requestVideoFrameCallback(markFrame);
+            }
+
+            remoteVideoFrameMonitor = setInterval(() => {
+                if (!remoteVideo.srcObject || !peerConnection) return;
+
+                const hasLiveVideoTrack = remoteVideo.srcObject.getVideoTracks().some(track => track.readyState === "live");
+                if (!hasLiveVideoTrack || remoteVideo.paused) return;
+
+                if (!("requestVideoFrameCallback" in remoteVideo)) {
+                    if (remoteVideo.currentTime !== lastVideoTime) {
+                        lastVideoTime = remoteVideo.currentTime;
+                        lastFrameAt = Date.now();
+                    }
+                }
+
+                if (remoteVideo.videoWidth > 0 && Date.now() - lastFrameAt > 2500) {
+                    console.warn("Remote video frame stalled, refreshing video element");
+                    refreshRemoteVideoStream();
+                    lastFrameAt = Date.now();
+                }
+            }, 1000);
+        }
         
         function setupPeerConnectionListeners() {
             peerConnection.ontrack = event => {
@@ -451,24 +570,33 @@
                     return;
                 }
                 
-                // Always update srcObject with latest stream
+                if (remoteVideo.playTimeout) {
+                    clearTimeout(remoteVideo.playTimeout);
+                }
+
                 if (event.streams && event.streams[0]) {
                     remoteVideo.srcObject = event.streams[0];
+                    event.streams[0].getTracks().forEach(track => {
+                        track.enabled = true;
+                    });
                 } else {
-                    // Fallback: build stream from track directly
                     if (!remoteVideo.srcObject) {
                         remoteVideo.srcObject = new MediaStream();
                     }
+                    event.track.enabled = true;
                     remoteVideo.srcObject.addTrack(event.track);
                 }
                 
                 remoteVideo.muted = false;
                 remoteVideo.autoplay = true;
                 remoteVideo.playsInline = true;
-                
-                // Attempt to play after a short delay
-                if (remoteVideo.playTimeout) clearTimeout(remoteVideo.playTimeout);
+                remoteVideo.onloadedmetadata = playRemoteVideo;
+                event.track.onunmute = playRemoteVideo;
                 remoteVideo.playTimeout = setTimeout(playRemoteVideo, 200);
+                setTimeout(refreshRemoteVideoIfBlack, 800);
+                setTimeout(refreshRemoteVideoIfBlack, 1800);
+                setTimeout(refreshRemoteVideoIfBlack, 3000);
+                startRemoteVideoFrameMonitor();
             };
             
             peerConnection.onicecandidate = event => {
@@ -634,6 +762,23 @@
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
             }
+
+            const localVideo = document.getElementById('localVideo');
+            const remoteVideo = document.getElementById('remoteVideo');
+
+            if (localVideo) {
+                localVideo.pause();
+                localVideo.srcObject = null;
+            }
+            if (remoteVideo) {
+                remoteVideo.pause();
+                remoteVideo.srcObject = null;
+            }
+            if (remoteVideoFrameMonitor) {
+                clearInterval(remoteVideoFrameMonitor);
+                remoteVideoFrameMonitor = null;
+            }
+            remoteVideoFrameMonitorToken++;
             
             // Close window
             window.close();
