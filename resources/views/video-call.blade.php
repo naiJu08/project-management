@@ -191,6 +191,7 @@
         let remoteDescriptionSet = false;
         let remoteVideoFrameMonitor = null;
         let remoteVideoFrameMonitorToken = 0;
+        let processingOffer = false;
         
         const iceServers = [
             // Google STUN servers (primary)
@@ -656,6 +657,20 @@
         
         async function handleIncomingOffer(offer) {
             try {
+                if (!offer || !offer.type || !offer.sdp) {
+                    console.warn("Ignoring invalid offer payload");
+                    return;
+                }
+
+                // Handle glare/re-offer safely without changing overall call flow
+                if (peerConnection.signalingState !== "stable") {
+                    try {
+                        await peerConnection.setLocalDescription({ type: "rollback" });
+                    } catch (rollbackError) {
+                        console.warn("Rollback not supported or failed:", rollbackError);
+                    }
+                }
+
                 await peerConnection.setRemoteDescription(offer);
                 remoteDescriptionSet = true;
                 
@@ -683,7 +698,22 @@
                 console.error("❌ Failed to handle offer:", error);
             }
         }
-        
+
+        socket.on("offer", async (data) => {
+            try {
+                if (!data || !data.offer) return;
+                if (!peerConnection) return;
+                if (processingOffer) return;
+
+                processingOffer = true;
+                await handleIncomingOffer(data.offer);
+            } catch (error) {
+                console.error("❌ Failed to process incoming socket offer:", error);
+            } finally {
+                processingOffer = false;
+            }
+        });
+
         async function createAndSendOffer() {
             try {
                 const offer = await peerConnection.createOffer();
