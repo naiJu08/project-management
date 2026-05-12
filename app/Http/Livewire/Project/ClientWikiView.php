@@ -163,7 +163,8 @@ class ClientWikiView extends Component
         $user = auth()->user();
 
         if ($this->isClientWikiUser()) {
-            return WikiPage::where('project_id', $this->projectId)
+            return $this->project->users()->where('users.id', $user->id)->exists()
+                && WikiPage::where('project_id', $this->projectId)
                 ->clientVisible()
                 ->exists();
         }

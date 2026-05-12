@@ -108,6 +108,17 @@ class ProjectResource extends Resource
                                             ->options(fn() => ProjectStatus::all()->pluck('name', 'id')->toArray())
                                             ->default(fn() => ProjectStatus::where('is_default', true)->first()?->id)
                                             ->required(),
+
+                                        Forms\Components\Select::make('client_user_ids')
+                                            ->label(__('Clients'))
+                                            ->multiple()
+                                            ->searchable()
+                                            ->options(fn() => User::query()
+                                                ->whereHas('roles', fn ($query) => $query->whereRaw('LOWER(name) = ?', ['client']))
+                                                ->pluck('name', 'id')
+                                                ->toArray())
+                                            ->helperText(__('Optional: assign client users to this project.'))
+                                            ->dehydrated(false),
                                     ]),
 
                                 Forms\Components\RichEditor::make('description')

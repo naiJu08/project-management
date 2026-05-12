@@ -4,6 +4,7 @@ namespace App\Filament\Resources\ProjectResource\Pages;
 
 use App\Filament\Resources\ProjectResource;
 use App\Jobs\GenerateProjectTasksWithCohere;
+use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Schema;
 use Filament\Pages\Actions;
@@ -17,6 +18,28 @@ class CreateProject extends CreateRecord
     {
         // Use raw state to include non-dehydrated controls
         $data = $this->form->getRawState();
+        $clientUserIds = collect($data['client_user_ids'] ?? [])
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($clientUserIds->isNotEmpty()) {
+            $validClientIds = User::query()
+                ->whereIn('id', $clientUserIds->all())
+                ->whereHas('roles', fn ($query) => $query->whereRaw('LOWER(name) = ?', ['client']))
+                ->pluck('id')
+                ->all();
+
+            if (!empty($validClientIds)) {
+                $this->record->users()->syncWithoutDetaching(
+                    collect($validClientIds)->mapWithKeys(fn ($id) => [
+                        $id => ['role' => 'customer'],
+                    ])->toArray()
+                );
+            }
+        }
+
         $auto = $data['ai_autogenerate'] ?? false;
         $context = $data['ai_context'] ?? null;
         if ($auto) {

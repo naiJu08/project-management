@@ -23,10 +23,14 @@ class ListProjects extends ListRecords
         if ($this->isClientWikiUser()) {
             return parent::getTableQuery()
                 ->where(function ($query) {
-                    $query->whereHas('wikiPages', function ($wikiQuery) {
-                        $wikiQuery->clientVisible();
-                    })->orWhereHas('wikiPages.children', function ($wikiQuery) {
-                        $wikiQuery->clientVisible();
+                    $query->whereHas('users', function ($usersQuery) {
+                        $usersQuery->where('users.id', auth()->id());
+                    })->where(function ($wikiScope) {
+                        $wikiScope->whereHas('wikiPages', function ($wikiQuery) {
+                            $wikiQuery->clientVisible();
+                        })->orWhereHas('wikiPages.children', function ($wikiQuery) {
+                            $wikiQuery->clientVisible();
+                        });
                     });
                 });
         }
