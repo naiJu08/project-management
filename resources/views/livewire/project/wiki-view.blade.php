@@ -708,6 +708,20 @@
     @endif
 </div>
 
+<style>
+    .wiki-content img {
+        cursor: pointer;
+    }
+</style>
+
+{{-- Image Preview Modal --}}
+<div id="wiki-image-preview-modal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.82); align-items:center; justify-content:center; padding:16px;">
+    <button type="button" id="wiki-image-preview-close" style="position:absolute; right:16px; top:16px; border:0; border-radius:6px; background:rgba(0,0,0,0.6); color:#fff; padding:6px 10px; font-size:13px; cursor:pointer;">
+        Close
+    </button>
+    <img id="wiki-image-preview-img" src="" alt="Image preview" style="max-height:90vh; max-width:90vw; border-radius:10px; box-shadow:0 18px 45px rgba(0,0,0,0.45);">
+</div>
+
 {{-- Progress Toast --}}
 <div id="progress-toast" class="fixed bottom-4 right-4 z-50 hidden">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-4 w-96 border border-gray-200 dark:border-gray-700">
@@ -740,6 +754,7 @@
 <script>
     let progressPollingInterval = null;
     let wikiTrixEditor = null;
+    let wikiImagePreviewInitialized = false;
 
     function showProgressToast() {
         document.getElementById('progress-toast').classList.remove('hidden');
@@ -814,6 +829,59 @@
         });
     }
 
+    function initWikiImagePreview() {
+        if (wikiImagePreviewInitialized) {
+            return;
+        }
+
+        const modal = document.getElementById('wiki-image-preview-modal');
+        const previewImg = document.getElementById('wiki-image-preview-img');
+        const closeBtn = document.getElementById('wiki-image-preview-close');
+
+        if (!modal || !previewImg || !closeBtn) {
+            return;
+        }
+
+        const closePreview = () => {
+            modal.style.display = 'none';
+            previewImg.src = '';
+        };
+
+        const openPreview = (src) => {
+            if (!src) {
+                return;
+            }
+
+            previewImg.src = src;
+            modal.style.display = 'flex';
+        };
+
+        document.addEventListener('click', function (event) {
+            const targetImage = event.target.closest('.wiki-content img');
+            if (!targetImage) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            openPreview(targetImage.getAttribute('src'));
+        });
+
+        closeBtn.addEventListener('click', closePreview);
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) {
+                closePreview();
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closePreview();
+            }
+        });
+
+        wikiImagePreviewInitialized = true;
+    }
+
     function getWikiComponent() {
         const trixEditor = document.querySelector('trix-editor[input="wiki-content"]');
         const componentRoot = trixEditor?.closest('[wire\\:id]') ?? document.querySelector('[wire\\:id]');
@@ -850,6 +918,7 @@
 
     document.addEventListener('livewire:load', function () {
         setTimeout(initWikiTrixEditor, 100);
+        initWikiImagePreview();
 
         // Re-initialize only when entering edit mode
         let wasEditing = @this.isEditing;

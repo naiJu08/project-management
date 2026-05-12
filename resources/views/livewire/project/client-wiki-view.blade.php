@@ -122,7 +122,7 @@
                         </div>
                     @endif
 
-                    <div class="prose dark:prose-invert max-w-none mb-8">
+                    <div class="prose dark:prose-invert max-w-none mb-8 wiki-content">
                         {!! $selectedPage->processed_content ?? $selectedPage->content ?? '' !!}
                     </div>
 
@@ -298,3 +298,71 @@
         </div>
     </div>
 </div>
+
+<style>
+    .wiki-content img {
+        cursor: pointer;
+    }
+</style>
+
+{{-- Image Preview Modal --}}
+<div id="wiki-image-preview-modal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.82); align-items:center; justify-content:center; padding:16px;">
+    <button type="button" id="wiki-image-preview-close" style="position:absolute; right:16px; top:16px; border:0; border-radius:6px; background:rgba(0,0,0,0.6); color:#fff; padding:6px 10px; font-size:13px; cursor:pointer;">
+        Close
+    </button>
+    <img id="wiki-image-preview-img" src="" alt="Image preview" style="max-height:90vh; max-width:90vw; border-radius:10px; box-shadow:0 18px 45px rgba(0,0,0,0.45);">
+</div>
+
+<script>
+    document.addEventListener('livewire:load', function () {
+        if (window.__wikiImagePreviewInitialized) {
+            return;
+        }
+
+        const modal = document.getElementById('wiki-image-preview-modal');
+        const previewImg = document.getElementById('wiki-image-preview-img');
+        const closeBtn = document.getElementById('wiki-image-preview-close');
+
+        if (!modal || !previewImg || !closeBtn) {
+            return;
+        }
+
+        const closePreview = () => {
+            modal.style.display = 'none';
+            previewImg.src = '';
+        };
+
+        const openPreview = (src) => {
+            if (!src) {
+                return;
+            }
+            previewImg.src = src;
+            modal.style.display = 'flex';
+        };
+
+        document.addEventListener('click', function (event) {
+            const targetImage = event.target.closest('.wiki-content img');
+            if (!targetImage) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            openPreview(targetImage.getAttribute('src'));
+        });
+
+        closeBtn.addEventListener('click', closePreview);
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) {
+                closePreview();
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closePreview();
+            }
+        });
+
+        window.__wikiImagePreviewInitialized = true;
+    });
+</script>
