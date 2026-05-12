@@ -977,7 +977,7 @@
                     video: {
                         width: { ideal: 1280, max: 1920 },
                         height: { ideal: 720, max: 1080 },
-                        facingMode: "user"
+                        facingMode: { ideal: "user" }
                     },
                     audio: {
                         echoCancellation: true,
@@ -986,8 +986,19 @@
                     }
                 }
             },
+            {
+                label: "enhanced video+audio (no facing mode)",
+                constraints: {
+                    video: {
+                        width: { ideal: 1280, max: 1920 },
+                        height: { ideal: 720, max: 1080 }
+                    },
+                    audio: true
+                }
+            },
             { label: "basic video+audio", constraints: { video: true, audio: true } },
-            { label: "video-only fallback", constraints: { video: true, audio: false } }
+            { label: "video-only fallback", constraints: { video: true, audio: false } },
+            { label: "video-only low-res fallback", constraints: { video: { width: 640, height: 480 }, audio: false } }
         ];
 
         let lastError = null;
@@ -1158,12 +1169,14 @@
         document.getElementById("videoCallContainer").style.display = "block";
 
         // ✅ GET CAMERA
+        let receiverMediaUnavailable = false;
         try {
             localStream = await getBestLocalMediaStream("Receiver");
         } catch (e) {
-            alert("Receiver camera/mic unavailable or blocked");
             console.error("Receiver media error:", e);
-            return;
+            receiverMediaUnavailable = true;
+            localStream = null;
+            alert("Receiver camera/mic unavailable. Continuing with receive-only mode.");
         }
 
         // ✅ FIX: Proper local video setup
@@ -1172,25 +1185,29 @@
             localVideo.pause();
             localVideo.srcObject = null;
         }
-        bindLocalVideoStream(localVideo, localStream);
-        setTimeout(() => {
-            localVideo.muted = true; // Always mute local video to avoid echo
-            localVideo.autoplay = true;
-            localVideo.playsInline = true;
-            localVideo.style.display = "block";
-            localVideo.srcObject = localStream;
-            localStream.getTracks().forEach(track => {
-                track.enabled = true;
-            });
-            localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
-        }, 50);
+        if (!receiverMediaUnavailable && localStream) {
+            bindLocalVideoStream(localVideo, localStream);
+            setTimeout(() => {
+                localVideo.muted = true; // Always mute local video to avoid echo
+                localVideo.autoplay = true;
+                localVideo.playsInline = true;
+                localVideo.style.display = "block";
+                localVideo.srcObject = localStream;
+                localStream.getTracks().forEach(track => {
+                    track.enabled = true;
+                });
+                localVideo.play().catch(e => console.error("🎥 Local video play error:", e));
+            }, 50);
+        }
 
         peerConnection = new RTCPeerConnection(config);
         attachPeerConnectionListeners();
 
-        localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
-        });
+        if (localStream) {
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+        }
 
         await peerConnection.setRemoteDescription(data.offer);
         isRemoteDescriptionSet = true;
