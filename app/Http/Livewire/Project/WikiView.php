@@ -8,6 +8,7 @@ use App\Models\BacklogItem;
 use App\Services\OllamaService;
 use App\Services\WikiPdfExportService;
 use App\Jobs\GenerateBacklogFromWiki;
+use Filament\Notifications\Actions\Action;
 use Filament\Notifications\Notification as FilamentNotification;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -55,6 +56,17 @@ class WikiView extends Component
     {
         $this->projectId = $projectId;
         $this->loadPages();
+
+        $requestedWikiPageId = (int) request()->query('wikiPage');
+        if ($requestedWikiPageId > 0) {
+            $requestedPage = WikiPage::where('id', $requestedWikiPageId)
+                ->where('project_id', $this->projectId)
+                ->first();
+
+            if ($requestedPage) {
+                $this->selectPage($requestedPage->id);
+            }
+        }
     }
 
     protected function setMessage($type, $message)
@@ -265,9 +277,17 @@ class WikiView extends Component
         }
 
         foreach ($newMentionedUsers as $user) {
+            $wikiUrl = url('/projects/' . $page->project_id . '?activeTab=wiki&wikiPage=' . $page->id);
+
             FilamentNotification::make()
                 ->title('You were mentioned in Wiki')
-                ->body(auth()->user()->name . ' mentioned you in "' . $page->title . '".')
+                ->body(auth()->user()->name . ' mentioned you in "' . $page->title . "\".\n\n[Open Wiki Page]({$wikiUrl})")
+                ->actions([
+                    Action::make('view_wiki')
+                        ->label('View Wiki')
+                        ->link()
+                        ->url($wikiUrl),
+                ])
                 ->sendToDatabase($user);
         }
     }
