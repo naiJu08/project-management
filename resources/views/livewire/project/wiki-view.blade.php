@@ -281,17 +281,6 @@
                     </span>
                 </div>
 
-                {{-- Client Visibility Indicator --}}
-                @if($selectedPage->client_visible)
-                    <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg flex items-center">
-                        <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                        </svg>
-                        <span class="text-sm text-blue-700 dark:text-blue-300">This page is visible to clients</span>
-                    </div>
-                @endif
-
                 {{-- Sign-off Banner --}}
                 @if($selectedPage->isSignedOff())
                     <div class="mb-6 p-4 bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded-lg">
@@ -314,7 +303,34 @@
                     </div>
                 @endif
 
-                @if(filled($selectedPage->processed_content ?? $selectedPage->content))
+                @php
+                    $currentUserProjectRole = auth()->user()
+                        ?->projects()
+                        ->where('projects.id', $selectedPage->project_id)
+                        ->first()
+                        ?->pivot
+                        ?->role;
+
+                    $canViewClientVisibleDetails = !$selectedPage->client_visible
+                        || auth()->id() === $selectedPage->created_by
+                        || in_array(strtolower(trim((string) $currentUserProjectRole)), ['owner', 'admin'], true);
+                @endphp
+
+                @if(!$canViewClientVisibleDetails)
+                    <div class="mb-8 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/20 p-4 text-sm text-gray-500 dark:text-gray-400">
+                        This client-visible wiki content is hidden for other employees.
+                    </div>
+                @elseif(filled($selectedPage->processed_content ?? $selectedPage->content))
+                    @if($selectedPage->client_visible)
+                        <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg flex items-center">
+                            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                            <span class="text-sm text-blue-700 dark:text-blue-300">This page is visible to clients</span>
+                        </div>
+                    @endif
+
                     <div class="prose dark:prose-invert max-w-none mb-8 wiki-content">
                         {!! $selectedPage->processed_content ?? $selectedPage->content !!}
                     </div>
@@ -325,13 +341,29 @@
                 @endif
 
                 {{-- Comments Section --}}
-                @if(auth()->user()->can('Comment on wiki'))
+                @if(auth()->user()->can('Comment on wiki') && $canViewClientVisibleDetails)
+                    @php
+                        $isClientSideComment = function ($comment) use ($selectedPage) {
+                            $projectRole = optional($comment->user)
+                                ?->projects()
+                                ->where('projects.id', $selectedPage->project_id)
+                                ->first()
+                                ?->pivot
+                                ?->role;
+
+                            $normalizedProjectRole = strtolower(trim((string) $projectRole));
+
+                            return $comment->isClientComment()
+                                || in_array($normalizedProjectRole, ['customer', 'client'], true);
+                        };
+                        $employeeVisibleComments = $selectedPage->comments->reject($isClientSideComment);
+                    @endphp
                     <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
                         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
                             </svg>
-                            Comments ({{ $selectedPage->allComments->count() }})
+                            Comments ({{ $employeeVisibleComments->count() }})
                         </h3>
 
                         {{-- Add Comment Form --}}
@@ -359,7 +391,7 @@
 
                         {{-- Comments List --}}
                         <div class="space-y-4">
-                            @forelse($selectedPage->comments as $comment)
+                            @forelse($employeeVisibleComments as $comment)
                                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                                     <div class="flex items-start justify-between mb-2">
                                         <div class="flex items-center space-x-2">
@@ -389,9 +421,12 @@
                                     </div>
 
                                     {{-- Replies --}}
-                                    @if($comment->replies->count() > 0)
+                                    @php
+                                        $employeeVisibleReplies = $comment->replies->reject($isClientSideComment);
+                                    @endphp
+                                    @if($employeeVisibleReplies->count() > 0)
                                         <div class="mt-3 ml-6 space-y-3 border-l-2 border-gray-300 dark:border-gray-600 pl-4">
-                                            @foreach($comment->replies as $reply)
+                                            @foreach($employeeVisibleReplies as $reply)
                                                 <div class="bg-white dark:bg-gray-800 rounded p-3">
                                                     <div class="flex items-start justify-between mb-2">
                                                         <div class="flex items-center space-x-2">
