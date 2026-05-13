@@ -178,6 +178,9 @@
                             <trix-editor input="wiki-content" class="trix-content"></trix-editor>
                         </div>
                     </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        Type <span class="font-semibold">@</span> to mention project members (example: <span class="font-semibold">@John Doe</span>).
+                    </p>
                     @error('content') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
                 </div>
 
@@ -810,6 +813,13 @@
     let progressPollingInterval = null;
     let wikiTrixEditor = null;
     let wikiImagePreviewInitialized = false;
+    let wikiMentionDropdown = null;
+    const wikiMentionUsers = @json(
+        $this->project->contributors
+            ->filter(fn ($user) => filled($user?->name))
+            ->values()
+            ->map(fn ($user) => ['id' => $user->id, 'name' => $user->name])
+    );
 
     function showProgressToast() {
         document.getElementById('progress-toast').classList.remove('hidden');
@@ -847,7 +857,43 @@
         trixEditor.addEventListener('trix-change', function() {
             requestAnimationFrame(() => {
                 syncWikiContent();
+                handleWikiMentions();
             });
+        });
+
+        trixEditor.addEventListener('keyup', function() {
+            handleWikiMentions();
+        });
+
+        trixEditor.addEventListener('click', function() {
+            handleWikiMentions();
+        });
+
+        trixEditor.addEventListener('keydown', function(event) {
+            if (!wikiMentionDropdown || wikiMentionDropdown.style.display === 'none') {
+                return;
+            }
+
+            if (event.key === 'Escape') {
+                hideWikiMentionDropdown();
+                return;
+            }
+
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                moveWikiMentionSelection(event.key === 'ArrowDown' ? 1 : -1);
+                return;
+            }
+
+            if (event.key === 'Enter') {
+                const activeItem = wikiMentionDropdown.querySelector('[data-mention-active="1"]');
+                if (!activeItem) {
+                    return;
+                }
+
+                event.preventDefault();
+                insertWikiMention(activeItem.dataset.name || '');
+            }
         });
 
         trixEditor.addEventListener('trix-attachment-add', function(event) {
@@ -881,6 +927,176 @@
                     window.removeEventListener('trix-attachment-uploaded', handler);
                 }, { once: true });
             });
+        });
+    }
+
+    function ensureWikiMentionDropdown() {
+        if (wikiMentionDropdown) {
+            return wikiMentionDropdown;
+        }
+
+        wikiMentionDropdown = document.createElement('div');
+        wikiMentionDropdown.id = 'wiki-mention-dropdown';
+        wikiMentionDropdown.style.position = 'absolute';
+        wikiMentionDropdown.style.zIndex = '9999';
+        wikiMentionDropdown.style.minWidth = '220px';
+        wikiMentionDropdown.style.maxWidth = '320px';
+        wikiMentionDropdown.style.maxHeight = '200px';
+        wikiMentionDropdown.style.overflowY = 'auto';
+        wikiMentionDropdown.style.display = 'none';
+        wikiMentionDropdown.style.background = '#fff';
+        wikiMentionDropdown.style.border = '1px solid #d1d5db';
+        wikiMentionDropdown.style.borderRadius = '8px';
+        wikiMentionDropdown.style.boxShadow = '0 10px 25px rgba(0,0,0,0.12)';
+        document.body.appendChild(wikiMentionDropdown);
+
+        return wikiMentionDropdown;
+    }
+
+    function hideWikiMentionDropdown() {
+        if (wikiMentionDropdown) {
+            wikiMentionDropdown.style.display = 'none';
+            wikiMentionDropdown.innerHTML = '';
+        }
+    }
+
+    function handleWikiMentions() {
+        const trixEditor = document.querySelector('trix-editor[input="wiki-content"]');
+        if (!trixEditor || !trixEditor.editor || !Array.isArray(wikiMentionUsers) || wikiMentionUsers.length === 0) {
+            hideWikiMentionDropdown();
+            return;
+        }
+
+        const editor = trixEditor.editor;
+        const range = editor.getSelectedRange();
+        if (!range || range[0] !== range[1]) {
+            hideWikiMentionDropdown();
+            return;
+        }
+
+        const cursor = range[0];
+        const documentText = editor.getDocument().toString();
+        const textBeforeCursor = documentText.slice(0, cursor);
+        const mentionMatch = textBeforeCursor.match(/(^|\s)@([^\s@]*)$/u);
+
+        if (!mentionMatch) {
+            hideWikiMentionDropdown();
+            return;
+        }
+
+        const query = (mentionMatch[2] || '').toLowerCase();
+        const matches = wikiMentionUsers
+            .filter(user => (user.name || '').toLowerCase().includes(query))
+            .slice(0, 8);
+
+        if (!matches.length) {
+            hideWikiMentionDropdown();
+            return;
+        }
+
+        showWikiMentionDropdown(matches, trixEditor);
+    }
+
+    function showWikiMentionDropdown(matches, trixEditor) {
+        const dropdown = ensureWikiMentionDropdown();
+        dropdown.innerHTML = '';
+
+        matches.forEach((user, index) => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.dataset.name = user.name;
+            item.dataset.mentionActive = index === 0 ? '1' : '0';
+            item.style.display = 'block';
+            item.style.width = '100%';
+            item.style.textAlign = 'left';
+            item.style.padding = '8px 12px';
+            item.style.border = '0';
+            item.style.background = index === 0 ? '#eff6ff' : '#fff';
+            item.style.cursor = 'pointer';
+            item.textContent = '@' + user.name;
+
+            item.addEventListener('mouseenter', function() {
+                setWikiMentionActive(item);
+            });
+            item.addEventListener('mousedown', function(event) {
+                event.preventDefault();
+                insertWikiMention(user.name);
+            });
+
+            dropdown.appendChild(item);
+        });
+
+        const rect = trixEditor.getBoundingClientRect();
+        dropdown.style.left = rect.left + window.scrollX + 8 + 'px';
+        dropdown.style.top = rect.bottom + window.scrollY - 8 + 'px';
+        dropdown.style.display = 'block';
+    }
+
+    function setWikiMentionActive(activeItem) {
+        if (!wikiMentionDropdown) {
+            return;
+        }
+
+        wikiMentionDropdown.querySelectorAll('button').forEach((item) => {
+            const isActive = item === activeItem;
+            item.dataset.mentionActive = isActive ? '1' : '0';
+            item.style.background = isActive ? '#eff6ff' : '#fff';
+        });
+    }
+
+    function moveWikiMentionSelection(direction) {
+        if (!wikiMentionDropdown) {
+            return;
+        }
+
+        const items = Array.from(wikiMentionDropdown.querySelectorAll('button'));
+        if (!items.length) {
+            return;
+        }
+
+        let activeIndex = items.findIndex((item) => item.dataset.mentionActive === '1');
+        if (activeIndex === -1) {
+            activeIndex = 0;
+        }
+
+        const nextIndex = (activeIndex + direction + items.length) % items.length;
+        const nextItem = items[nextIndex];
+        setWikiMentionActive(nextItem);
+        nextItem.scrollIntoView({ block: 'nearest' });
+    }
+
+    function insertWikiMention(name) {
+        if (!name) {
+            return;
+        }
+
+        const trixEditor = document.querySelector('trix-editor[input="wiki-content"]');
+        if (!trixEditor || !trixEditor.editor) {
+            hideWikiMentionDropdown();
+            return;
+        }
+
+        const editor = trixEditor.editor;
+        const range = editor.getSelectedRange();
+        const cursor = range ? range[0] : 0;
+        const documentText = editor.getDocument().toString();
+        const textBeforeCursor = documentText.slice(0, cursor);
+        const mentionMatch = textBeforeCursor.match(/(^|\s)@([^\s@]*)$/u);
+
+        if (!mentionMatch) {
+            hideWikiMentionDropdown();
+            return;
+        }
+
+        const typedPart = mentionMatch[0];
+        const startIndex = cursor - typedPart.length + (typedPart.startsWith(' ') ? 1 : 0);
+
+        editor.setSelectedRange([startIndex, cursor]);
+        editor.insertString('@' + name + ' ');
+
+        requestAnimationFrame(() => {
+            syncWikiContent();
+            hideWikiMentionDropdown();
         });
     }
 
@@ -1135,5 +1351,22 @@
         setTimeout(() => {
             @this.set('message', '');
         }, event.detail.delay);
+    });
+
+    document.addEventListener('click', function(event) {
+        if (!wikiMentionDropdown) {
+            return;
+        }
+
+        if (wikiMentionDropdown.contains(event.target)) {
+            return;
+        }
+
+        const trixEditor = document.querySelector('trix-editor[input="wiki-content"]');
+        if (trixEditor && trixEditor.contains(event.target)) {
+            return;
+        }
+
+        hideWikiMentionDropdown();
     });
 </script>
