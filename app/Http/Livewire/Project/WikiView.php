@@ -8,6 +8,7 @@ use App\Models\BacklogItem;
 use App\Services\OllamaService;
 use App\Services\WikiPdfExportService;
 use App\Jobs\GenerateBacklogFromWiki;
+use Filament\Notifications\Notification as FilamentNotification;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Gate;
@@ -189,8 +190,12 @@ class WikiView extends Component
         ]);
 
         $pageId = null;
+        $savedPage = null;
+        $oldContent = null;
+        $newContent = '';
 
         if ($this->selectedPage) {
+            $oldContent = $this->selectedPage->content ?? '';
             $normalizedContent = $this->normalizeWikiContent($this->content, $this->selectedPage);
 
             // Update existing page
@@ -204,6 +209,8 @@ class WikiView extends Component
             ]);
             $this->content = $normalizedContent;
             $pageId = $this->selectedPage->id;
+            $savedPage = $this->selectedPage->fresh();
+            $newContent = $normalizedContent;
             $this->setMessage('success', 'Wiki page updated successfully!');
         } else {
             // Create new page
@@ -222,13 +229,66 @@ class WikiView extends Component
             $page->update(['content' => $normalizedContent]);
             $this->content = $normalizedContent;
             $pageId = $page->id;
+            $savedPage = $page->fresh();
+            $newContent = $normalizedContent;
             $this->setMessage('success', 'Wiki page created successfully!');
+        }
+
+        if ($savedPage) {
+            $this->notifyMentionedUsers($savedPage, $newContent, $oldContent);
         }
 
         $this->isEditing = false;
         $this->isCreating = false;
         $this->loadPages();
         $this->selectPage($pageId);
+    }
+
+    private function notifyMentionedUsers(WikiPage $page, string $newContent, ?string $oldContent = null): void
+    {
+        $contributors = $this->project->contributors
+            ->filter(fn ($user) => $user && (int) $user->id !== (int) auth()->id())
+            ->unique('id')
+            ->values();
+
+        if ($contributors->isEmpty()) {
+            return;
+        }
+
+        $newMentionedUsers = $this->extractMentionedUsersFromContent($newContent, $contributors);
+
+        if ($oldContent !== null) {
+            $oldMentionedUsers = $this->extractMentionedUsersFromContent($oldContent, $contributors);
+            $newMentionedUsers = $newMentionedUsers->reject(
+                fn ($user) => $oldMentionedUsers->contains('id', $user->id)
+            )->values();
+        }
+
+        foreach ($newMentionedUsers as $user) {
+            FilamentNotification::make()
+                ->title('You were mentioned in Wiki')
+                ->body(auth()->user()->name . ' mentioned you in "' . $page->title . '".')
+                ->sendToDatabase($user);
+        }
+    }
+
+    private function extractMentionedUsersFromContent(string $content, $users)
+    {
+        $plainText = strip_tags($content);
+        $plainText = html_entity_decode($plainText, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $plainText = str_replace("\u{00A0}", ' ', $plainText);
+        $plainText = preg_replace('/\s+/u', ' ', $plainText) ?? $plainText;
+        $plainText = ' ' . trim($plainText) . ' ';
+
+        return $users->filter(function ($user) use ($plainText) {
+            $name = trim((string) $user->name);
+            if ($name === '') {
+                return false;
+            }
+
+            $pattern = '/(^|\\s)@' . preg_quote($name, '/') . '(?=\\s|$|[.,!?;:])/iu';
+            return preg_match($pattern, $plainText) === 1;
+        })->values();
     }
 
     public function savePageFromEditor($content = '')
