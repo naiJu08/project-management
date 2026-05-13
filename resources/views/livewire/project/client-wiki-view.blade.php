@@ -303,6 +303,20 @@
     .wiki-content img {
         cursor: pointer;
     }
+
+    .wiki-content .wiki-video-preview-btn {
+        display: inline-flex;
+        align-items: center;
+        margin-top: 0.5rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 0.375rem;
+        border: 1px solid #2563eb;
+        color: #ffffff;
+        background: #2563eb;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
 </style>
 
 {{-- Image Preview Modal --}}
@@ -312,8 +326,119 @@
     </button>
     <img id="wiki-image-preview-img" src="" alt="Image preview" style="max-height:90vh; max-width:90vw; border-radius:10px; box-shadow:0 18px 45px rgba(0,0,0,0.45);">
 </div>
+<div id="wiki-video-preview-modal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.82); align-items:center; justify-content:center; padding:16px;">
+    <button type="button" id="wiki-video-preview-close" style="position:absolute; right:16px; top:16px; border:0; border-radius:6px; background:rgba(0,0,0,0.6); color:#fff; padding:6px 10px; font-size:13px; cursor:pointer;">
+        Close
+    </button>
+    <video id="wiki-video-preview-player" controls style="max-height:90vh; max-width:90vw; border-radius:10px; box-shadow:0 18px 45px rgba(0,0,0,0.45); background:#000;"></video>
+</div>
 
 <script>
+    function initWikiVideoPreview() {
+        const wikiContentBlocks = document.querySelectorAll('.wiki-content');
+        if (!wikiContentBlocks.length) {
+            return;
+        }
+
+        const videoModal = document.getElementById('wiki-video-preview-modal');
+        const videoPlayer = document.getElementById('wiki-video-preview-player');
+        const closeVideoBtn = document.getElementById('wiki-video-preview-close');
+
+        if (!videoModal || !videoPlayer || !closeVideoBtn) {
+            return;
+        }
+
+        const isVideoFile = (filename = '') => {
+            const normalized = filename.toLowerCase();
+            return ['.mp4', '.webm', '.ogg', '.mov', '.m4v'].some(ext => normalized.endsWith(ext));
+        };
+
+        const parseAttachmentData = (node) => {
+            if (!node) {
+                return null;
+            }
+
+            const raw = node.getAttribute('data-trix-attachment');
+            if (!raw) {
+                return null;
+            }
+
+            try {
+                return JSON.parse(raw);
+            } catch (e) {
+                return null;
+            }
+        };
+
+        const openVideoPreview = (url) => {
+            if (!url) {
+                return;
+            }
+
+            videoPlayer.src = url;
+            videoModal.style.display = 'flex';
+            videoPlayer.play().catch(() => {});
+        };
+
+        const closeVideoPreview = () => {
+            videoModal.style.display = 'none';
+            videoPlayer.pause();
+            videoPlayer.src = '';
+        };
+
+        wikiContentBlocks.forEach((block) => {
+            const attachments = block.querySelectorAll('figure.attachment, span.attachment');
+            attachments.forEach((attachmentNode) => {
+                if (attachmentNode.dataset.videoPreviewAttached === '1') {
+                    return;
+                }
+
+                const attachmentData = parseAttachmentData(attachmentNode) || parseAttachmentData(attachmentNode.querySelector('[data-trix-attachment]'));
+                const fallbackLink = attachmentNode.querySelector('a[href]');
+                const fallbackName = fallbackLink?.textContent?.trim() ?? attachmentNode.textContent?.trim() ?? '';
+
+                const contentType = attachmentData?.contentType || '';
+                const filename = attachmentData?.filename || fallbackName;
+                const url = attachmentData?.url || fallbackLink?.getAttribute('href') || '';
+
+                const isVideo = contentType.startsWith('video/') || isVideoFile(filename);
+                if (!isVideo || !url) {
+                    return;
+                }
+
+                const previewBtn = document.createElement('button');
+                previewBtn.type = 'button';
+                previewBtn.className = 'wiki-video-preview-btn';
+                previewBtn.textContent = 'Preview Video';
+                previewBtn.addEventListener('click', function () {
+                    openVideoPreview(url);
+                });
+
+                if (fallbackLink) {
+                    fallbackLink.style.display = 'none';
+                }
+
+                attachmentNode.appendChild(previewBtn);
+                attachmentNode.dataset.videoPreviewAttached = '1';
+            });
+        });
+
+        if (!videoModal.dataset.bound) {
+            closeVideoBtn.addEventListener('click', closeVideoPreview);
+            videoModal.addEventListener('click', function (event) {
+                if (event.target === videoModal) {
+                    closeVideoPreview();
+                }
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    closeVideoPreview();
+                }
+            });
+            videoModal.dataset.bound = '1';
+        }
+    }
+
     document.addEventListener('livewire:load', function () {
         if (window.__wikiImagePreviewInitialized) {
             return;
@@ -361,6 +486,11 @@
             if (event.key === 'Escape') {
                 closePreview();
             }
+        });
+
+        initWikiVideoPreview();
+        Livewire.hook('message.processed', () => {
+            initWikiVideoPreview();
         });
 
         window.__wikiImagePreviewInitialized = true;
