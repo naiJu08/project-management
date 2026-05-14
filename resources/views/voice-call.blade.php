@@ -757,105 +757,8 @@
             let callTimerInterval = null;
             let callStartTime = null;
             let micMuted = false;
-            let ringtoneAudioContext = null;
-            let ringtoneGain = null;
-            let ringtoneInterval = null;
-            let ringtoneActive = false;
-            let ringtonePendingUnlock = false;
 
             // ==================== VOLUME METERS (unchanged) ====================
-            function stopIncomingRingtone() {
-                ringtoneActive = false;
-                ringtonePendingUnlock = false;
-
-                if (ringtoneInterval) {
-                    clearInterval(ringtoneInterval);
-                    ringtoneInterval = null;
-                }
-
-                if (ringtoneGain) {
-                    try {
-                        ringtoneGain.gain.cancelScheduledValues(0);
-                        ringtoneGain.gain.value = 0;
-                    } catch (e) {
-                        debug("Ringtone gain reset failed:", e);
-                    }
-                    ringtoneGain = null;
-                }
-
-                if (ringtoneAudioContext) {
-                    ringtoneAudioContext.close().catch(() => {});
-                    ringtoneAudioContext = null;
-                }
-            }
-
-            function playRingtoneBurst() {
-                if (!ringtoneAudioContext || !ringtoneGain) {
-                    return;
-                }
-
-                const now = ringtoneAudioContext.currentTime;
-                const oscA = ringtoneAudioContext.createOscillator();
-                const oscB = ringtoneAudioContext.createOscillator();
-
-                oscA.type = "triangle";
-                oscB.type = "triangle";
-                oscA.frequency.setValueAtTime(1020, now);
-                oscB.frequency.setValueAtTime(780, now);
-
-                oscA.connect(ringtoneGain);
-                oscB.connect(ringtoneGain);
-
-                ringtoneGain.gain.cancelScheduledValues(now);
-                ringtoneGain.gain.setValueAtTime(0.0001, now);
-                ringtoneGain.gain.exponentialRampToValueAtTime(0.22, now + 0.02);
-                ringtoneGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
-
-                oscA.start(now);
-                oscB.start(now);
-                oscA.stop(now + 0.52);
-                oscB.stop(now + 0.52);
-            }
-
-            async function startIncomingRingtone() {
-                ringtoneActive = true;
-
-                if (ringtoneInterval || ringtoneAudioContext) {
-                    return;
-                }
-
-                try {
-                    ringtoneAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    ringtoneGain = ringtoneAudioContext.createGain();
-                    ringtoneGain.gain.value = 0.0001;
-                    ringtoneGain.connect(ringtoneAudioContext.destination);
-
-                    if (ringtoneAudioContext.state !== "running") {
-                        await ringtoneAudioContext.resume();
-                    }
-
-                    playRingtoneBurst();
-                    ringtoneInterval = setInterval(playRingtoneBurst, 1000);
-                    debug("Incoming ringtone started");
-                } catch (err) {
-                    debug("Incoming ringtone blocked or failed:", err);
-                    ringtonePendingUnlock = true;
-                    if (ringtoneAudioContext) {
-                        ringtoneAudioContext.close().catch(() => {});
-                        ringtoneAudioContext = null;
-                    }
-                    ringtoneGain = null;
-                }
-            }
-
-            async function retryRingtoneAfterUnlock() {
-                if (!ringtoneActive || !ringtonePendingUnlock || callActive) {
-                    return;
-                }
-                ringtonePendingUnlock = false;
-                await startIncomingRingtone();
-            }
-
             function startLocalVolumeMeter(stream) {
                 if (localAudioContext) return;
                 try {
@@ -1233,7 +1136,6 @@
             };
 
             function showStartMode() {
-                stopIncomingRingtone();
                 document.getElementById("startBtn").style.display = "block";
                 document.getElementById("acceptBtn").style.display = "none";
                 document.getElementById("reconnectBtn").style.display = "none";
@@ -1244,11 +1146,9 @@
                 document.getElementById("startBtn").style.display = "none";
                 document.getElementById("acceptBtn").style.display = "block";
                 document.getElementById("reconnectBtn").style.display = "none";
-                startIncomingRingtone();
             }
 
             function hideAllButtons() {
-                stopIncomingRingtone();
                 document.getElementById("startBtn").style.display = "none";
                 document.getElementById("acceptBtn").style.display = "none";
                 document.getElementById("reconnectBtn").style.display = "none";
@@ -1900,7 +1800,6 @@
                 debug("Ending call");
                 if (endingCall) return;
                 endingCall = true;
-                stopIncomingRingtone();
 
                 if (shouldNotify && (callActive || peerConnection || incomingCallerId || incomingOffer)) {
                     notifyCallEnded();
@@ -2054,13 +1953,6 @@
                 }
 
                 initPusher();
-
-                // Browser autoplay policies may block ringtone until first gesture.
-                // Retry ringtone immediately after user interacts.
-                const unlockEvents = ["click", "touchstart", "keydown"];
-                unlockEvents.forEach(eventName => {
-                    document.addEventListener(eventName, retryRingtoneAfterUnlock, { passive: true });
-                });
             });
 
             window.addEventListener('beforeunload', () => {
