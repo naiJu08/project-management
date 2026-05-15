@@ -1161,18 +1161,12 @@
                     return;
                 }
 
-                const payload = JSON.stringify({ receiverId });
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const payload = JSON.stringify({
+                    receiverId,
+                    _token: csrfToken
+                });
                 const url = '/end-call';
-
-                try {
-                    if (navigator.sendBeacon) {
-                        const blob = new Blob([payload], { type: 'application/json' });
-                        navigator.sendBeacon(url, blob);
-                        return;
-                    }
-                } catch (err) {
-                    debug("Call end beacon failed:", err);
-                }
 
                 try {
                     await fetch(url, {
@@ -1180,12 +1174,22 @@
                         keepalive: true,
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                            'X-CSRF-TOKEN': csrfToken
                         },
                         body: payload
                     });
+                    return;
                 } catch (err) {
                     debug("Call end notify failed:", err);
+                }
+
+                try {
+                    if (navigator.sendBeacon) {
+                        const blob = new Blob([payload], { type: 'application/json' });
+                        navigator.sendBeacon(url, blob);
+                    }
+                } catch (err) {
+                    debug("Call end beacon failed:", err);
                 }
             }
 
