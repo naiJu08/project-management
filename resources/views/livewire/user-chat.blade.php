@@ -374,8 +374,20 @@
     const PUSHER_CLUSTER = "ap2";
     const currentUserId = {{ auth()->id() }};
 
-    // Track open call windows
-    let callWindow = null;
+    // Track open call windows by remote user id
+    const callWindows = {};
+
+    function getCallWindow(userId) {
+        return callWindows[String(userId)] || null;
+    }
+
+    function setCallWindow(userId, win) {
+        callWindows[String(userId)] = win;
+    }
+
+    function clearCallWindow(userId) {
+        delete callWindows[String(userId)];
+    }
 
     document.addEventListener("livewire:load", function () {
         console.log("✅ Initializing Pusher for voice calls...");
@@ -405,14 +417,16 @@
                 };
                 sessionStorage.setItem('pendingCall', JSON.stringify(callData));
 
-                // Check if call window is already open
-                if (callWindow && !callWindow.closed) {
+                const existingWindow = getCallWindow(data.callerId);
+
+                // Check if call window for this caller is already open
+                if (existingWindow && !existingWindow.closed) {
                     console.log("Call window already open, focusing it");
-                    callWindow.focus();
+                    existingWindow.focus();
                     // Send offer to existing window
                     setTimeout(() => {
                         try {
-                            callWindow.postMessage({
+                            existingWindow.postMessage({
                                 type: 'incoming-offer',
                                 offer: data.offer,
                                 callerId: data.callerId,
@@ -425,26 +439,29 @@
                 } else {
                     // Open new receiver window
                     console.log("Opening receiver call window");
-                    callWindow = window.open(
+                    const receiverWindow = window.open(
                         "/voice-call/" + data.callerId,
-                        "VoiceCallWindow",
+                        "VoiceCallWindow_" + data.callerId,
                         "width=420,height=650,resizable=yes,scrollbars=yes"
                     );
+                    setCallWindow(data.callerId, receiverWindow);
 
-                    if (!callWindow) {
+                    if (!receiverWindow) {
                         console.error("Failed to open call window - popup blocked");
                         // Show fallback message
                         alert("Incoming call from " + data.callerName + "!\n\nPlease click OK to open the call window.");
                         window.open("/voice-call/" + data.callerId, "_blank");
+                        clearCallWindow(data.callerId);
                     }
                 }
             });
 
             // Handle ICE candidates for multi-window support
             channel.bind('IceCandidate', function (data) {
-                if (callWindow && !callWindow.closed) {
+                const targetWindow = getCallWindow(data.senderId);
+                if (targetWindow && !targetWindow.closed) {
                     try {
-                        callWindow.postMessage({
+                        targetWindow.postMessage({
                             type: 'ice-candidate',
                             candidate: data.candidate,
                             senderId: data.senderId
@@ -457,9 +474,10 @@
 
             // Handle call answers
             channel.bind('CallAnswer', function (data) {
-                if (callWindow && !callWindow.closed) {
+                const targetWindow = getCallWindow(data.callerId);
+                if (targetWindow && !targetWindow.closed) {
                     try {
-                        callWindow.postMessage({
+                        targetWindow.postMessage({
                             type: 'call-answer',
                             answer: data.answer,
                             callerId: data.callerId
@@ -473,9 +491,10 @@
             channel.bind('CallEnded', function (data) {
                 console.log("Voice call ended:", data);
 
-                if (callWindow && !callWindow.closed) {
+                const targetWindow = getCallWindow(data.senderId);
+                if (targetWindow && !targetWindow.closed) {
                     try {
-                        callWindow.postMessage({
+                        targetWindow.postMessage({
                             type: 'call-ended',
                             senderId: data.senderId
                         }, '*');
@@ -484,13 +503,13 @@
                     }
 
                     try {
-                        callWindow.close();
+                        targetWindow.close();
                     } catch (e) {
                         console.error("Failed to close call window:", e);
                     }
                 }
 
-                callWindow = null;
+                clearCallWindow(data.senderId);
             });
 
         } catch (error) {
@@ -511,21 +530,24 @@
             // Clear any pending calls
             sessionStorage.removeItem('pendingCall');
 
-            // Close existing window if any
-            if (callWindow && !callWindow.closed) {
-                callWindow.close();
+            // Close existing window for this target user if any
+            const existingWindow = getCallWindow(userId);
+            if (existingWindow && !existingWindow.closed) {
+                existingWindow.close();
             }
 
             // Open caller window
-            callWindow = window.open(
+            const callerWindow = window.open(
                 "/voice-call/" + userId + "?mode=caller",
-                "VoiceCallWindow",
+                "VoiceCallWindow_" + userId,
                 "width=420,height=650,resizable=yes,scrollbars=yes"
             );
+            setCallWindow(userId, callerWindow);
 
-            if (!callWindow) {
+            if (!callerWindow) {
                 alert("Please allow popups for this site to make calls.\n\nClick OK to open manually.");
                 window.open("/voice-call/" + userId + "?mode=caller", "_blank");
+                clearCallWindow(userId);
             }
         } catch (error) {
             console.error("Failed to open call window:", error);
