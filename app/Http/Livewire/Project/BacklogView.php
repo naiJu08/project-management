@@ -421,7 +421,7 @@ class BacklogView extends Component
         
         $this->editingItemId = $itemId;
         $this->editTitle = $item->title;
-        $this->editDescription = $item->description ?? '';
+        $this->editDescription = $this->prepareDescriptionForPlainTextEdit($item->description);
         $this->editStatus = $item->status;
         $this->editPriority = $item->priority;
         $this->editAssigneeId = $item->assignee_id;
@@ -429,6 +429,39 @@ class BacklogView extends Component
         $this->editEstimatedHours = $item->estimated_hours;
         $this->editStartDate = $item->start_date?->format('Y-m-d');
         $this->editDueDate = $item->due_date?->format('Y-m-d');
+    }
+
+    protected function prepareDescriptionForPlainTextEdit(?string $description): string
+    {
+        if (!$description) {
+            return '';
+        }
+
+        // Decode repeatedly so double-encoded HTML entities are handled too.
+        $decoded = $description;
+        for ($i = 0; $i < 3; $i++) {
+            $nextDecoded = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if ($nextDecoded === $decoded) {
+                break;
+            }
+            $decoded = $nextDecoded;
+        }
+
+        // Preserve readable line breaks from common rich-text HTML.
+        $text = preg_replace('/<br\\s*\\/?>/i', "\n", $decoded);
+        $text = preg_replace('/<\\/p>\\s*<p[^>]*>/i', "\n\n", $text);
+        $text = str_ireplace(['<p>', '</p>'], '', $text);
+
+        return trim(strip_tags($text));
+    }
+
+    protected function prepareDescriptionForStorage(?string $description): ?string
+    {
+        if ($description === null) {
+            return null;
+        }
+
+        return $this->prepareDescriptionForPlainTextEdit($description);
     }
     
     public function cancelEditing()
@@ -491,7 +524,7 @@ class BacklogView extends Component
         
         $item->update([
             'title' => $this->editTitle,
-            'description' => $this->editDescription,
+            'description' => $this->prepareDescriptionForStorage($this->editDescription),
             'status' => $this->editStatus,
             'priority' => $this->editPriority,
             'assignee_id' => $this->editAssigneeId === '' ? null : $this->editAssigneeId,
