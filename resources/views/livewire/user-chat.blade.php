@@ -646,6 +646,7 @@
     let incomingChatVideoOffer = null;
     let remoteVideoFrameMonitor = null;
     let remoteVideoFrameMonitorToken = 0;
+    let disconnectEndTimer = null;
 
     const iceServers = [
         // Primary STUN servers for NAT discovery
@@ -935,27 +936,55 @@
             }
         };
 
-        peerConnection.onconnectionstatechange = () => {
+                peerConnection.onconnectionstatechange = () => {
             const state = peerConnection.connectionState;
             console.log("WebRTC connection state:", state);
             if (state === 'connected') {
+                if (disconnectEndTimer) {
+                    clearTimeout(disconnectEndTimer);
+                    disconnectEndTimer = null;
+                }
                 setTimeout(playRemoteVideo, 300);
             }
-            if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-                console.error("❌ WebRTC connection failed - video won't work");
-                alert("Video connection failed. Please check your network and try again.");
+            if (state === 'failed' || state === 'closed') {
+                console.error("WebRTC connection failed - video won't work");
+                endCall(false);
+            }
+            if (state === 'disconnected') {
+                if (disconnectEndTimer) {
+                    clearTimeout(disconnectEndTimer);
+                }
+                disconnectEndTimer = setTimeout(() => {
+                    if (peerConnection && peerConnection.connectionState === 'disconnected') {
+                        endCall(false);
+                    }
+                }, 2500);
             }
         };
 
-        peerConnection.oniceconnectionstatechange = () => {
+                peerConnection.oniceconnectionstatechange = () => {
             const state = peerConnection.iceConnectionState;
             console.log("WebRTC ICE state:", state);
             if (state === 'connected' || state === 'completed') {
+                if (disconnectEndTimer) {
+                    clearTimeout(disconnectEndTimer);
+                    disconnectEndTimer = null;
+                }
                 setTimeout(playRemoteVideo, 300);
             }
-            if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-                console.error("❌ ICE connection failed - video won't work");
-                alert("ICE connection failed. This might be due to network restrictions or firewall.");
+            if (state === 'failed' || state === 'closed') {
+                console.error("ICE connection failed - video won't work");
+                endCall(false);
+            }
+            if (state === 'disconnected') {
+                if (disconnectEndTimer) {
+                    clearTimeout(disconnectEndTimer);
+                }
+                disconnectEndTimer = setTimeout(() => {
+                    if (peerConnection && peerConnection.iceConnectionState === 'disconnected') {
+                        endCall(false);
+                    }
+                }, 2500);
             }
         };
 
@@ -1285,6 +1314,16 @@
         }
     });
 
+    socket.on("call-ended", (data) => {
+        if (!currentRoom || !data || data.room !== currentRoom) {
+            return;
+        }
+
+        if (peerConnection || (document.getElementById("videoCallContainer") && document.getElementById("videoCallContainer").style.display === "block")) {
+            endCall(false);
+        }
+    });
+
     // RECEIVE ICE CANDIDATE (🔥 FINAL FIX)
     socket.on("ice-candidate", async (data) => {
 
@@ -1308,7 +1347,19 @@
     });
 
     // END CALL
-    function endCall() {
+    function endCall(shouldNotifyRemote = true) {
+        if (disconnectEndTimer) {
+            clearTimeout(disconnectEndTimer);
+            disconnectEndTimer = null;
+        }
+
+        if (shouldNotifyRemote && currentRoom) {
+            socket.emit("call-ended", {
+                room: currentRoom,
+                endedBy: myVideoUserId
+            });
+        }
+
         document.getElementById("videoCallContainer").style.display = "none";
         if (peerConnection) peerConnection.close();
         peerConnection = null;
@@ -1340,6 +1391,15 @@
         isRemoteDescriptionSet = false;
     }
 
+    window.addEventListener("beforeunload", () => {
+        if (currentRoom) {
+            socket.emit("call-ended", {
+                room: currentRoom,
+                endedBy: myVideoUserId
+            });
+        }
+    });
+
     window.startVideoCall = startVideoCall;
     window.endCall = endCall;
     window.showIncomingChatVideoCall = showIncomingChatVideoCall;
@@ -1363,3 +1423,8 @@
         border-color: transparent #374151 transparent transparent;
     }
 </style>
+
+
+
+
+
