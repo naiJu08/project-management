@@ -51,4 +51,22 @@ io.on("connection", socket => {
         }
     });
 
+    // CALL ENDED
+    socket.on("call-ended", data => {
+        if (data && data.room) {
+            socket.to(data.room).emit("call-ended", data);
+        }
+    });
+
+    socket.on("disconnecting", () => {
+        for (const room of socket.rooms) {
+            if (room !== socket.id && room.startsWith("room-")) {
+                socket.to(room).emit("call-ended", {
+                    room,
+                    endedByDisconnect: true
+                });
+            }
+        }
+    });
+
 });
