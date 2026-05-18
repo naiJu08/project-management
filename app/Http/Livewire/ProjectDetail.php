@@ -445,6 +445,12 @@ class ProjectDetail extends Component implements HasForms
         $this->resetEditForm();
     }
     
+    // Alias for cancelEdit listener
+    public function cancelEdit()
+    {
+        $this->cancelEditing();
+    }
+    
     public function saveItem()
     {
         $this->validate([
