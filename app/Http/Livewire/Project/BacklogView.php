@@ -421,7 +421,7 @@ class BacklogView extends Component
         
         $this->editingItemId = $itemId;
         $this->editTitle = $item->title;
-        $this->editDescription = $item->description ?? '';
+        $this->editDescription = $this->prepareDescriptionForPlainTextEdit($item->description);
         $this->editStatus = $item->status;
         $this->editPriority = $item->priority;
         $this->editAssigneeId = $item->assignee_id;
@@ -429,6 +429,39 @@ class BacklogView extends Component
         $this->editEstimatedHours = $item->estimated_hours;
         $this->editStartDate = $item->start_date?->format('Y-m-d');
         $this->editDueDate = $item->due_date?->format('Y-m-d');
+    }
+
+    protected function prepareDescriptionForPlainTextEdit(?string $description): string
+    {
+        if (!$description) {
+            return '';
+        }
+
+        // Decode repeatedly so double-encoded HTML entities are handled too.
+        $decoded = $description;
+        for ($i = 0; $i < 3; $i++) {
+            $nextDecoded = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if ($nextDecoded === $decoded) {
+                break;
+            }
+            $decoded = $nextDecoded;
+        }
+
+        // Preserve readable line breaks from common rich-text HTML.
+        $text = preg_replace('/<br\\s*\\/?>/i', "\n", $decoded);
+        $text = preg_replace('/<\\/p>\\s*<p[^>]*>/i', "\n\n", $text);
+        $text = str_ireplace(['<p>', '</p>'], '', $text);
+
+        return trim(strip_tags($text));
+    }
+
+    protected function prepareDescriptionForStorage(?string $description): ?string
+    {
+        if ($description === null) {
+            return null;
+        }
+
+        return $this->prepareDescriptionForPlainTextEdit($description);
     }
     
     public function cancelEditing()
@@ -491,7 +524,7 @@ class BacklogView extends Component
         
         $item->update([
             'title' => $this->editTitle,
-            'description' => $this->editDescription,
+            'description' => $this->prepareDescriptionForStorage($this->editDescription),
             'status' => $this->editStatus,
             'priority' => $this->editPriority,
             'assignee_id' => $this->editAssigneeId === '' ? null : $this->editAssigneeId,
@@ -501,6 +534,9 @@ class BacklogView extends Component
             'due_date' => $this->editDueDate === '' ? null : $this->editDueDate,
             'updated_by' => Auth::id(),
         ]);
+        
+        // Sync changes to linked tickets (so overview/dashboard reflects updates)
+        $this->syncBacklogItemToLinkedTickets($item, $changes);
         
         // Log changes
         foreach ($changes as $field => $change) {
@@ -533,6 +569,11 @@ class BacklogView extends Component
             $item->update([
                 $field => $value,
                 'updated_by' => Auth::id(),
+            ]);
+            
+            // Sync change to linked tickets via the new helper method
+            $this->syncBacklogItemToLinkedTickets($item, [
+                $field => ['old' => $oldValue, 'new' => $value]
             ]);
             
             // Log change
@@ -718,6 +759,11 @@ class BacklogView extends Component
                 'new_value' => ['sprint_id' => $sprintId],
                 'action' => 'updated',
             ]);
+            
+            // Sync sprint change to linked tickets so overview/dashboard reflects updates
+            $this->syncBacklogItemToLinkedTickets($item, [
+                'sprint_id' => ['old' => $oldSprintId, 'new' => $sprintId]
+            ]);
         }
         
         session()->flash('success', 'Item assigned to sprint!');
@@ -742,6 +788,11 @@ class BacklogView extends Component
                 'old_value' => ['sprint_id' => $oldSprintId],
                 'new_value' => ['sprint_id' => null],
                 'action' => 'updated',
+            ]);
+            
+            // Sync sprint removal to linked tickets so overview/dashboard reflects updates
+            $this->syncBacklogItemToLinkedTickets($item, [
+                'sprint_id' => ['old' => $oldSprintId, 'new' => null]
             ]);
         }
         
@@ -819,6 +870,9 @@ class BacklogView extends Component
             if (count($updates) > 1) { // More than just updated_by
                 $item->update($updates);
                 
+                // Sync bulk changes to linked tickets so overview/dashboard reflects updates
+                $this->syncBacklogItemToLinkedTickets($item, $changes);
+                
                 // Log changes for this item
                 foreach ($changes as $field => $change) {
                     BacklogItemHistory::create([
@@ -864,6 +918,79 @@ class BacklogView extends Component
         session()->flash('success', "Deleted {$count} items successfully!");
     }
     
+    /**
+     * Sync backlog item field changes to linked tickets so overview/dashboard reflects updates.
+     */
+    protected function syncBacklogItemToLinkedTickets(BacklogItem $item, array $changes): void
+    {
+        // Only Task and Subtask types have linked tickets
+        if (!in_array($item->type, ['Task', 'Subtask'])) {
+            return;
+        }
+
+        try {
+            $tickets = $item->tickets;
+            if ($tickets->isEmpty()) {
+                return;
+            }
+
+            // Map of backlog item fields → ticket fields
+            $fieldMap = [
+                'title' => 'name',
+                'description' => 'content',
+                'assignee_id' => 'responsible_id',
+                'sprint_id' => 'sprint_id',
+                'estimated_hours' => 'estimated_hours',
+                'start_date' => 'start_date',
+                'due_date' => 'due_date',
+            ];
+
+            foreach ($tickets as $ticket) {
+                $ticketUpdates = [];
+
+                foreach ($changes as $field => $change) {
+                    $newValue = $change['new'];
+
+                    if ($field === 'status') {
+                        // Map backlog status string to TicketStatus by name lookup
+                        $statusNames = [
+                            'To Do' => ['To Do', 'Open', 'New'],
+                            'In Progress' => ['In Progress', 'InProgress', 'Progress'],
+                            'Done' => ['Done', 'Completed', 'Closed', 'Archived'],
+                            'Blocked' => ['Blocked', 'On Hold', 'Hold'],
+                        ];
+
+                        $possibleNames = $statusNames[$newValue] ?? [$newValue];
+                        $ticketStatus = null;
+                        foreach ($possibleNames as $name) {
+                            $ticketStatus = TicketStatus::where('name', $name)->first();
+                            if ($ticketStatus) break;
+                        }
+
+                        if ($ticketStatus) {
+                            $ticketUpdates['status_id'] = $ticketStatus->id;
+                        }
+                    } elseif ($field === 'priority') {
+                        // Map backlog priority string to TicketPriority by name lookup
+                        $priority = \App\Models\TicketPriority::where('name', $newValue)->first();
+                        if ($priority) {
+                            $ticketUpdates['priority_id'] = $priority->id;
+                        }
+                    } elseif (isset($fieldMap[$field])) {
+                        $ticketUpdates[$fieldMap[$field]] = $newValue === '' ? null : $newValue;
+                    }
+                }
+
+                if (!empty($ticketUpdates)) {
+                    $ticket->update($ticketUpdates);
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::error('Failed to sync backlog item to linked tickets: ' . $e->getMessage());
+            // Don't fail the main operation if ticket sync fails
+        }
+    }
+
     // Helper method to create linked ticket for Task/Subtask
     protected function createLinkedTicket(BacklogItem $backlogItem)
     {

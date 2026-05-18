@@ -397,7 +397,7 @@ class ProjectDetail extends Component implements HasForms
         
         $this->editingItemId = $itemId;
         $this->editTitle = $item->title;
-        $this->editDescription = $item->description ?? '';
+        $this->editDescription = $this->prepareDescriptionForPlainTextEdit($item->description);
         $this->editStatus = $item->status;
         $this->editPriority = $item->priority;
         $this->editAssigneeId = $item->assignee_id;
@@ -406,10 +406,49 @@ class ProjectDetail extends Component implements HasForms
         $this->editStartDate = $item->start_date?->format('Y-m-d');
         $this->editDueDate = $item->due_date?->format('Y-m-d');
     }
+
+    protected function prepareDescriptionForPlainTextEdit(?string $description): string
+    {
+        if (!$description) {
+            return '';
+        }
+
+        // Decode repeatedly to handle encoded and double-encoded HTML.
+        $decoded = $description;
+        for ($i = 0; $i < 3; $i++) {
+            $nextDecoded = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if ($nextDecoded === $decoded) {
+                break;
+            }
+            $decoded = $nextDecoded;
+        }
+
+        // Preserve line breaks from common rich-text tags.
+        $text = preg_replace('/<br\\s*\\/?>/i', "\n", $decoded);
+        $text = preg_replace('/<\\/p>\\s*<p[^>]*>/i', "\n\n", $text);
+        $text = str_ireplace(['<p>', '</p>'], '', $text);
+
+        return trim(strip_tags($text));
+    }
+
+    protected function prepareDescriptionForStorage(?string $description): ?string
+    {
+        if ($description === null) {
+            return null;
+        }
+
+        return $this->prepareDescriptionForPlainTextEdit($description);
+    }
     
     public function cancelEditing()
     {
         $this->resetEditForm();
+    }
+    
+    // Alias for cancelEdit listener
+    public function cancelEdit()
+    {
+        $this->cancelEditing();
     }
     
     public function saveItem()
@@ -436,7 +475,7 @@ class ProjectDetail extends Component implements HasForms
         
         $item->update([
             'title' => $this->editTitle,
-            'description' => $this->editDescription,
+            'description' => $this->prepareDescriptionForStorage($this->editDescription),
             'status' => $this->editStatus,
             'priority' => $this->editPriority,
             'assignee_id' => $this->editAssigneeId === '' ? null : $this->editAssigneeId,
