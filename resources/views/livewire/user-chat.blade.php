@@ -318,15 +318,25 @@
 <div id="videoCallContainer" style="display:none; position:fixed; inset:0; background:black; z-index:9999;">
 
     <video id="localVideo" autoplay muted playsinline
-        style="position:absolute; bottom:20px; right:20px; width:200px; height:112px; object-fit:cover; border-radius:10px; transform:scaleX(-1); z-index:2;"></video>
+        style="position:absolute; bottom:80px; left:20px; width:160px; height:90px; object-fit:cover; border-radius:10px; transform:scaleX(-1); z-index:2;"></video>
 
     <video id="remoteVideo" autoplay playsinline
         style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1;"></video>
 
-    <button onclick="endCall()" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:3;
-                   background:red; color:white; padding:10px 20px; border-radius:50px;">
-        End Call
-    </button>
+    <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:3; display:flex; gap:12px; align-items:center;">
+        <button id="videoCallMuteVideoBtn" onclick="videoCallToggleVideo()"
+            style="width:50px; height:50px; border-radius:50%; border:2px solid transparent; background:#374151; color:white; font-size:22px; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center;">
+            📹
+        </button>
+        <button onclick="endCall()"
+            style="width:55px; height:55px; border-radius:50%; background:#dc2626; color:white; font-size:22px; cursor:pointer; border:none; transition:all 0.2s; display:flex; align-items:center; justify-content:center;">
+            📞
+        </button>
+        <button id="videoCallMuteAudioBtn" onclick="videoCallToggleAudio()"
+            style="width:50px; height:50px; border-radius:50%; border:2px solid transparent; background:#374151; color:white; font-size:22px; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center;">
+            🎤
+        </button>
+    </div>
 </div>
 
 <!-- INCOMING VIDEO CALL POPUP -->
@@ -1345,6 +1355,29 @@
             console.error("ICE error:", e);
         }
     });
+
+    // VIDEO/AUDIO TOGGLE
+    window.videoCallToggleVideo = function() {
+        if (!localStream) return;
+        const videoTrack = localStream.getVideoTracks()[0];
+        const btn = document.getElementById('videoCallMuteVideoBtn');
+        if (videoTrack) {
+            videoTrack.enabled = !videoTrack.enabled;
+            btn.textContent = videoTrack.enabled ? '📹' : '🚫';
+            btn.style.background = videoTrack.enabled ? '#374151' : '#ef4444';
+        }
+    };
+
+    window.videoCallToggleAudio = function() {
+        if (!localStream) return;
+        const audioTrack = localStream.getAudioTracks()[0];
+        const btn = document.getElementById('videoCallMuteAudioBtn');
+        if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            btn.textContent = audioTrack.enabled ? '🎤' : '🔇';
+            btn.style.background = audioTrack.enabled ? '#374151' : '#ef4444';
+        }
+    };
 
     // END CALL
     function endCall(shouldNotifyRemote = true) {

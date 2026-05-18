@@ -44,19 +44,20 @@
             transform: translateX(-50%);
             display: flex;
             gap: 10px;
-            background: rgba(0,0,0,0.7);
-            padding: 10px;
-            border-radius: 25px;
+            background: rgba(0,0,0,0.8);
+            padding: 12px 16px;
+            border-radius: 30px;
             backdrop-filter: blur(10px);
+            z-index: 999;
         }
         
         .control-btn {
             width: 50px;
             height: 50px;
             border-radius: 50%;
-            border: none;
+            border: 2px solid transparent;
             cursor: pointer;
-            font-size: 20px;
+            font-size: 22px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -74,6 +75,8 @@
         
         .mute-btn.muted {
             background: #ef4444;
+            border-color: #ff6b6b;
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
         }
         
         .end-btn {
@@ -829,7 +832,7 @@
             if (videoTrack) {
                 videoTrack.enabled = !videoTrack.enabled;
                 btn.classList.toggle('muted');
-                btn.textContent = videoTrack.enabled ? '📹' : '📹';
+                btn.textContent = videoTrack.enabled ? '📹' : '🚫';
             }
         }
         
