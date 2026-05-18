@@ -9,6 +9,8 @@ class OverviewView extends Component
 {
     public $projectId;
     public $stats;
+    
+    protected $listeners = ['refreshOverview' => 'loadStats'];
 
     public function mount($projectId)
     {
