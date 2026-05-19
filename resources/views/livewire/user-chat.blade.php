@@ -315,26 +315,21 @@
 </div>
 
 <!-- VIDEO CALL UI -->
-<div id="videoCallContainer" style="display:none; position:fixed; inset:0; background:black; z-index:9999;">
+<div id="videoCallContainer" class="meet-overlay" style="display:none;">
 
-    <video id="localVideo" autoplay muted playsinline
-        style="position:absolute; bottom:80px; left:20px; width:160px; height:90px; object-fit:cover; border-radius:10px; transform:scaleX(-1); z-index:2;"></video>
+    <video id="localVideo" autoplay muted playsinline class="meet-local-video"></video>
 
-    <video id="remoteVideo" autoplay playsinline
-        style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1;"></video>
+    <video id="remoteVideo" autoplay playsinline class="meet-remote-video"></video>
 
-    <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:3; display:flex; gap:12px; align-items:center;">
-        <button id="videoCallMuteVideoBtn" onclick="videoCallToggleVideo()"
-            style="width:50px; height:50px; border-radius:50%; border:2px solid transparent; background:#374151; color:white; font-size:22px; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center;">
-            📹
+    <div class="meet-controls-wrap">
+        <button id="videoCallMuteVideoBtn" onclick="videoCallToggleVideo()" class="meet-btn meet-btn-neutral" aria-label="Toggle Video">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17 10.5V6c0-1.1-.9-2-2-2H5C3.9 4 3 4.9 3 6v12c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-4.5l4 4v-11l-4 4z"/></svg>
         </button>
-        <button onclick="endCall()"
-            style="width:55px; height:55px; border-radius:50%; background:#dc2626; color:white; font-size:22px; cursor:pointer; border:none; transition:all 0.2s; display:flex; align-items:center; justify-content:center;">
-            📞
+        <button onclick="endCall()" class="meet-btn meet-btn-end" aria-label="End Call">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21 15.46l-5.27-4.23c-.38-.31-.93-.27-1.27.08l-1.7 1.75c-2.67-1.35-4.8-3.48-6.15-6.15l1.75-1.7c.35-.34.39-.89.08-1.27L4.54 3A1 1 0 0 0 3 3.2V8c0 7.18 5.82 13 13 13h4.8a1 1 0 0 0 .2-1.54z"/></svg>
         </button>
-        <button id="videoCallMuteAudioBtn" onclick="videoCallToggleAudio()"
-            style="width:50px; height:50px; border-radius:50%; border:2px solid transparent; background:#374151; color:white; font-size:22px; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center;">
-            🎤
+        <button id="videoCallMuteAudioBtn" onclick="videoCallToggleAudio()" class="meet-btn meet-btn-neutral" aria-label="Toggle Audio">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
         </button>
     </div>
 </div>
@@ -1357,14 +1352,19 @@
     });
 
     // VIDEO/AUDIO TOGGLE
+    const videoOnIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17 10.5V6c0-1.1-.9-2-2-2H5C3.9 4 3 4.9 3 6v12c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-4.5l4 4v-11l-4 4z"/></svg>';
+    const videoOffIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21 6.5l-4 4V8.24l2.29-2.29-1.41-1.41-14 14 1.41 1.41L8.05 17H15c1.1 0 2-.9 2-2v-1.5l4 4v-11zM15 6v6.17L17 13.17V6h-2zM5 4h8.17l-2 2H5v10h4.17l-2 2H5c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg>';
+    const audioOnIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>';
+    const audioOffIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 11h-1.7a5.96 5.96 0 0 1-1.12 3.45l1.45 1.45A7.86 7.86 0 0 0 19 11zM4.27 3 3 4.27l6.01 6.01V11a3 3 0 0 0 4.85 2.35l1.48 1.48A5 5 0 0 1 7 11H5a7 7 0 0 0 6 6.92V21h2v-3.08a6.9 6.9 0 0 0 3.03-1.3L19.73 20 21 18.73 4.27 3zM12 3a3 3 0 0 1 3 3v3.18l-5-5V6h2z"/></svg>';
+
     window.videoCallToggleVideo = function() {
         if (!localStream) return;
         const videoTrack = localStream.getVideoTracks()[0];
         const btn = document.getElementById('videoCallMuteVideoBtn');
         if (videoTrack) {
             videoTrack.enabled = !videoTrack.enabled;
-            btn.textContent = videoTrack.enabled ? '📹' : '🚫';
-            btn.style.background = videoTrack.enabled ? '#374151' : '#ef4444';
+            btn.innerHTML = videoTrack.enabled ? videoOnIcon : videoOffIcon;
+            btn.classList.toggle('meet-btn-muted', !videoTrack.enabled);
         }
     };
 
@@ -1374,8 +1374,8 @@
         const btn = document.getElementById('videoCallMuteAudioBtn');
         if (audioTrack) {
             audioTrack.enabled = !audioTrack.enabled;
-            btn.textContent = audioTrack.enabled ? '🎤' : '🔇';
-            btn.style.background = audioTrack.enabled ? '#374151' : '#ef4444';
+            btn.innerHTML = audioTrack.enabled ? audioOnIcon : audioOffIcon;
+            btn.classList.toggle('meet-btn-muted', !audioTrack.enabled);
         }
     };
 
@@ -1442,7 +1442,126 @@
 </script>
 
 <style>
-    .chat-bubble-left:after {
+
+    .meet-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: radial-gradient(circle at top, #1f232b 0%, #121419 44%, #0f1115 100%);
+        overflow: hidden;
+    }
+
+    .meet-remote-video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: #111;
+        z-index: 1;
+    }
+
+    .meet-local-video {
+        position: absolute;
+        bottom: 108px;
+        left: 20px;
+        width: 180px;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+        transform: scaleX(-1);
+        z-index: 3;
+    }
+
+    .meet-controls-wrap {
+        position: absolute;
+        left: 50%;
+        bottom: 22px;
+        transform: translateX(-50%);
+        z-index: 4;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(32, 33, 36, 0.88);
+        backdrop-filter: blur(10px);
+    }
+
+    .meet-btn {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        border: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 21px;
+        transition: transform 0.15s ease, background-color 0.15s ease;
+        color: #fff;
+    }
+
+    .meet-btn svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .meet-btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .meet-btn-neutral {
+        background: #3c4043;
+    }
+
+    .meet-btn-neutral:hover {
+        background: #4a4f54;
+    }
+
+    .meet-btn-muted {
+        background: #5f1d1d;
+    }
+
+    .meet-btn-end {
+        width: 56px;
+        height: 56px;
+        background: #ea4335;
+    }
+
+    .meet-btn-end:hover {
+        background: #d93025;
+    }
+
+    @media (max-width: 768px) {
+        .meet-local-video {
+            width: 130px;
+            height: 92px;
+            left: 12px;
+            bottom: 98px;
+        }
+
+        .meet-controls-wrap {
+            bottom: 14px;
+            gap: 8px;
+            padding: 8px 10px;
+        }
+
+        .meet-btn {
+            width: 44px;
+            height: 44px;
+            font-size: 18px;
+        }
+
+        .meet-btn-end {
+            width: 48px;
+            height: 48px;
+        }
+    }
+.chat-bubble-left:after {
         content: "";
         position: absolute;
         left: -6px;
@@ -1456,6 +1575,9 @@
         border-color: transparent #374151 transparent transparent;
     }
 </style>
+
+
+
 
 
 

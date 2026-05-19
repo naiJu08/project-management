@@ -4,107 +4,148 @@
     <title>Video Call</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <style>
+        :root {
+            --meet-bg: #0f1115;
+            --meet-surface: rgba(32, 33, 36, 0.88);
+            --meet-border: rgba(255, 255, 255, 0.14);
+            --meet-text: #e8eaed;
+            --meet-muted: #9aa0a6;
+            --meet-danger: #ea4335;
+            --meet-btn: #3c4043;
+            --meet-btn-hover: #4a4f54;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
             padding: 0;
-            background: #000;
-            font-family: system-ui;
+            background: var(--meet-bg);
+            font-family: "Google Sans", "Segoe UI", Arial, sans-serif;
             overflow: hidden;
+            color: var(--meet-text);
         }
         
         .video-container {
             position: relative;
             width: 100vw;
             height: 100vh;
+            background: radial-gradient(circle at top, #1d2128 0%, #111318 40%, #0f1115 100%);
         }
         
         #remoteVideo {
             width: 100%;
             height: 100%;
-            object-fit: cover;
-            background: #1a1a1a;
+            object-fit: contain;
+            background: #111;
         }
         
         #localVideo {
             position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 200px;
-            height: 150px;
-            border-radius: 10px;
-            border: 2px solid #3b82f6;
+            bottom: 112px;
+            left: 20px;
+            width: 180px;
+            height: 120px;
+            border-radius: 12px;
+            border: 1px solid var(--meet-border);
             object-fit: cover;
-            background: #2a2a2a;
+            background: #242628;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+            z-index: 10;
         }
         
         .controls {
             position: absolute;
-            bottom: 20px;
+            bottom: 22px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 10px;
-            background: rgba(0,0,0,0.8);
-            padding: 12px 16px;
-            border-radius: 30px;
-            backdrop-filter: blur(10px);
-            z-index: 999;
+            align-items: center;
+            gap: 12px;
+            background: var(--meet-surface);
+            border: 1px solid var(--meet-border);
+            padding: 10px 14px;
+            border-radius: 999px;
+            backdrop-filter: blur(12px);
+            z-index: 20;
         }
         
         .control-btn {
-            width: 50px;
-            height: 50px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
-            border: 2px solid transparent;
+            border: 1px solid transparent;
             cursor: pointer;
-            font-size: 22px;
+            font-size: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s;
+            transition: transform 0.16s ease, background-color 0.16s ease;
         }
         
         .control-btn:hover {
-            transform: scale(1.1);
+            transform: translateY(-1px);
         }
         
         .mute-btn {
-            background: #374151;
-            color: white;
+            background: var(--meet-btn);
+            color: var(--meet-text);
+        }
+
+        .mute-btn:hover {
+            background: var(--meet-btn-hover);
         }
         
         .mute-btn.muted {
-            background: #ef4444;
-            border-color: #ff6b6b;
-            box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+            background: #5f1d1d;
+            color: #ffb4ab;
+            border-color: rgba(234, 67, 53, 0.5);
         }
         
         .end-btn {
-            background: #dc2626;
-            color: white;
+            background: var(--meet-danger);
+            color: #fff;
+        }
+
+        .end-btn:hover {
+            background: #d93025;
         }
         
         .status {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            color: white;
-            background: rgba(0,0,0,0.7);
-            padding: 10px 15px;
-            border-radius: 10px;
-            font-size: 14px;
+            left: 28px;
+            bottom: 34px;
+            color: var(--meet-text);
+            font-size: 22px;
+            font-weight: 500;
+            letter-spacing: 0.2px;
+            z-index: 11;
         }
         
         .caller-info {
             position: absolute;
-            top: 20px;
+            top: 18px;
             right: 20px;
-            color: white;
-            background: rgba(0,0,0,0.7);
-            padding: 10px 15px;
-            border-radius: 10px;
-            font-size: 14px;
+            color: var(--meet-text);
+            background: var(--meet-surface);
+            border: 1px solid var(--meet-border);
+            padding: 10px 14px;
+            border-radius: 14px;
+            font-size: 13px;
             text-align: right;
+            z-index: 12;
+            min-width: 140px;
+        }
+
+        #callerName {
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+
+        #callTimer {
+            color: var(--meet-muted);
         }
         
         .connecting {
@@ -112,9 +153,48 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: white;
+            color: var(--meet-text);
             font-size: 18px;
             text-align: center;
+            background: var(--meet-surface);
+            border: 1px solid var(--meet-border);
+            border-radius: 16px;
+            padding: 16px 20px;
+            backdrop-filter: blur(10px);
+            z-index: 15;
+        }
+
+        @media (max-width: 768px) {
+            #localVideo {
+                width: 130px;
+                height: 92px;
+                left: 12px;
+                bottom: 98px;
+            }
+
+            .controls {
+                bottom: 14px;
+                gap: 8px;
+                padding: 8px 10px;
+            }
+
+            .control-btn {
+                width: 44px;
+                height: 44px;
+            }
+
+            .status {
+                font-size: 16px;
+                left: 14px;
+                bottom: 22px;
+            }
+
+            .caller-info {
+                top: 10px;
+                right: 10px;
+                padding: 8px 10px;
+                font-size: 12px;
+            }
         }
     </style>
 </head>
