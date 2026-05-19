@@ -149,6 +149,7 @@ class SprintView extends Component
     public function selectSprint($sprintId)
     {
         $this->selectedSprintId = $sprintId;
+        $this->loadSprints();
     }
 
     public function showCreate()
