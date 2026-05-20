@@ -29,6 +29,7 @@ class DepartmentResource extends Resource
                 Forms\Components\Card::make()
                     ->schema([
                         Forms\Components\TextInput::make('name')
+                            ->label('Department')
                             ->required()
                             ->maxLength(40)
                             ->rules([
@@ -42,7 +43,7 @@ class DepartmentResource extends Resource
                             ->columnSpan(2),
 
                         Forms\Components\Select::make('parent_id')
-                            ->label('Department')
+                            ->label('Main Department')
                             ->relationship('parent', 'name')
                             ->searchable()
                             ->placeholder('None (Top-level department)'),
@@ -67,6 +68,7 @@ class DepartmentResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
+                    ->label('Department')
                     ->searchable()
                     ->sortable()
                     ->limit(30)
@@ -75,7 +77,7 @@ class DepartmentResource extends Resource
                     }),
 
                 Tables\Columns\TextColumn::make('parent.name')
-                    ->label('Department')
+                    ->label('Main Department')
                     ->searchable()
                     ->sortable()
                     ->default('—'),
@@ -108,9 +110,9 @@ class DepartmentResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('parent_id')
+                Tables\Filters\SelectFilter::make('id')
                     ->label('Department')
-                    ->relationship('parent', 'name'),
+                    ->options(fn () => Department::query()->orderBy('name')->pluck('name', 'id')->toArray()),
 
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Active')
@@ -150,3 +152,4 @@ class DepartmentResource extends Resource
         return parent::getEloquentQuery()->withCount('employees');
     }
 }
+

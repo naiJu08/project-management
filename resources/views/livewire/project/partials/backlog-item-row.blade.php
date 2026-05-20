@@ -83,10 +83,13 @@
                 </span>
             @endif
 
-            {{-- Estimated Hours --}}
-            @if($item->estimated_hours)
-                <span class="ml-2 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                    {{ $item->estimated_hours }}h
+            {{-- Estimated Hours (show rolled-up total when children exist) --}}
+            @php
+                $displayHours = $hasChildren ? $item->getTotalEstimatedHours() : $item->estimated_hours;
+            @endphp
+            @if(!is_null($displayHours))
+                <span class="ml-2 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0" title="{{ $hasChildren ? 'Total hours including children' : 'Estimated hours' }}">
+                    {{ rtrim(rtrim(number_format((float) $displayHours, 2, '.', ''), '0'), '.') }}h
                 </span>
             @endif
             
